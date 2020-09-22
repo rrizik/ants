@@ -14,6 +14,20 @@
 #define local_static static
 #define global static
 
+#include <windows.h>
+#include <stdio.h>
+static void
+print(char *format, ...) {
+    char buffer[4096] = {0};
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    printf("%s", buffer);
+    OutputDebugStringA(buffer);
+}
+typedef size_t size;
 typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
@@ -37,16 +51,28 @@ typedef struct RenderBuffer{
     int pitch;
 } RenderBuffer;
 
+typedef enum{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
 typedef enum{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
-typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_ESCAPE} EventKey;
-typedef enum{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
+typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE} EventKey;
+typedef enum{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_MOUSEWHEEL, EVENT_MOUSEDOWN, EVENT_MOUSEUP, EVENT_MOUSEMOTION, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
+
 typedef struct Event{
     EventType type;
     EventKey key;
     EventPad pad;
-    // QUESTION: ask about this
+    EventMouse mouse;
+    uint16 mouse_x;
+    uint16 mouse_y;
+    int8 wheel_y;
+    // QUESTION: ask about uint16 vs WCHAR
     uint16 text;
 } Event;
+
+typedef struct Events{
+    Event event[256];
+    uint32 size;
+    uint32 index;
+} Events;
 
 typedef struct FileData{
     uint32 size;
@@ -56,7 +82,16 @@ typedef struct FileData{
 typedef struct GameState{
     int xoffset;
     bool move;
+    int player_x;
+    int player_y;
 } GameState;
+
+typedef struct Controller{
+    bool up;
+    bool down;
+    bool left;
+    bool right;
+} Controller;
 
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
 typedef READ_ENTIRE_FILE(ReadEntireFile);
@@ -84,8 +119,60 @@ typedef struct GameMemory{
     FreeFileMemory *free_file_memory;
 } GameMemory;
 
-#define MAIN_GAME_LOOP(name) void name(int *running, GameMemory *memory, RenderBuffer *render_buffer, Event events[], uint32 event_i)
+#define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Controller *controller)
 typedef MAIN_GAME_LOOP(MainGameLoop);
 
+static int
+string_length(char* s){
+    int count = 0;
+    while(*s++){
+        ++count;
+    }
+
+    return(count);
+}
+
+static char *
+string_point_at_last(char s[], char t, int count){
+    char *result = NULL;
+    char *found[10];
+    uint32 i = 0;
+
+    int length = string_length(s);
+    while(*s++){
+        if(*s == t){
+            found[i] = s + 1;
+            i++;
+            //result = s + 1;
+        }
+    }
+    result = found[i - count];
+
+    return(result);
+}
+
+static void
+cat_strings(char *left, char *right, char *dest){
+    int left_size = string_length(left);
+    int right_size = string_length(right);
+
+    for(int i=0; i < left_size; ++i){
+        *dest++ = *left++;
+    }
+    for(int i=0; i < right_size; ++i){
+        *dest++ = *right++;
+    }
+     
+    *dest++ = 0;
+}
+
+static void
+get_root_dir(char *left, int64 length, char *full_path){
+    int i=0;
+    for(;i < length; ++i){
+        *left++ = *full_path++;
+    }
+    *left++ = 0;
+}
 #define GAME_H
 #endif

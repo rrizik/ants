@@ -30,12 +30,25 @@ typedef struct WIN_Clock{
 } WIN_Clock;
 
 typedef struct WIN_GameCode{
+    char root[MAX_PATH];
+
     HMODULE gamecode_dll;
     MainGameLoop *main_game_loop;
 
     FILETIME write_time;
     bool is_valid;
 } WIN_GameCode;
+
+typedef struct WIN_State{
+    char root_dir[256];
+    uint64 root_dir_length;
+
+    int recording_index;
+    HANDLE recording_handle;
+
+    HANDLE playback_handle;
+    int playback_index;
+} WIN_State;
 
 #define WIN_PLATFORM_H
 #endif
