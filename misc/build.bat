@@ -1,4 +1,4 @@
-rem @echo off
+@echo off
 
 rem warnings wd4459 wd4456
 rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1

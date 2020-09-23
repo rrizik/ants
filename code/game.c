@@ -107,8 +107,6 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    //print("%d\n", controller->down);
-
     if(controller->up){
         game_state->player_y -= 5;
     }
