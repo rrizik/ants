@@ -39,9 +39,20 @@ typedef struct WIN_GameCode{
     bool is_valid;
 } WIN_GameCode;
 
+typedef struct WIN_ReplayBuffer{
+    void *memory;
+    char file_name[MAX_PATH];
+    HANDLE file_handle;
+    HANDLE file_memory_mapping;
+} WIN_ReplayBuffer;
+
 typedef struct WIN_State{
     char root_dir[256];
     uint64 root_dir_length;
+
+    WIN_ReplayBuffer replay_buffers[4];
+    //void *replay_buffers[4];
+    //HANDLE file_handles[4];
 
     int recording_index;
     HANDLE recording_handle;
@@ -50,5 +61,30 @@ typedef struct WIN_State{
     int playback_index;
 } WIN_State;
 
+#define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
+typedef struct win32_replay_buffer{
+    HANDLE FileHandle;
+    HANDLE MemoryMap;
+    char FileName[WIN32_STATE_FILE_NAME_COUNT];
+    void *MemoryBlock;
+} win32_replay_buffer;
+
+typedef struct win32_state{
+    char root_dir[256];
+    uint64 root_dir_length;
+    uint64 TotalSize;
+    void *GameMemoryBlock;
+    win32_replay_buffer ReplayBuffers[4];
+
+    HANDLE RecordingHandle;
+    int InputRecordingIndex;
+
+    HANDLE PlayBackHandle;
+    int InputPlayingIndex;
+
+
+    char EXEFileName[WIN32_STATE_FILE_NAME_COUNT];
+    char *OnePastLastEXEFileNameSlash;
+} win32_state;
 #define WIN_PLATFORM_H
 #endif

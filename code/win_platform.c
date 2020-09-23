@@ -32,6 +32,9 @@ NOTE: Take notes of these in your dope ass notebook
     GET_X_LPARAM();
     GET_y_LPARAM();
 
+    MapViewOfFile();
+    CreateFileMapping();
+
     explain the concept of game as a service to the platform layer
     explain events
     explain controllers
@@ -93,8 +96,6 @@ global bool global_pause;
 global int global_running;
 global WIN_Clock clock;
 global WIN_RenderBuffer offscreen_render_buffer;
-//global Event events[256];
-//global uint32 event_i = 0;
 global Events events;
 
 global uint32 eventkey_mapping[0xFF] = {
@@ -366,15 +367,22 @@ WIN_process_controller_input(void){
 
 static void 
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    state->recording_index = recording_index;
+    Assert(recording_index < ArrayCount(state->replay_buffers));
+    WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
+    if(replay_buffer->memory){
+        state->recording_index = recording_index;
+        state->recording_handle = replay_buffer->file_handle;
 
-    char *filename = "build\\recording.out";
-    char full_path[256];
-    cat_strings(state->root_dir, filename, full_path);
-    state->recording_handle = CreateFileA(full_path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+        //char *filename = "build\\recording.out";
+        //char full_path[256];
+        //cat_strings(state->root_dir, filename, full_path);
+        //state->recording_handle = CreateFileA(full_path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 
-    DWORD bytes_written;
-    WriteFile(state->recording_handle, game_memory->permanent_storage, (DWORD)game_memory->total_size, &bytes_written, 0);
+        //DWORD bytes_written;
+        //WriteFile(state->recording_handle, game_memory->permanent_storage, (DWORD)game_memory->total_size, &bytes_written, 0);
+
+        CopyMemory(replay_buffer->memory, game_memory->permanent_storage, game_memory->total_size);
+    }
 }
 
 static void
@@ -382,6 +390,7 @@ WIN_release_recording_handle(WIN_State *state){
     CloseHandle(state->recording_handle);
     state->recording_index = 0;
 }
+
 
 static void
 WIN_record_input(WIN_State *state, Events *events){
@@ -391,15 +400,21 @@ WIN_record_input(WIN_State *state, Events *events){
 
 static void
 WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, int playback_index){
-    state->playback_index = playback_index;
+    Assert(playback_index < ArrayCount(state->replay_buffers));
+    WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[playback_index];
+    if(replay_buffer->memory){
+        state->playback_index = playback_index;
+        state->playback_handle = replay_buffer->file_handle;
 
-    char *filename = "build\\recording.out";
-    char full_path[256];
-    cat_strings(state->root_dir, filename, full_path);
+        //char *filename = "build\\recording.out";
+        //char full_path[256];
+        //cat_strings(state->root_dir, filename, full_path);
+        //state->playback_handle = CreateFileA(full_path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
-    state->playback_handle = CreateFileA(full_path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    DWORD bytes_read;
-    ReadFile(state->playback_handle, game_memory->permanent_storage, (DWORD)game_memory->total_size, &bytes_read, 0);
+        //DWORD bytes_read;
+        //ReadFile(state->playback_handle, game_memory->permanent_storage, (DWORD)game_memory->total_size, &bytes_read, 0);
+        CopyMemory(game_memory->permanent_storage, replay_buffer->memory, game_memory->total_size);
+    }
 }
 
 static void
@@ -502,23 +517,25 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         {
             Event e = {0};
             e.type = EVENT_MOUSEMOTION;
-            e.mouse_x = (int32)lParam & 0xFFFF;
-            e.mouse_y = (int32)lParam >> 16;
+            //QUESTION: ask about this being 8bytes but behaving like 4bytes
+            e.mouse_x = (int32)(lParam & 0xFFFF);
+            e.mouse_y = (int32)(lParam >> 16);
             events.event[events.index++] = e;
         } break;
         case WM_MOUSEWHEEL:
         {
             POINT mouse_pos;
-            mouse_pos.x = (int32)lParam & 0xFFFF;
-            mouse_pos.y = (int32)lParam >> 16;
+            //QUESTION: ask about this being 8bytes but behaving like 4bytes
+            mouse_pos.x = (int32)(lParam & 0xFFFF);
+            mouse_pos.y = (int32)(lParam >> 16);
             HWND window_handle = GetActiveWindow();
             ScreenToClient(window_handle, &mouse_pos);
 
             int16 wheel_direction = GET_WHEEL_DELTA_WPARAM(wParam);
             Event e = {0};
             e.type = EVENT_MOUSEWHEEL;
-            e.mouse_x = (int16)mouse_pos.x;
-            e.mouse_y = (int16)mouse_pos.y;
+            e.mouse_x = (int32)mouse_pos.x;
+            e.mouse_y = (int32)mouse_pos.y;
             if(wheel_direction > 0){
                 e.wheel_y = 1;
             }
@@ -526,6 +543,8 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
                 e.wheel_y = -1;
             }
             events.event[events.index++] = e;
+            print("x: %d\n", e.mouse_x);
+            print("y: %d\n", e.mouse_y);
         } break;
         case WM_LBUTTONDOWN:
         case WM_MBUTTONDOWN:
@@ -535,8 +554,9 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             Event e = {0};
             e.type = EVENT_MOUSEDOWN;
             e.mouse = eventmouse_mapping[wParam];
-            e.mouse_x = (int32)lParam & 0xFFFF;
-            e.mouse_y = (int32)lParam >> 16;
+            //QUESTION: ask about this being 8bytes but behaving like 4bytes
+            e.mouse_x = (int32)(lParam & 0xFFFF);
+            e.mouse_y = (int32)(lParam >> 16);
             events.event[events.index++] = e;
 		} break;
         case WM_LBUTTONUP:
@@ -578,6 +598,114 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
     return(result);
 }
 
+
+
+
+static int
+StringLength(char* String){
+    int Count = 0;
+    while(*String++){
+        ++Count;
+    }
+
+    return(Count);
+}
+
+
+static void
+CatStrings(size_t SourceACount, char* SourceA,
+           size_t SourceBCount, char* SourceB,
+           size_t DestCount, char *Dest){
+    // TODO(casey): Dest bounds checking
+    for(int Index = 0; Index < SourceACount; ++Index){
+        *Dest++ = *SourceA++;
+    }
+    for(int Index = 0; Index < SourceBCount; ++Index){
+        *Dest++ = *SourceB++;
+    }
+
+    *Dest++ = 0;
+}
+
+static void
+Win32BuildEXEPathFileName(win32_state *State, char *FileName, int DestCount, char *Dest){
+    CatStrings(State->OnePastLastEXEFileNameSlash - State->EXEFileName, State->EXEFileName,
+               StringLength(FileName), FileName,
+               DestCount, Dest);
+}
+
+static void
+Win32GetInputFileLocation(win32_state *State, bool InputStream, int SlotIndex, int DestCount, char *Dest){
+    char Temp[64];
+    wsprintf(Temp, "loop_edit_%d_%s.hmi", SlotIndex, InputStream ? "input" : "state");
+    Win32BuildEXEPathFileName(State, Temp, DestCount, Dest);
+}
+
+static win32_replay_buffer*
+Win32GetReplayBuffer(win32_state *State, int unsigned Index){
+    Assert(Index < ArrayCount(State->ReplayBuffers));
+    win32_replay_buffer *Result = &State->ReplayBuffers[Index];
+    return(Result);
+}
+
+static void
+Win32BeginRecordingInput(win32_state *State, int InputRecordingIndex){
+    win32_replay_buffer *ReplayBuffer = Win32GetReplayBuffer(State, InputRecordingIndex);
+    if(ReplayBuffer->MemoryBlock){
+        State->InputRecordingIndex = InputRecordingIndex;
+        //char FileName[WIN32_STATE_FILE_NAME_COUNT];
+        //Win32GetInputFileLocation(State, true, InputRecordingIndex, sizeof(FileName), FileName);
+        //State->RecordingHandle = CreateFileA(ReplayBuffer->FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+        State->RecordingHandle = ReplayBuffer->FileHandle;
+
+        CopyMemory(ReplayBuffer->MemoryBlock, State->GameMemoryBlock, State->TotalSize);
+    }
+}
+
+static void
+Win32EndRecordingInput(win32_state *State){
+    CloseHandle(State->RecordingHandle); 
+    State->InputRecordingIndex = 0;
+}
+
+static void
+Win32BeginPlayBackInput(win32_state *State, int InputPlayingIndex){
+    win32_replay_buffer *ReplayBuffer = Win32GetReplayBuffer(State, InputPlayingIndex);
+    if(ReplayBuffer->MemoryBlock){
+        State->InputPlayingIndex = InputPlayingIndex;
+        //char FileName[WIN32_STATE_FILE_NAME_COUNT];
+        //Win32GetInputFileLocation(State, true, InputPlayingIndex, sizeof(FileName), FileName);
+        //State->PlayBackHandle = CreateFileA(ReplayBuffer->FileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+        State->PlayBackHandle = ReplayBuffer->FileHandle;
+
+        CopyMemory(State->GameMemoryBlock, ReplayBuffer->MemoryBlock, State->TotalSize);
+    }
+}
+
+static void
+Win32EndPlayBackInput(win32_state *State){
+    CloseHandle(State->PlayBackHandle);
+    State->InputPlayingIndex = 0;
+}
+
+static void
+Win32RecordInput(win32_state *State, Events *events){
+    DWORD BytesWritten;
+    WriteFile(State->RecordingHandle, events, sizeof(*events), &BytesWritten, 0);
+}
+
+static void
+Win32PlayBackInput(win32_state *State, Events *events){
+    DWORD BytesRead = 0;
+    if(ReadFile(State->PlayBackHandle, events, sizeof(*events), &BytesRead, 0)){
+        if(BytesRead == 0){
+            int PlayingIndex = State->InputPlayingIndex;
+            Win32EndPlayBackInput(State);
+            Win32BeginPlayBackInput(State, PlayingIndex);
+            ReadFile(State->PlayBackHandle, events, sizeof(*events), &BytesRead, 0);
+        }
+    }
+}
 // FUTURE: think about using int main (int argc, char *argv[]){} 
 // being consistant with all your C programs could be helpfull later
 // this will give you access to a console more easily if you wanted it 
@@ -614,8 +742,25 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             QueryPerformanceFrequency(&clock.frequency);
             clock.cpu_start = __rdtsc();
 
-            global_running = true;
-            global_pause = false;
+            //WIN_State state = {0};
+            win32_state state = {0};
+
+            char exe_path[MAX_PATH];
+            DWORD exe_path_length = GetModuleFileNameA(0, exe_path, sizeof(exe_path));
+            char *starting_point = string_point_at_last(exe_path, '\\', 2);
+            // QUESTION: I dont understand this
+            state.root_dir_length = starting_point - exe_path;
+            get_root_dir(state.root_dir, state.root_dir_length, exe_path);
+
+            char gamecode_dll[] = "build\\game.dll";
+            char gamecode_dll_fullpath[256]; 
+            cat_strings(state.root_dir, gamecode_dll, gamecode_dll_fullpath);
+
+            char copy_gamecode_dll[] = "build\\copy_game.dll";
+            char copy_gamecode_dll_fullpath[256]; 
+            cat_strings(state.root_dir, copy_gamecode_dll, copy_gamecode_dll_fullpath);
+
+            WIN_GameCode gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
 
 #if DEBUG
             LPVOID base_address = (LPVOID)Terabytes(2);
@@ -635,9 +780,52 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             game_memory.free_file_memory = free_file_memory;
 
             game_memory.total_size = game_memory.permanent_storage_size + game_memory.temporary_storage_size;
-            game_memory.total_storage = VirtualAlloc(base_address, game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             game_memory.permanent_storage = game_memory.total_storage;
             game_memory.temporary_storage = (uint8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+
+            state.TotalSize = game_memory.permanent_storage_size + game_memory.temporary_storage_size;
+            state.GameMemoryBlock = game_memory.permanent_storage;
+            for(int ReplayIndex=0; ReplayIndex < ArrayCount(state.ReplayBuffers); ++ReplayIndex){
+                // we can speed up / defer some of that processing.
+                win32_replay_buffer *ReplayBuffer = &state.ReplayBuffers[ReplayIndex];
+
+                //Win32GetInputFileLocation(&state, false, ReplayIndex, sizeof(ReplayBuffer->FileName), ReplayBuffer->FileName);
+
+                char recording_string[64];
+                wsprintf(recording_string, "build\\recording_%d.hmi", ReplayIndex);
+                cat_strings(state.root_dir, recording_string, ReplayBuffer->FileName);
+                ReplayBuffer->FileHandle = CreateFileA(ReplayBuffer->FileName, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+
+                DWORD MaxSizeHigh = (state.TotalSize >> 32);
+                DWORD MaxSizeLow = state.TotalSize & 0xFFFFFFFF;
+                ReplayBuffer->MemoryMap = CreateFileMapping(ReplayBuffer->FileHandle, 0, PAGE_READWRITE, MaxSizeHigh, MaxSizeLow, 0);
+                ReplayBuffer->MemoryBlock = MapViewOfFile(ReplayBuffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, state.TotalSize);
+                if(ReplayBuffer->MemoryBlock){
+                }
+                else{
+                    // TODO(casey): Change this to a log message
+                }
+            }
+            //for(int i=0; i<ArrayCount(state.replay_buffers); ++i){
+            //    //state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+
+            //    WIN_ReplayBuffer *replay_buffer = &state.replay_buffers[i];
+            //    char recording_string[64];
+            //    wsprintf(recording_string, "build\\recording_%d.hmi", i+1);
+            //    cat_strings(state.root_dir, recording_string, replay_buffer->file_name);
+            //    replay_buffer->file_handle = CreateFileA(replay_buffer->file_name, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+
+            //    DWORD highorder_size = game_memory.total_size >> 32;
+            //    DWORD loworder_size = game_memory.total_size & 0xFFFFFFFF;
+            //    replay_buffer->file_memory_mapping = CreateFileMapping(replay_buffer->file_handle, 0, PAGE_READWRITE, highorder_size, loworder_size, 0);
+            //    replay_buffer->memory = MapViewOfFile(replay_buffer->file_memory_mapping, FILE_MAP_ALL_ACCESS, 0, 0, game_memory.total_size);
+            //    if(replay_buffer->memory){
+            //    }
+            //    else{
+            //        //TODO: Logging
+            //    }
+            //}
 
             // INCOMPLETE: this might need to be moved inside the loop because some things might change such as width/height but im not sure yet
             RenderBuffer render_buffer = {0};
@@ -651,26 +839,10 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             events.size = 256;
             events.index = 0;
 
-            WIN_State state = {0};
-
-            char exe_path[MAX_PATH];
-            DWORD exe_path_length = GetModuleFileNameA(0, exe_path, sizeof(exe_path));
-            char *starting_point = string_point_at_last(exe_path, '\\', 2);
-            // QUESTION: I dont understand this
-            state.root_dir_length = starting_point - exe_path;
-            get_root_dir(state.root_dir, state.root_dir_length, exe_path);
-
-            char gamecode_dll[] = "build\\game.dll";
-            char gamecode_dll_fullpath[256]; 
-            cat_strings(state.root_dir, gamecode_dll, gamecode_dll_fullpath);
-
-            char copy_gamecode_dll[] = "build\\copy_game.dll";
-            char copy_gamecode_dll_fullpath[256]; 
-            cat_strings(state.root_dir, copy_gamecode_dll, copy_gamecode_dll_fullpath);
-
-            WIN_GameCode gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
-
             Controller controller = {0};
+            global_running = true;
+            global_pause = false;
+
             if(game_memory.permanent_storage && game_memory.temporary_storage && render_buffer.memory){
                 while(global_running){
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
@@ -699,18 +871,30 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                                     global_running = false;
                                 }
                                 if(event->key == KEY_L){
-                                    if(state.playback_index == 0){
-                                        if(state.recording_index == 0){
-                                            WIN_init_recording_handle(&state, &game_memory, 1);
+                                    if(state.InputPlayingIndex == 0){
+                                        if(state.InputRecordingIndex == 0){
+                                            Win32BeginRecordingInput(&state, 1);
                                         }
                                         else{
-                                            WIN_release_recording_handle(&state);
-                                            WIN_init_playback_handle(&state, &game_memory, 1);
+                                            Win32EndRecordingInput(&state);
+                                            Win32BeginPlayBackInput(&state, 1);
                                         }
                                     }
                                     else{
-                                        WIN_release_playback_handle(&state);
+                                        Win32EndPlayBackInput(&state);
                                     }
+                                    //if(state.playback_index == 0){
+                                    //    if(state.recording_index == 0){
+                                    //        WIN_init_recording_handle(&state, &game_memory, 1);
+                                    //    }
+                                    //    else{
+                                    //        WIN_release_recording_handle(&state);
+                                    //        WIN_init_playback_handle(&state, &game_memory, 1);
+                                    //    }
+                                    //}
+                                    //else{
+                                    //    WIN_release_playback_handle(&state);
+                                    //}
                                     event->key = KEY_NONE;
                                 }
                                 if(event->key == KEY_P){
@@ -729,12 +913,18 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                     ScreenToClient(window, &mouse_pos);
 
                     if(!global_pause){
-                        if(state.recording_index){
-                            WIN_record_input(&state, &events);
-                        }
-                        if(state.playback_index){
-                            WIN_play_input(&state, &game_memory, &events);
-                        }
+                        //if(state.InputRecordingIndex){
+                        //    Win32RecordInput(&state, &events);
+                        //}
+                        //if(state.InputPlayingIndex){
+                        //    Win32PlayBackInput(&state, &events);
+                        //}
+                        //if(state.recording_index){
+                        //    WIN_record_input(&state, &events);
+                        //}
+                        //if(state.playback_index){
+                        //    WIN_play_input(&state, &game_memory, &events);
+                        //}
                         if(gamecode.main_game_loop){
                             gamecode.main_game_loop(&game_memory, &render_buffer, &events, &controller);
                             if(!game_memory.running){

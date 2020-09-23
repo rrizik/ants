@@ -3,7 +3,7 @@
 //#include <stdbool.h> //FUTURE: Use this later once your more comfortable for bool
 #include <stdint.h>
 
-//#define Assert(Expression) if(!(Expression)) {volatie *(int *)0 = 0;}
+#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
 
 #define Kilobytes(Value) ((Value) * 1024LL)
@@ -41,16 +41,6 @@ typedef uint64_t uint64;
 typedef int32_t bool;
 enum{false, true};
 
-typedef struct RenderBuffer{
-    void *memory;
-    int memory_size;
-
-    int bytes_per_pixel;
-    int width;
-    int height;
-    int pitch;
-} RenderBuffer;
-
 typedef enum{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
 typedef enum{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
 typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE} EventKey;
@@ -61,9 +51,10 @@ typedef struct Event{
     EventKey key;
     EventPad pad;
     EventMouse mouse;
-    uint16 mouse_x;
-    uint16 mouse_y;
+    int32 mouse_x;
+    int32 mouse_y;
     int8 wheel_y;
+    int8 wheel_x;
     // QUESTION: ask about uint16 vs WCHAR
     uint16 text;
 } Event;
@@ -73,6 +64,16 @@ typedef struct Events{
     uint32 size;
     uint32 index;
 } Events;
+
+typedef struct RenderBuffer{
+    void *memory;
+    int memory_size;
+
+    int bytes_per_pixel;
+    int width;
+    int height;
+    int pitch;
+} RenderBuffer;
 
 typedef struct FileData{
     uint32 size;
