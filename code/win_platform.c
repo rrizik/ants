@@ -58,13 +58,14 @@ FUTURE STUDY: Things to study
     - concurrency - what data races are and how to avoid the problem
     - understand what databases are and how they work (try and made a database that has out of core storage)
 */
+
 /*
 FUTURE TODO: Game dev stuff to accomplish
 // write very simple rasterizer (drawing squares/triangles all over the screen)
 // tiny kaboom
 // console
 // ui
-// screen manager
+// scene manager
 */
 
 #include "game.h"
@@ -367,7 +368,7 @@ WIN_process_controller_input(void){
 
 static void 
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    Assert(recording_index < ArrayCount(state->replay_buffers));
+    //Assert((uint64)recording_index < ArrayCount(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
     //if(replay_buffer->memory){
@@ -399,7 +400,7 @@ WIN_record_input(WIN_State *state, Events *events){
 
 static void
 WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, int playback_index){
-    Assert(playback_index < ArrayCount(state->replay_buffers));
+    //Assert(playback_index < ArrayCount(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[playback_index];
     //if(replay_buffer->memory){
@@ -526,6 +527,8 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         {
             POINT mouse_pos;
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
+            //mouse_pos.x = (int32)(lParam & 0xFFFF);
+            //mouse_pos.y = (int32)(lParam >> 16);
             mouse_pos.x = (int32)(lParam & 0xFFFF);
             mouse_pos.y = (int32)(lParam >> 16);
             HWND window_handle = GetActiveWindow();
@@ -543,8 +546,6 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
                 e.wheel_y = -1;
             }
             events.event[events.index++] = e;
-            print("x: %d\n", e.mouse_x);
-            print("y: %d\n", e.mouse_y);
         } break;
         case WM_LBUTTONDOWN:
         case WM_MBUTTONDOWN:
@@ -637,7 +638,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             WIN_State state = {0};
 
             char exe_path[MAX_PATH];
-            DWORD exe_path_length = GetModuleFileNameA(0, exe_path, sizeof(exe_path));
+            GetModuleFileNameA(0, exe_path, sizeof(exe_path));
             char *starting_point = string_point_at_last(exe_path, '\\', 2);
             // QUESTION: I dont understand this
             state.root_dir_length = starting_point - exe_path;
@@ -675,7 +676,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             game_memory.permanent_storage = game_memory.total_storage;
             game_memory.temporary_storage = (uint8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
-            for(int i=0; i<ArrayCount(state.replay_buffers); ++i){
+            for(uint64 i=0; i<ArrayCount(state.replay_buffers); ++i){
                 state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
                 // CONSIDER: maybe do this in the future of it ends up slowing down
@@ -715,6 +716,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
             if(game_memory.permanent_storage && game_memory.temporary_storage && render_buffer.memory){
                 while(global_running){
+                    game_memory.dt = clock.target_seconds_per_frame;
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                     if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
                         WIN_unload_gamecode(&gamecode);
@@ -728,14 +730,6 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
                         for(uint32 i=0; i < events.index; ++i){
                             Event *event = &events.event[i];
-                            if(event->type == EVENT_MOUSEUP){
-                                if(event->key == MOUSE_XBUTTON1){
-                                    print("1\n");
-                                }
-                                if(event->key == MOUSE_XBUTTON2){
-                                    print("2\n");
-                                }
-                            }
                             if(event->type == EVENT_KEYDOWN){
                                 if(event->key == KEY_ESCAPE){
                                     global_running = false;
@@ -760,15 +754,9 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                                     event->key = KEY_NONE;
                                 }
                             }
-                            if(event->type == EVENT_KEYUP){
-                            }
                         }
                     }
                     WIN_process_controller_input();
-
-                    POINT mouse_pos;
-                    GetCursorPos(&mouse_pos);
-                    ScreenToClient(window, &mouse_pos);
 
                     if(!global_pause){
                         if(state.recording_index){

@@ -3,7 +3,7 @@
 //#include <stdbool.h> //FUTURE: Use this later once your more comfortable for bool
 #include <stdint.h>
 
-#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+//#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
 
 #define Kilobytes(Value) ((Value) * 1024LL)
@@ -106,6 +106,7 @@ typedef FREE_FILE_MEMORY(FreeFileMemory);
 typedef struct GameMemory{
 	bool running;
     bool initialized;
+    float dt;
 
     uint64 total_size;
     uint64 permanent_storage_size;
@@ -139,12 +140,10 @@ string_point_at_last(char s[], char t, int count){
     char *found[10];
     uint32 i = 0;
 
-    int length = string_length(s);
     while(*s++){
         if(*s == t){
             found[i] = s + 1;
             i++;
-            //result = s + 1;
         }
     }
     result = found[i - count];
@@ -175,5 +174,6 @@ get_root_dir(char *left, int64 length, char *full_path){
     }
     *left++ = 0;
 }
+
 #define GAME_H
 #endif

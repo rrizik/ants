@@ -54,12 +54,12 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->player_y = 100;
 
         // NOTE: fileIO test
-        char *filename = __FILE__;
-        FileData file = memory->read_entire_file(filename);
-        if(file.content){
-            memory->write_entire_file("c:/sh1tz/apesticks/dx11/rafikmade/code/test.out", file.content, file.size);
-            memory->free_file_memory(file.content);
-        }
+        //char *filename = __FILE__;
+        //FileData file = memory->read_entire_file(filename);
+        //if(file.content){
+        //    memory->write_entire_file("c:/sh1tz/apesticks/dx11/rafikmade/code/test.out", file.content, file.size);
+        //    memory->free_file_memory(file.content);
+        //}
     }
 
     for(uint32 i=0; i < events->index; ++i){
@@ -70,7 +70,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 event->key = KEY_NONE;
             }
             if(event->key == KEY_S){
-                print("true\n");
                 controller->down = true;
                 event->key = KEY_NONE;
             }
@@ -89,7 +88,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 event->key = KEY_NONE;
             }
             if(event->key == KEY_S){
-                print("false\n");
                 controller->down = false;
                 event->key = KEY_NONE;
             }
