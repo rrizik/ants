@@ -1,42 +1,51 @@
 #include "game.h"
 
-static void
-render_player(RenderBuffer *buffer, int player_x, int player_y){
-    uint8 *end_of_buffer = (uint8 *)buffer->memory + buffer->pitch*buffer->height;
-    uint32 color = 0xFFFFFFFF;
+static float 
+round_ff(float value){
+    float result = (float)((int32)(value + 0.5));
+    return(result);
+}
 
-    if(player_y < 0){
-        player_y = 0;
-    }
-    if(player_x < 0){
-        player_x = 0;
-    }
+static int32 
+round_fi(float value){
+    int32 result = (int32)(value + 0.5);
+    return(result);
+}
 
-    for(int x = player_x; x < player_x+10; ++x){
-        // QUESTION: ask about what this line means
-        uint8 *pixel = ((uint8 *)buffer->memory + x*buffer->bytes_per_pixel + player_y*buffer->pitch);
-        for(int y = player_y; y < player_y+10; ++y){
-            if((pixel >= (uint8 *)buffer->memory) && (pixel < end_of_buffer)){
-                *(uint32 *)pixel = color;
-            }
-            pixel += buffer->pitch;
-        }
-    }
+static uint32 
+round_fui(float value){
+    uint32 result = (uint32)(value + 0.5);
+    return(result);
 }
 
 static void
-render_gradient(RenderBuffer *buffer, int xoffset){
-    // QUESTION: ask about what this line means
-    uint8 *row = (uint8 *)buffer->memory;
+draw_rect(RenderBuffer *buffer, float _x, float _y, float _w, float _h, float r, float g, float b){
+    uint8 *end_of_buffer = (uint8 *)buffer->memory + buffer->pitch*buffer->height;
 
-    for(int y = 0; y < buffer->height; ++y){
+    int32 rounded_x = round_fi(_x);
+    int32 rounded_y = round_fi(_y); 
+    int32 rounded_w = round_fi(_w); 
+    int32 rounded_h = round_fi(_h); 
+
+    if(rounded_x < 0){
+        rounded_x = 0;
+    }
+    if(rounded_y < 0){
+        rounded_y = 0;
+    }
+    if(rounded_x+rounded_w > buffer->width){
+        rounded_x = buffer->width - rounded_w;
+    }
+    if(rounded_y+rounded_h > buffer->height){
+        rounded_y = buffer->height - rounded_h;
+    }
+
+    uint8 *row = ((uint8 *)buffer->memory + rounded_y*buffer->pitch + rounded_x*buffer->bytes_per_pixel);
+    for(int y = rounded_y; y < rounded_y+rounded_h; ++y){
         // QUESTION: ask about what this line means
         uint32 *pixel = (uint32 *)row;
-        for(int x = 0; x < buffer->width; ++x){
-            uint8 blue = (uint8)(x + xoffset);
-            uint8 green = (uint8)y;
-            uint8 red = 0;
-            *pixel++ = (0 | (red << 16) | (green << 8) | blue);
+        for(int x = rounded_x; x < rounded_x+rounded_w; ++x){
+            *pixel++ = (uint32)(round_fui(r * 255.0f) << 16 | round_fui(g * 255.0f) << 8 | round_fui(b * 255.0f));
         }
         row += buffer->pitch;
     }
@@ -118,6 +127,54 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->player_x -= 5;
     }
 
-    render_gradient(render_buffer, game_state->xoffset);
-    render_player(render_buffer, game_state->player_x, game_state->player_y);
+    uint32 tile_map[9][16] = {
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    };
+
+    draw_rect(render_buffer, 0, 0, (float)render_buffer->width, (float)render_buffer->height, 1.0f, 0.0f, 0.0f);
+    float ratio = 60.0f;
+    for(int x=0; x<16; ++x){
+        for(int y=0; y<9; ++y){
+            float x_offset = x * ratio;
+            float y_offset = y * ratio;
+            if(tile_map[y][x] == 1){
+                draw_rect(render_buffer, x_offset, y_offset, ratio, ratio, 0.4f, 0.0f, 0.8f);
+            }
+            else{
+                draw_rect(render_buffer, x_offset, y_offset, ratio, ratio, 0.5f, 0.5f, 0.5f);
+            }
+        }
+    }
+
+                           
+    draw_rect(render_buffer, (float)game_state->player_x, (float)game_state->player_y, 30, 30, 0.8f, 1.0f, 0.0f);
 }
+
+
+/*
+static void
+render_gradient(RenderBuffer *buffer, int xoffset){
+    // QUESTION: ask about what this line means
+    uint8 *row = (uint8 *)buffer->memory;
+
+    for(int y = 0; y < buffer->height; ++y){
+        // QUESTION: ask about what this line means
+        uint32 *pixel = (uint32 *)row;
+        for(int x = 0; x < buffer->width; ++x){
+            uint8 blue = (uint8)(x + xoffset);
+            uint8 green = (uint8)y;
+            uint8 red = 0;
+            *pixel++ = (0 | (red << 16) | (green << 8) | blue);
+        }
+        row += buffer->pitch;
+    }
+}
+*/

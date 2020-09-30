@@ -607,7 +607,7 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 int CALLBACK
 WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd){
     WIN_load_xinput();
-    WIN_init_render_buffer(&offscreen_render_buffer, 1280, 720);
+    WIN_init_render_buffer(&offscreen_render_buffer, 960, 540);
 
     WNDCLASSA window_class = {0};
     window_class.style = CS_VREDRAW|CS_HREDRAW|CS_OWNDC;
@@ -626,9 +626,9 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             HDC DC = GetDC(window);
             // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
             //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
-            int monitor_refresh_hz = 60;
-            float game_update_hz = (monitor_refresh_hz / 2.0f);
-            clock.target_seconds_per_frame = 1.0f / (float)game_update_hz;
+            int gpu_monitor_refresh_hz = 60;
+            float soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
+            clock.target_seconds_per_frame = 1.0f / (float)soft_monitor_refresh_hz;
 
             // NOTE: maybe move this outside RegisterClassA
             clock.start = WIN_get_clock();

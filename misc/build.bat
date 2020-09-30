@@ -5,7 +5,7 @@ rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd450
 
 set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
 set clangcl_flags= -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
-set linker_flags=-incremental:no -opt:ref 
+set linker_flags=-incremental:no -opt:ref
 set linker_libs=user32.lib gdi32.lib winmm.lib -MAP
 
 IF NOT EXIST ..\build mkdir ..\build
