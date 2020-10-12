@@ -8,7 +8,12 @@
 //STUDY
 
 /*
-TODO:
+TODO: WIN PLATFORM CODE
+    get rid of all int's replace with specific sizes
+*/
+
+/*
+TODO: RESUME
     update resume - have at least 3 different versions for different fields
     update linkden - actually completely finish it to the T
     create my own portfolio - my own website
@@ -17,23 +22,8 @@ TODO:
 
 /*
 NOTE: Take notes of these in your dope ass notebook
-    MAX_PATH;
-    GetModuleFileNameA();
 
-    Assert();
-    ArrayCount();
-
-    LoadLibraryA();
-    GetProcAddress();
-    FreeLibrary();
-
-    GetCursorPos();
-    ScreenToClient();
-    GET_X_LPARAM();
-    GET_y_LPARAM();
-
-    MapViewOfFile();
-    CreateFileMapping();
+    PatBlt();
 
     explain the concept of game as a service to the platform layer
     explain events
@@ -42,11 +32,24 @@ NOTE: Take notes of these in your dope ass notebook
     explain loading gamecode
     explain hotreloading
     explain live loop editing
+    
+    QUESTION:
+        - whats the point of inlining, when, why, where
+        - how to know when to create i8, i16, i32, i64, int
+        - how to declspec the print from win_platform to game
+
+    FUTURE:
+        MAX_PATH;
+        GET_X_LPARAM();
+        GET_y_LPARAM();
+        MapViewOfFile();
+        CreateFileMapping();
 */
 
 /*
 FUTURE STUDY: Things to study
 
+    Naysayer
     - time complexity of algorithms
     - understanding the different paradigms of programming languages (functional, imperative, declarative, ...)
     - understand recursion
@@ -57,6 +60,9 @@ FUTURE STUDY: Things to study
     - how floating numbers are represented and how they work
     - concurrency - what data races are and how to avoid the problem
     - understand what databases are and how they work (try and made a database that has out of core storage)
+
+    Me
+    - sparse storage vs dense storage
 */
 
 /*
@@ -99,7 +105,7 @@ global WIN_Clock clock;
 global WIN_RenderBuffer offscreen_render_buffer;
 global Events events;
 
-global uint32 eventkey_mapping[0xFF] = {
+global ui32 eventkey_mapping[0xFF] = {
     [VK_ESCAPE]=KEY_ESCAPE,
     ['W']=KEY_W,
     ['A']=KEY_A,
@@ -109,7 +115,7 @@ global uint32 eventkey_mapping[0xFF] = {
     ['P']=KEY_P,
 };
 
-global uint32 eventpad_mapping[0x5838] = {
+global ui32 eventpad_mapping[0x5838] = {
     [VK_PAD_DPAD_UP]=PAD_UP,
     [VK_PAD_DPAD_DOWN]=PAD_DOWN,
     [VK_PAD_DPAD_LEFT]=PAD_LEFT,
@@ -117,7 +123,7 @@ global uint32 eventpad_mapping[0x5838] = {
     [VK_PAD_BACK]=PAD_BACK,
 };
 
-global uint32 eventmouse_mapping[0x0041] = {
+global ui32 eventmouse_mapping[0x0041] = {
     [MK_LBUTTON]=MOUSE_LBUTTON,
     [MK_MBUTTON]=MOUSE_MBUTTON,
     [MK_RBUTTON]=MOUSE_RBUTTON,
@@ -235,11 +241,11 @@ READ_ENTIRE_FILE(read_entire_file){
         LARGE_INTEGER filesize;
         if(GetFileSizeEx(filehandle, &filesize)){
             //Assert(filesize.QuadPart <= 0xFFFFFFFF); // NOTE: temporary for now, this isnt the final file I/O
-            result.content = VirtualAlloc(0, (uint32)filesize.QuadPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // FUTURE: Dont use VirtualAlloc when this is more robust, use something like HeapAlloc
+            result.content = VirtualAlloc(0, (ui32)filesize.QuadPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // FUTURE: Dont use VirtualAlloc when this is more robust, use something like HeapAlloc
             if(result.content){
                 DWORD bytes_read;
-                if(ReadFile(filehandle, result.content, (uint32)filesize.QuadPart, &bytes_read, 0)){
-                    result.size = (uint32)filesize.QuadPart;
+                if(ReadFile(filehandle, result.content, (ui32)filesize.QuadPart, &bytes_read, 0)){
+                    result.size = (ui32)filesize.QuadPart;
                 }
                 else{
                     free_file_memory(result.content);
@@ -327,16 +333,24 @@ WIN_init_render_buffer(WIN_RenderBuffer *buffer, int width, int height){
 
 static void
 WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
+    int x_offset = 10;
+    int y_offset = 10;
+
+    PatBlt(DC, 0, 0, width, y_offset, BLACKNESS);
+    PatBlt(DC, 0, 0, x_offset, height, BLACKNESS);
+    PatBlt(DC, x_offset + buffer.width, 0, width, height, BLACKNESS);
+    PatBlt(DC, 0, y_offset + buffer.height, width, height, BLACKNESS);
+
     StretchDIBits(DC,
                   //0, 0, width, height,
-                  0, 0, buffer.width, buffer.height,
+                  x_offset, y_offset, buffer.width, buffer.height,
                   0, 0, buffer.width, buffer.height,
                   buffer.memory, &buffer.info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 static void
 WIN_process_controller_input(void){
-    for(uint32 i=0; i < XUSER_MAX_COUNT; ++i){
+    for(ui32 i=0; i < XUSER_MAX_COUNT; ++i){
         XINPUT_KEYSTROKE controller_state;
         if((XInputGetKeystroke(i, 0, &controller_state)) == ERROR_SUCCESS){
             Event e = {0};
@@ -368,7 +382,7 @@ WIN_process_controller_input(void){
 
 static void 
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    //Assert((uint64)recording_index < ArrayCount(state->replay_buffers));
+    //Assert((ui64)recording_index < ArrayCount(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
     //if(replay_buffer->memory){
@@ -493,7 +507,7 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         case WM_CHAR:{
             Event e = {0};
             e.type = EVENT_TEXT;
-            e.text = (uint16)wParam;
+            e.text = (ui16)wParam;
             events.event[events.index++] = e;
         }break;
         case WM_SYSKEYDOWN:
@@ -519,26 +533,26 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             Event e = {0};
             e.type = EVENT_MOUSEMOTION;
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            e.mouse_x = (int32)(lParam & 0xFFFF);
-            e.mouse_y = (int32)(lParam >> 16);
+            e.mouse_x = (i32)(lParam & 0xFFFF);
+            e.mouse_y = (i32)(lParam >> 16);
             events.event[events.index++] = e;
         } break;
         case WM_MOUSEWHEEL:
         {
             POINT mouse_pos;
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            //mouse_pos.x = (int32)(lParam & 0xFFFF);
-            //mouse_pos.y = (int32)(lParam >> 16);
-            mouse_pos.x = (int32)(lParam & 0xFFFF);
-            mouse_pos.y = (int32)(lParam >> 16);
+            //mouse_pos.x = (i32)(lParam & 0xFFFF);
+            //mouse_pos.y = (i32)(lParam >> 16);
+            mouse_pos.x = (i32)(lParam & 0xFFFF);
+            mouse_pos.y = (i32)(lParam >> 16);
             HWND window_handle = GetActiveWindow();
             ScreenToClient(window_handle, &mouse_pos);
 
-            int16 wheel_direction = GET_WHEEL_DELTA_WPARAM(wParam);
+            i16 wheel_direction = GET_WHEEL_DELTA_WPARAM(wParam);
             Event e = {0};
             e.type = EVENT_MOUSEWHEEL;
-            e.mouse_x = (int32)mouse_pos.x;
-            e.mouse_y = (int32)mouse_pos.y;
+            e.mouse_x = (i32)mouse_pos.x;
+            e.mouse_y = (i32)mouse_pos.y;
             if(wheel_direction > 0){
                 e.wheel_y = 1;
             }
@@ -556,8 +570,8 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             e.type = EVENT_MOUSEDOWN;
             e.mouse = eventmouse_mapping[wParam];
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            e.mouse_x = (int32)(lParam & 0xFFFF);
-            e.mouse_y = (int32)(lParam >> 16);
+            e.mouse_x = (i32)(lParam & 0xFFFF);
+            e.mouse_y = (i32)(lParam >> 16);
             events.event[events.index++] = e;
 		} break;
         case WM_LBUTTONUP:
@@ -568,8 +582,8 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             Event e = {0};
             e.type = EVENT_MOUSEUP;
             e.mouse = eventmouse_mapping[wParam];
-            e.mouse_x = (int32)lParam & 0xFFFF;
-            e.mouse_y = (int32)lParam >> 16;
+            e.mouse_x = (i32)lParam & 0xFFFF;
+            e.mouse_y = (i32)lParam >> 16;
             events.event[events.index++] = e;
         } break;
         case WM_CLOSE:
@@ -672,11 +686,11 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             game_memory.free_file_memory = free_file_memory;
 
             game_memory.total_size = game_memory.permanent_storage_size + game_memory.temporary_storage_size;
-            game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            game_memory.total_storage = VirtualAlloc(base_address, (size)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             game_memory.permanent_storage = game_memory.total_storage;
-            game_memory.temporary_storage = (uint8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+            game_memory.temporary_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
-            for(uint64 i=0; i<ArrayCount(state.replay_buffers); ++i){
+            for(ui64 i=0; i<ArrayCount(state.replay_buffers); ++i){
                 state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
                 // CONSIDER: maybe do this in the future of it ends up slowing down
@@ -716,7 +730,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
             if(game_memory.permanent_storage && game_memory.temporary_storage && render_buffer.memory){
                 while(global_running){
-                    game_memory.dt = clock.target_seconds_per_frame;
+                    controller.dt = clock.target_seconds_per_frame;
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                     if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
                         WIN_unload_gamecode(&gamecode);
@@ -728,7 +742,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                         TranslateMessage(&message);
                         DispatchMessageA(&message);
 
-                        for(uint32 i=0; i < events.index; ++i){
+                        for(ui32 i=0; i < events.index; ++i){
                             Event *event = &events.event[i];
                             if(event->type == EVENT_KEYDOWN){
                                 if(event->key == KEY_ESCAPE){

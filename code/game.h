@@ -28,15 +28,15 @@ print(char *format, ...) {
     OutputDebugStringA(buffer);
 }
 typedef size_t size;
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
 
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
+typedef uint8_t ui8;
+typedef uint16_t ui16;
+typedef uint32_t ui32;
+typedef uint64_t ui64;
 
 typedef int32_t bool;
 enum{false, true};
@@ -51,18 +51,18 @@ typedef struct Event{
     EventKey key;
     EventPad pad;
     EventMouse mouse;
-    int32 mouse_x;
-    int32 mouse_y;
-    int8 wheel_y;
-    int8 wheel_x;
-    // QUESTION: ask about uint16 vs WCHAR
-    uint16 text;
+    i32 mouse_x;
+    i32 mouse_y;
+    i8 wheel_y;
+    i8 wheel_x;
+    // QUESTION: ask about ui16 vs WCHAR
+    ui16 text;
 } Event;
 
 typedef struct Events{
     Event event[256];
-    uint32 size;
-    uint32 index;
+    ui32 size;
+    ui32 index;
 } Events;
 
 typedef struct RenderBuffer{
@@ -76,28 +76,23 @@ typedef struct RenderBuffer{
 } RenderBuffer;
 
 typedef struct FileData{
-    uint32 size;
+    ui32 size;
     void* content;
 } FileData;
-
-typedef struct GameState{
-    int xoffset;
-    bool move;
-    int player_x;
-    int player_y;
-} GameState;
 
 typedef struct Controller{
     bool up;
     bool down;
     bool left;
     bool right;
+
+    float dt;
 } Controller;
 
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
 typedef READ_ENTIRE_FILE(ReadEntireFile);
 
-#define WRITE_ENTIRE_FILE(name) bool name(char *filename, void *memory, uint32 memory_size)
+#define WRITE_ENTIRE_FILE(name) bool name(char *filename, void *memory, ui32 memory_size)
 typedef WRITE_ENTIRE_FILE(WriteEntireFile);
 
 #define FREE_FILE_MEMORY(name) void name(void *memory)
@@ -106,11 +101,10 @@ typedef FREE_FILE_MEMORY(FreeFileMemory);
 typedef struct GameMemory{
 	bool running;
     bool initialized;
-    float dt;
 
-    uint64 total_size;
-    uint64 permanent_storage_size;
-    uint64 temporary_storage_size;
+    ui64 total_size;
+    ui64 permanent_storage_size;
+    ui64 temporary_storage_size;
 
     void *total_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
     void *temporary_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
@@ -138,7 +132,7 @@ static char *
 string_point_at_last(char s[], char t, int count){
     char *result = NULL;
     char *found[10];
-    uint32 i = 0;
+    ui32 i = 0;
 
     while(*s++){
         if(*s == t){
@@ -167,13 +161,36 @@ cat_strings(char *left, char *right, char *dest){
 }
 
 static void
-get_root_dir(char *left, int64 length, char *full_path){
+get_root_dir(char *left, i64 length, char *full_path){
     int i=0;
     for(;i < length; ++i){
         *left++ = *full_path++;
     }
     *left++ = 0;
 }
+
+typedef struct GameState{
+    float player_x;
+    float player_y;
+} GameState;
+
+typedef struct TileMap{
+    i32 col_count;
+    i32 row_count;
+
+    float pos_x;
+    float pos_y;
+    float tile_w;
+    float tile_h;
+
+    // QUESTION: why uint32
+    ui32 *tiles;
+
+} TileMap;
+
+typedef struct World{
+    TileMap *tilemaps;
+} World;
 
 #define GAME_H
 #endif

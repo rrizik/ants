@@ -22,8 +22,8 @@ typedef struct WIN_Clock{
     LARGE_INTEGER start;
     LARGE_INTEGER end;
     LARGE_INTEGER frequency;
-    uint64 cpu_start;
-    uint64 cpu_end;
+    ui64 cpu_start;
+    ui64 cpu_end;
 
     float target_seconds_per_frame;
     bool sleep_granularity_set;
@@ -48,7 +48,7 @@ typedef struct WIN_ReplayBuffer{
 
 typedef struct WIN_State{
     char root_dir[256];
-    uint64 root_dir_length;
+    ui64 root_dir_length;
 
     void *replay_buffers[4];
     // CONSIDER: maybe do this in the future if it ends up slowing down WIN_ReplayBuffer replay_buffers[4];
