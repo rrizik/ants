@@ -1,35 +1,5 @@
 #include "game.h"
-
-static f32
-round_ff(f32 value){
-    f32 result = (f32)((i32)(value + 0.5));
-    return(result);
-}
-
-static i32
-round_fi32(f32 value){
-    i32 result = (i32)(value + 0.5);
-    return(result);
-}
-
-static ui32
-round_fui32(f32 value){
-    ui32 result = (ui32)(value + 0.5);
-    return(result);
-}
-
-static i32
-trunc_fi32(f32 value){
-    i32 result = (i32)value;
-    return result;
-}
-
-#include <math.h>
-static i32
-floor_fi32(f32 value){
-    i32 result = (i32)floorf(value);
-    return result;
-}
+#include "math.h"
 
 static void
 draw_rect(RenderBuffer *buffer, f32 _x, f32 _y, f32 _w, f32 _h, f32 r, f32 g, f32 b){
@@ -93,25 +63,45 @@ get_tilemap(World *world , i32 col, i32 row){
     return(result);
 }
 
-static Position
-get_position_based_tilemap(World *world, Position pos){
-    Position result = {0};
+static void
+process_coords(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_coord, i32 *tile_rel_coord){
+
+    i32 offset = floor_fi32(*tile_rel_coord / world->tile_size_in_pixels);
+    *tile_coord += offset;
+    *tile_rel_coord -= offset * world->tile_size_in_pixels;
+
+    Assert(*tile_rel_coord >= 0);
+    Assert(*tile_rel_coord < world->tile_size_in_pixels);
+
+    if(*tile_coord < 0){
+        *tile_coord = tile_count + *tile_coord;
+        --*tilemap_coord;
+    }
+    if(*tile_coord >= tile_count){
+        *tile_coord = *tile_coord - tile_count;
+        ++*tilemap_coord;
+    }
+}
+
+static WorldPosition
+get_position_based_tilemap(World *world, WorldPosition pos){
+    WorldPosition result = {0};
 
     result.tilemap_x = pos.tilemap_x;
     result.tilemap_y = pos.tilemap_y;
 
-    f32 x = pos.x - world->x;
-    f32 y = pos.y - world->y;
-    result.tile_x = floor_fi32(x / world->tile_w);
-    result.tile_y = floor_fi32(y / world->tile_h);
+    f32 x = pos.tile_rel_x - world->x;
+    f32 y = pos.tile_rel_y - world->y;
+    result.tile_x = floor_fi32(x / world->tile_size_in_pixels);
+    result.tile_y = floor_fi32(y / world->tile_size_in_pixels);
 
-    result.x = x - result.tile_x * world->tile_w;
-    result.y = y - result.tile_y * world->tile_h;
+    result.tile_rel_x = x - result.tile_x * world->tile_size_in_pixels;
+    result.tile_rel_y = y - result.tile_y * world->tile_size_in_pixels;
 
-    Assert(result.x >= 0);
-    Assert(result.y >= 0);
-    Assert(result.x < world->tile_w);
-    Assert(result.y < world->tile_h);
+    Assert(result.tile_rel_x >= 0);
+    Assert(result.tile_rel_y >= 0);
+    Assert(result.tile_rel_x < world->tile_size_in_pixels);
+    Assert(result.tile_rel_y < world->tile_size_in_pixels);
 
     if(result.tile_x < 0){
         result.tile_x = world->tile_col_count + result.tile_x;
@@ -134,30 +124,10 @@ get_position_based_tilemap(World *world, Position pos){
 }
 
 static bool
-is_world_point_empty(World *world, Position pos){
+is_world_point_empty(World *world, WorldPosition pos){
     bool result = false;
 
-    //i32 player_tile_x = trunc_fi32((pos.x - world->x) / world->tile_w);
-    //i32 player_tile_y = trunc_fi32((pos.y - world->y) / world->tile_h);
-
-    //if(player_tile_x < 0){
-    //    player_tile_x = world->tile_col_count + player_tile_x;
-    //    --map_x;
-    //}
-    //if(player_tile_x >= world->tile_col_count){
-    //    player_tile_x = player_tile_x - world->tile_col_count;
-    //    ++map_x;
-    //}
-    //if(player_tile_y < 0){
-    //    player_tile_y = world->tile_row_count + player_tile_y;
-    //    --map_y;
-    //}
-    //if(player_tile_y >= world->tile_row_count){
-    //    player_tile_y = player_tile_y - world->tile_row_count;
-    //    ++map_y;
-    //}
-
-    Position new_pos = get_position_based_tilemap(world, pos);
+    WorldPosition new_pos = get_position_based_tilemap(world, pos);
 
     TileMap *tilemap = get_tilemap(world, new_pos.tilemap_x, new_pos.tilemap_y);
     result = is_tile_empty(world, tilemap, new_pos.tile_x, new_pos.tile_y);
@@ -171,10 +141,10 @@ MAIN_GAME_LOOP(main_game_loop){
     if(!memory->initialized){
         memory->initialized = true;
 
-        game_state->player_tilemap_x = 0;
-        game_state->player_tilemap_y = 0;
-        game_state->player_x = 200;
-        game_state->player_y = 150;
+        game_state->player_pos.tile_rel_x = 200;
+        game_state->player_pos.tile_rel_y = 150;
+        game_state->player_pos.tilemap_x = 0;
+        game_state->player_pos.tilemap_y = 0;
 
         // NOTE: fileIO test
         //char *filename = __FILE__;
@@ -285,10 +255,10 @@ MAIN_GAME_LOOP(main_game_loop){
     world.tile_row_count = TILEMAP_ROW;
     world.col_count = 2;
     world.row_count = 2;
-    world.x = -30;
+    world.tile_size_in_meters = 1.4f;
+    world.tile_size_in_pixels = 60;
+    world.x = -((f32)world.tile_size_in_pixels/2.0f);
     world.y = 0;
-    world.tile_w = 60.0f;
-    world.tile_h = 60.0f;
 
     TileMap tilemaps[2][2] = {0};
     tilemaps[0][0].tiles = (ui32 *)tiles00;
@@ -297,7 +267,7 @@ MAIN_GAME_LOOP(main_game_loop){
     tilemaps[1][1].tiles = (ui32 *)tiles11;
 
     world.tilemaps = (TileMap *)tilemaps;
-    TileMap *current_tilemap = get_tilemap(&world, game_state->player_tilemap_x, game_state->player_tilemap_y);
+    TileMap *current_tilemap = get_tilemap(&world, game_state->player_pos.tilemap_x, game_state->player_pos.tilemap_x);
 
     f32 speed = 256.0f;
     f32 direction_x = 0;
@@ -317,29 +287,28 @@ MAIN_GAME_LOOP(main_game_loop){
     direction_x *= speed;
     direction_y *= speed;
 
-    f32 new_player_x = game_state->player_x + (direction_x * controller->dt);
-    f32 new_player_y = game_state->player_y + (direction_y * controller->dt);
+    f32 new_player_x = game_state->player_pos.tile_rel_x + (direction_x * controller->dt);
+    f32 new_player_y = game_state->player_pos.tile_rel_y + (direction_y * controller->dt);
     
-    Position player_pos = {
-        .tilemap_x = game_state->player_tilemap_x, 
-        .tilemap_y = game_state->player_tilemap_y, 
-        .x = new_player_x, 
-        .y = new_player_y}; 
-    Position player_pos_left = player_pos;
-    player_pos_left.x += 30;
-    Position player_pos_right = player_pos;
-    player_pos_right.y += 30;
+    WorldPosition player_pos = {
+        .tilemap_x = game_state->player_pos.tilemap_x, 
+        .tilemap_y = game_state->player_pos.tilemap_y, 
+        .tile_rel_x = new_player_x, 
+        .tile_rel_y = new_player_y}; 
+    WorldPosition player_pos_left = player_pos;
+    player_pos_left.tile_rel_x += 30;
+    WorldPosition player_pos_right = player_pos;
+    player_pos_right.tile_rel_y += 30;
 
     if(is_world_point_empty(&world, player_pos) &&
        is_world_point_empty(&world, player_pos_left) &&
        is_world_point_empty(&world, player_pos_right)){
-        Position new_pos = get_position_based_tilemap(&world, player_pos);
-        game_state->player_tilemap_x = new_pos.tilemap_x;
-        game_state->player_tilemap_y = new_pos.tilemap_y;
-        //game_state->player_x = new_player_x;
-        //game_state->player_y = new_player_y;
-        game_state->player_x = world.x + world.tile_w * new_pos.tile_x + new_pos.x;
-        game_state->player_y = world.y + world.tile_h * new_pos.tile_y + new_pos.y;
+        WorldPosition new_pos = get_position_based_tilemap(&world, player_pos);
+
+        game_state->player_pos.tilemap_x = new_pos.tilemap_x;
+        game_state->player_pos.tilemap_x = new_pos.tilemap_y;
+        game_state->player_pos.tile_rel_x = world.x + world.tile_size_in_pixels * new_pos.tile_x + new_pos.tile_rel_x;
+        game_state->player_pos.tile_rel_y = world.y + world.tile_size_in_pixels * new_pos.tile_y + new_pos.tile_rel_y;
     }
 
     draw_rect(render_buffer, 0, 0, (f32)render_buffer->width, (f32)render_buffer->height, 1.0f, 0.0f, 0.0f);
@@ -350,13 +319,13 @@ MAIN_GAME_LOOP(main_game_loop){
                 gray = 1.0f;
             }
 
-            f32 x_offset = world.x + ((f32)col * world.tile_w);
-            f32 y_offset = world.y + ((f32)row * world.tile_h);
-            draw_rect(render_buffer, x_offset, y_offset, world.tile_w, world.tile_h, gray, gray, gray); 
+            f32 x_offset = world.x + ((f32)col * world.tile_size_in_pixels);
+            f32 y_offset = world.y + ((f32)row * world.tile_size_in_pixels);
+            draw_rect(render_buffer, x_offset, y_offset, (f32)world.tile_size_in_pixels, (f32)world.tile_size_in_pixels, gray, gray, gray); 
         }
     }
 
-    draw_rect(render_buffer, (f32)game_state->player_x, (f32)game_state->player_y, 30, 30, 0.8f, 1.0f, 0.0f);
+    draw_rect(render_buffer, (f32)game_state->player_pos.tile_rel_x, (f32)game_state->player_pos.tile_rel_y, 30, 30, 0.8f, 1.0f, 0.0f);
 }
 
 

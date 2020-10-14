@@ -172,14 +172,6 @@ get_root_dir(char *left, i64 length, char *full_path){
     *left++ = 0;
 }
 
-typedef struct GameState{
-    i32 player_tilemap_x;
-    i32 player_tilemap_y;
-
-    f32 player_x;
-    f32 player_y;
-} GameState;
-
 typedef struct TileMap{
     // QUESTION: why uint32
     ui32 *tiles;
@@ -189,27 +181,33 @@ typedef struct TileMap{
 typedef struct World{
     i32 col_count;
     i32 row_count;
+
     i32 tile_col_count;
     i32 tile_row_count;
 
     f32 x;
     f32 y;
-    f32 tile_w;
-    f32 tile_h;
+
+    f32 tile_size_in_meters;
+    i32 tile_size_in_pixels;
 
     TileMap *tilemaps;
 } World;
 
-typedef struct Position{
+typedef struct WorldPosition{
     i32 tilemap_x;
     i32 tilemap_y;
 
     i32 tile_x;
     i32 tile_y;
 
-    f32 x;
-    f32 y;
-} Position;
+    f32 tile_rel_x;
+    f32 tile_rel_y;
+} WorldPosition;
+
+typedef struct GameState{
+    WorldPosition player_pos;
+} GameState;
 
 #define GAME_H
 #endif
