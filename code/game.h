@@ -190,6 +190,7 @@ typedef struct World{
 
     f32 tile_size_in_meters;
     i32 tile_size_in_pixels;
+    f32 meters_to_pixels;
 
     TileMap *tilemaps;
 } World;

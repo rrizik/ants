@@ -64,7 +64,7 @@ get_tilemap(World *world , i32 col, i32 row){
 }
 
 static void
-process_coords(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_coord, i32 *tile_rel_coord){
+process_positions(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_coord, f32 *tile_rel_coord){
 
     i32 offset = floor_fi32(*tile_rel_coord / world->tile_size_in_pixels);
     *tile_coord += offset;
@@ -84,42 +84,12 @@ process_coords(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_coord
 }
 
 static WorldPosition
-get_position_based_tilemap(World *world, WorldPosition pos){
-    WorldPosition result = {0};
+update_world_positions(World *world, WorldPosition pos){
+    WorldPosition result = pos;
 
-    result.tilemap_x = pos.tilemap_x;
-    result.tilemap_y = pos.tilemap_y;
+    process_positions(world, world->tile_col_count, &result.tilemap_x, &result.tile_x, &result.tile_rel_x);
+    process_positions(world, world->tile_row_count, &result.tilemap_y, &result.tile_y, &result.tile_rel_y);
 
-    f32 x = pos.tile_rel_x - world->x;
-    f32 y = pos.tile_rel_y - world->y;
-    result.tile_x = floor_fi32(x / world->tile_size_in_pixels);
-    result.tile_y = floor_fi32(y / world->tile_size_in_pixels);
-
-    result.tile_rel_x = x - result.tile_x * world->tile_size_in_pixels;
-    result.tile_rel_y = y - result.tile_y * world->tile_size_in_pixels;
-
-    Assert(result.tile_rel_x >= 0);
-    Assert(result.tile_rel_y >= 0);
-    Assert(result.tile_rel_x < world->tile_size_in_pixels);
-    Assert(result.tile_rel_y < world->tile_size_in_pixels);
-
-    if(result.tile_x < 0){
-        result.tile_x = world->tile_col_count + result.tile_x;
-        --result.tilemap_x;
-    }
-    if(result.tile_x >= world->tile_col_count){
-        result.tile_x = result.tile_x - world->tile_col_count;
-        ++result.tilemap_x;
-    }
-    if(result.tile_y < 0){
-        result.tile_y = world->tile_row_count + result.tile_y;
-        --result.tilemap_y;
-    }
-    if(result.tile_y >= world->tile_row_count){
-        result.tile_y = result.tile_y - world->tile_row_count;
-        ++result.tilemap_y;
-    }
-    
     return(result);
 }
 
@@ -127,10 +97,8 @@ static bool
 is_world_point_empty(World *world, WorldPosition pos){
     bool result = false;
 
-    WorldPosition new_pos = get_position_based_tilemap(world, pos);
-
-    TileMap *tilemap = get_tilemap(world, new_pos.tilemap_x, new_pos.tilemap_y);
-    result = is_tile_empty(world, tilemap, new_pos.tile_x, new_pos.tile_y);
+    TileMap *tilemap = get_tilemap(world, pos.tilemap_x, pos.tilemap_y);
+    result = is_tile_empty(world, tilemap, pos.tile_x, pos.tile_y);
 
     return(result);
 }
@@ -257,6 +225,7 @@ MAIN_GAME_LOOP(main_game_loop){
     world.row_count = 2;
     world.tile_size_in_meters = 1.4f;
     world.tile_size_in_pixels = 60;
+    world.meters_to_pixels = (f32)world.tile_size_in_pixels / (f32)world.tile_size_in_meters;
     world.x = -((f32)world.tile_size_in_pixels/2.0f);
     world.y = 0;
 
@@ -287,29 +256,30 @@ MAIN_GAME_LOOP(main_game_loop){
     direction_x *= speed;
     direction_y *= speed;
 
-    f32 new_player_x = game_state->player_pos.tile_rel_x + (direction_x * controller->dt);
-    f32 new_player_y = game_state->player_pos.tile_rel_y + (direction_y * controller->dt);
-    
-    WorldPosition player_pos = {
-        .tilemap_x = game_state->player_pos.tilemap_x, 
-        .tilemap_y = game_state->player_pos.tilemap_y, 
-        .tile_rel_x = new_player_x, 
-        .tile_rel_y = new_player_y}; 
-    WorldPosition player_pos_left = player_pos;
-    player_pos_left.tile_rel_x += 30;
-    WorldPosition player_pos_right = player_pos;
-    player_pos_right.tile_rel_y += 30;
+    WorldPosition new_player_pos = game_state->player_pos;
+    new_player_pos.tile_rel_x += (direction_x * controller->dt);
+    new_player_pos.tile_rel_y += (direction_y * controller->dt);
+    new_player_pos = update_world_positions(&world, new_player_pos);
+    game_state->player_pos = new_player_pos;
 
-    if(is_world_point_empty(&world, player_pos) &&
-       is_world_point_empty(&world, player_pos_left) &&
-       is_world_point_empty(&world, player_pos_right)){
-        WorldPosition new_pos = get_position_based_tilemap(&world, player_pos);
+    //WorldPosition player_pos_left = new_player_pos;
+    //player_pos_left.tile_rel_x += 30;
+    //player_pos_left = update_world_positions(&world, player_pos_left);
 
-        game_state->player_pos.tilemap_x = new_pos.tilemap_x;
-        game_state->player_pos.tilemap_x = new_pos.tilemap_y;
-        game_state->player_pos.tile_rel_x = world.x + world.tile_size_in_pixels * new_pos.tile_x + new_pos.tile_rel_x;
-        game_state->player_pos.tile_rel_y = world.y + world.tile_size_in_pixels * new_pos.tile_y + new_pos.tile_rel_y;
-    }
+    //WorldPosition player_pos_right = new_player_pos;
+    //player_pos_right.tile_rel_y += 30;
+    //player_pos_right = update_world_positions(&world, player_pos_right);
+
+    //if(is_world_point_empty(&world, new_player_pos)){
+    //    print("OK\n");
+    //    game_state->player_pos = new_player_pos;
+    //}
+    //if(is_world_point_empty(&world, new_player_pos) &&
+    //   is_world_point_empty(&world, player_pos_left) &&
+    //   is_world_point_empty(&world, player_pos_right)){
+    //    print("OK\n");
+    //    game_state->player_pos = new_player_pos;
+    //}
 
     draw_rect(render_buffer, 0, 0, (f32)render_buffer->width, (f32)render_buffer->height, 1.0f, 0.0f, 0.0f);
     for(int row=0; row<TILEMAP_ROW; ++row){
@@ -325,7 +295,10 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    draw_rect(render_buffer, (f32)game_state->player_pos.tile_rel_x, (f32)game_state->player_pos.tile_rel_y, 30, 30, 0.8f, 1.0f, 0.0f);
+    f32 left = world.x + world.tile_size_in_pixels * game_state->player_pos.tile_x + game_state->player_pos.tile_rel_x;
+    f32 top = world.y + world.tile_size_in_pixels * game_state->player_pos.tile_y + game_state->player_pos.tile_rel_y;
+    draw_rect(render_buffer, left, top, 30, 30, 0.8f, 1.0f, 0.0f);
+    //draw_rect(render_buffer, game_state->player_pos.tile_rel_x, game_state->player_pos.tile_rel_y, 30, 30, 0.8f, 1.0f, 0.0f);
 }
 
 
