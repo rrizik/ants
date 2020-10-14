@@ -32,6 +32,12 @@ NOTE: Take notes of these in your dope ass notebook
     explain loading gamecode
     explain hotreloading
     explain live loop editing
+
+	explain Nd array to be accessed in 1d array [col_count * row + col]
+
+	c truncates towards 0
+	triangle is simplist 2d shape
+	designated initalizers
     
     QUESTION:
         - whats the point of inlining, when, why, where
@@ -57,7 +63,7 @@ FUTURE STUDY: Things to study
     - operating systems - what it really is, how it works, what services it provides, what a file system is and how it works
     - data structures - understand how they work and live in memory and be able to do things like "given a comparison function you should be able to build a binary tree and navigate the tree in order/ pre order. be able to insert something into the tree in order."
     - basics of sorting algorithms
-    - how floating numbers are represented and how they work
+    - how f32ing numbers are represented and how they work
     - concurrency - what data races are and how to avoid the problem
     - understand what databases are and how they work (try and made a database that has out of core storage)
 
@@ -463,10 +469,10 @@ WIN_get_clock(void){
     return(result);
 }
 
-static float
+static f32
 WIN_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end){
-    float result;
-    result = ((float)(end.QuadPart - start.QuadPart) / ((float)clock.frequency.QuadPart));
+    f32 result;
+    result = ((f32)(end.QuadPart - start.QuadPart) / ((f32)clock.frequency.QuadPart));
 
     return(result);
 }
@@ -474,7 +480,7 @@ WIN_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end){
 static void
 WIN_sync_framerate(void){
     LARGE_INTEGER time_stamp = WIN_get_clock();
-    float seconds_elapsed = WIN_get_seconds_elapsed(clock.start, time_stamp);
+    f32 seconds_elapsed = WIN_get_seconds_elapsed(clock.start, time_stamp);
     if(seconds_elapsed < clock.target_seconds_per_frame){
         if(clock.sleep_granularity_set){
             DWORD sleep_ms = (DWORD)(1000.0f * (clock.target_seconds_per_frame - seconds_elapsed));
@@ -483,7 +489,7 @@ WIN_sync_framerate(void){
             }
         }
 
-        float seconds_elapsed_remaining = WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
+        f32 seconds_elapsed_remaining = WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
         if(seconds_elapsed_remaining < clock.target_seconds_per_frame){
             // TODO: LOG MISSED SLEEP HERE
         }
@@ -641,8 +647,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
             //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
             int gpu_monitor_refresh_hz = 60;
-            float soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
-            clock.target_seconds_per_frame = 1.0f / (float)soft_monitor_refresh_hz;
+            f32 soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
+            clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
 
             // NOTE: maybe move this outside RegisterClassA
             clock.start = WIN_get_clock();
@@ -789,9 +795,9 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
                         WIN_sync_framerate();
 
-                        //float MSPF = 1000 * WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
-                        //float FPS = ((float)clock.frequency.QuadPart / (float)(WIN_get_clock().QuadPart - clock.start.QuadPart));
-                        //float CPUCYCLES = (float)(__rdtsc() - clock.cpu_start) / (1000 * 1000);
+                        //f32 MSPF = 1000 * WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
+                        //f32 FPS = ((f32)clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - clock.start.QuadPart));
+                        //f32 CPUCYCLES = (f32)(__rdtsc() - clock.cpu_start) / (1000 * 1000);
                         //print("MSPF: %.02fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
 
                         WIN_WindowDimensions wd = WIN_get_window_dimensions(window);

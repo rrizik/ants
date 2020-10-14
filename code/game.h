@@ -3,7 +3,7 @@
 //#include <stdbool.h> //FUTURE: Use this later once your more comfortable for bool
 #include <stdint.h>
 
-//#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
 
 #define Kilobytes(Value) ((Value) * 1024LL)
@@ -37,6 +37,9 @@ typedef uint8_t ui8;
 typedef uint16_t ui16;
 typedef uint32_t ui32;
 typedef uint64_t ui64;
+
+typedef float f32;
+typedef double f64;
 
 typedef int32_t bool;
 enum{false, true};
@@ -86,7 +89,7 @@ typedef struct Controller{
     bool left;
     bool right;
 
-    float dt;
+    f32 dt;
 } Controller;
 
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
@@ -170,27 +173,43 @@ get_root_dir(char *left, i64 length, char *full_path){
 }
 
 typedef struct GameState{
-    float player_x;
-    float player_y;
+    i32 player_tilemap_x;
+    i32 player_tilemap_y;
+
+    f32 player_x;
+    f32 player_y;
 } GameState;
 
 typedef struct TileMap{
-    i32 col_count;
-    i32 row_count;
-
-    float pos_x;
-    float pos_y;
-    float tile_w;
-    float tile_h;
-
     // QUESTION: why uint32
     ui32 *tiles;
 
 } TileMap;
 
 typedef struct World{
+    i32 col_count;
+    i32 row_count;
+    i32 tile_col_count;
+    i32 tile_row_count;
+
+    f32 x;
+    f32 y;
+    f32 tile_w;
+    f32 tile_h;
+
     TileMap *tilemaps;
 } World;
+
+typedef struct Position{
+    i32 tilemap_x;
+    i32 tilemap_y;
+
+    i32 tile_x;
+    i32 tile_y;
+
+    f32 x;
+    f32 y;
+} Position;
 
 #define GAME_H
 #endif

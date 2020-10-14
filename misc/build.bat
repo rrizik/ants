@@ -3,8 +3,8 @@
 rem warnings wd4459 wd4456
 rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
 
-set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
-set clangcl_flags= -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
+set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
+set clangcl_flags= -std=c99 -pedantic -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
 set linker_flags=-incremental:no -opt:ref
 set linker_libs=user32.lib gdi32.lib winmm.lib -MAP
 
@@ -46,6 +46,9 @@ rem -link - links windows .lib files required for certain MSDN functions to ba r
 rem -EXPORT - TODO(rafik): not sure exactly what this does, look into it
 rem -D<anything> - pass values into file
 
+rem ------ cl ------
+rem -std= - specifies the standard for the language
+rem -pedantic - disables extensions (compiler specific features)
 rem ------ clang-cl UNSUPPORTED EQUIVALENTS ------
 rem -FC = -fdiagnostics-absolute-paths
 

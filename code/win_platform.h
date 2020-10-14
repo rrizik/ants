@@ -25,7 +25,7 @@ typedef struct WIN_Clock{
     ui64 cpu_start;
     ui64 cpu_end;
 
-    float target_seconds_per_frame;
+    f32 target_seconds_per_frame;
     bool sleep_granularity_set;
 } WIN_Clock;
 
