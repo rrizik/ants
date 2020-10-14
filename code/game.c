@@ -71,12 +71,13 @@ process_positions(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_co
     *tile_rel_coord -= offset * world->tile_size_in_pixels;
 
     Assert(*tile_rel_coord >= 0);
-    Assert(*tile_rel_coord < world->tile_size_in_pixels);
+    Assert(*tile_rel_coord <= world->tile_size_in_pixels);
 
     if(*tile_coord < 0){
         *tile_coord = tile_count + *tile_coord;
         --*tilemap_coord;
     }
+    print("tile_coord: %d - tile_count: %d\n", *tile_coord, tile_count);
     if(*tile_coord >= tile_count){
         *tile_coord = *tile_coord - tile_count;
         ++*tilemap_coord;
@@ -236,7 +237,7 @@ MAIN_GAME_LOOP(main_game_loop){
     tilemaps[1][1].tiles = (ui32 *)tiles11;
 
     world.tilemaps = (TileMap *)tilemaps;
-    TileMap *current_tilemap = get_tilemap(&world, game_state->player_pos.tilemap_x, game_state->player_pos.tilemap_x);
+    TileMap *current_tilemap = get_tilemap(&world, game_state->player_pos.tilemap_x, game_state->player_pos.tilemap_y);
 
     f32 speed = 256.0f;
     f32 direction_x = 0;
