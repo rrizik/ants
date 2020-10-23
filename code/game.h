@@ -5,6 +5,7 @@
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
+#define ABS(n) ((n)<0 ? -(n) : (n))
 
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
@@ -159,7 +160,7 @@ cat_strings(char *left, char *right, char *dest){
     for(int i=0; i < right_size; ++i){
         *dest++ = *right++;
     }
-     
+
     *dest++ = 0;
 }
 
@@ -172,43 +173,40 @@ get_root_dir(char *left, i64 length, char *full_path){
     *left++ = 0;
 }
 
-typedef struct TileMap{
-    // QUESTION: why uint32
-    ui32 *tiles;
-
-} TileMap;
-
-typedef struct World{
-    i32 col_count;
-    i32 row_count;
-
-    i32 tile_col_count;
-    i32 tile_row_count;
-
-    f32 x;
-    f32 y;
-
-    f32 tile_size_in_meters;
-    i32 tile_size_in_pixels;
-    f32 meters_to_pixels;
-
-    TileMap *tilemaps;
-} World;
-
-typedef struct WorldPosition{
-    i32 tilemap_x;
-    i32 tilemap_y;
-
-    i32 tile_x;
-    i32 tile_y;
-
-    f32 tile_rel_x;
-    f32 tile_rel_y;
-} WorldPosition;
-
 typedef struct GameState{
-    WorldPosition player_pos;
+    i8 placeholder;
 } GameState;
 
 #define GAME_H
 #endif
+
+typedef union v2{
+    f32 e[2];
+    struct{
+        f32 x;
+        f32 y;
+    };
+} v2;
+
+typedef union v3{
+    f32 e[3];
+    struct{
+        f32 x;
+        f32 y;
+        f32 z;
+    };
+} v3;
+
+typedef struct Color{
+    f32 r;
+    f32 g;
+    f32 b;
+} Color;
+
+//v2 operator+(v2 a, v2 b){
+//    v1 result;
+//    result.x = a.x + b.x;
+//    result.y = a.y + b.y;
+//
+//    return(result);
+//}

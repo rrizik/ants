@@ -1,324 +1,170 @@
 #include "game.h"
-#include "math.h"
 
-static void
-draw_rect(RenderBuffer *buffer, f32 _x, f32 _y, f32 _w, f32 _h, f32 r, f32 g, f32 b){
-    // QUESTION: why round
-    i32 rounded_x = round_fi32(_x);
-    i32 rounded_y = round_fi32(_y);
-    i32 rounded_w = round_fi32(_w);
-    i32 rounded_h = round_fi32(_h);
-
-    // NOTE: bounds check
-    if(rounded_x < 0){ rounded_x = 0; }
-    if(rounded_y < 0){ rounded_y = 0; }
-    if(rounded_x+rounded_w > buffer->width){ rounded_w = buffer->width - rounded_x; }
-    if(rounded_y+rounded_h > buffer->height){ rounded_h = buffer->height - rounded_y; }
-    ui32 color = (ui32)(round_fui32(r * 255.0f) << 16 | 
-                        round_fui32(g * 255.0f) << 8 | 
-                        round_fui32(b * 255.0f));
-
-    ui8 *row = ((ui8 *)buffer->memory + rounded_y*buffer->pitch + rounded_x*buffer->bytes_per_pixel);
-    for(int y = rounded_y; y < rounded_y+rounded_h; ++y){
-        ui32 *pixel = (ui32 *)row;
-        for(int x = rounded_x; x < rounded_x+rounded_w; ++x){
-            *pixel++ = color;
-        }
-        row += buffer->pitch;
-    }
-}
-
-static ui32
-get_tile_value(World *world, TileMap *tilemap , i32 tile_x, i32 tile_y){
-    Assert(tilemap);
-    Assert((tile_x >= 0) && (tile_x < world->tile_col_count) &&
-           (tile_y >= 0) && (tile_y < world->tile_row_count));
-
-    ui32 result = tilemap->tiles[(world->tile_col_count * tile_y) + tile_x];
-    return(result);
-}
-
-static bool
-is_tile_empty(World *world, TileMap *tilemap, i32 tile_x, i32 tile_y){
-    bool result = false;
-
-    if(tilemap){
-        if((tile_x >= 0) && (tile_x < world->tile_col_count) &&
-           (tile_y >= 0) && (tile_y < world->tile_row_count)){
-            ui32 tile_value = get_tile_value(world, tilemap, tile_x, tile_y);
-            result = (tile_value == 0); 
-        }
-    }
-
-    return(result);
-}
-
-static TileMap *
-get_tilemap(World *world , i32 col, i32 row){
-    TileMap *result = 0;
-
-    if(row >= 0 && row < world->row_count && col >= 0 && col < world->col_count){
-        result = &world->tilemaps[(world->col_count * row) + col];
-    }
+static i32
+round_fi32(f32 value){
+    i32 result = (i32)(value + 0.5f);
     return(result);
 }
 
 static void
-process_positions(World *world, i32 tile_count, i32 *tilemap_coord, i32 *tile_coord, f32 *tile_rel_coord){
+swapf(f32 *a, f32 *b){
+    f32 t = *a;
+    *a = *b;
+    *b = t;
+}
 
-    i32 offset = floor_fi32(*tile_rel_coord / world->tile_size_in_pixels);
-    *tile_coord += offset;
-    *tile_rel_coord -= offset * world->tile_size_in_pixels;
+static void
+swapv2(v2 *a, v2 *b){
+    v2 t = *a;
+    *a = *b;
+    *b = t;
+}
 
-    Assert(*tile_rel_coord >= 0);
-    Assert(*tile_rel_coord <= world->tile_size_in_pixels);
+static void
+set_pixel(RenderBuffer *buffer, f32 x, f32 y, Color c){
+    i32 rounded_x = round_fi32(x);
+    i32 rounded_y = round_fi32(y);
 
-    if(*tile_coord < 0){
-        *tile_coord = tile_count + *tile_coord;
-        --*tilemap_coord;
-    }
-    print("tile_coord: %d - tile_count: %d\n", *tile_coord, tile_count);
-    if(*tile_coord >= tile_count){
-        *tile_coord = *tile_coord - tile_count;
-        ++*tilemap_coord;
+    ui32 color = (round_fi32(c.r * 255) << 16 | round_fi32(c.g * 255) << 8 | round_fi32(c.b * 255));
+    ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - rounded_y) * buffer->pitch) + (rounded_x * buffer->bytes_per_pixel);
+    ui32 *pixel = (ui32 *)row;
+    *pixel = color;
+}
+
+static void 
+line(RenderBuffer *buffer, v2 p0, v2 p1, Color c){
+    // NOTE: independent from drawing a line
+    //i32 rounded_x0 = round_fi32(p0.x);
+    //i32 rounded_y0 = round_fi32(p0.y);
+    //i32 rounded_x1 = round_fi32(p1.x);
+    //i32 rounded_y1 = round_fi32(p1.y);
+
+    // NOTE: STEP1: get the distance of x1 - x0, y1 - y0
+    f32 distance_x =  ABS(p1.x - p0.x);
+    f32 distance_y = -ABS(p1.y - p0.y);
+    // NOTE: STEP2: get step direction in which to draw the line
+    f32 step_x = p0.x < p1.x ? 1.0f : -1.0f;
+    f32 step_y = p0.y < p1.y ? 1.0f : -1.0f; 
+
+    // NOTE: STEP3: get the error threshold
+    f32 error = distance_x + distance_y;
+
+    do{
+        // NOTE: STEP4: draw atleast 1 pixel. p0 == p1.
+        set_pixel(buffer, p0.x, p0.y, c);
+
+        // NOTE: STEP5: determine in which direction to increment x,y based on error
+        if ((error * 2) >= distance_y){ 
+            error += distance_y; 
+            p0.x += step_x; 
+        }
+        if ((error * 2) <= distance_x){ 
+            error += distance_x; 
+            p0.y += step_y; 
+        }
+    } while(p0.x != p1.x && p0.y != p1.y);
+}
+
+static void
+interpolate(i32 x0, i32 y0, i32 x1, i32 y1){
+}
+
+static void
+fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
+    f32 slope_p12 = (p2.x - p1.x) / (p2.y - p1.y);
+    f32 slope_p13 = (p3.x - p1.x) / (p3.y - p1.y);
+
+    f32 p2_x = p3.y;
+    f32 p3_x = p3.y;
+
+    for(f32 y=p3.y; y < p1.y; ++y){
+        v2 new_p1 = {p2_x, y};
+        v2 new_p2 = {p3_x, y};
+        line(buffer, p1, p2, c);
+        p2_x += slope_p12;
+        p3_x += slope_p13;
     }
 }
 
-static WorldPosition
-update_world_positions(World *world, WorldPosition pos){
-    WorldPosition result = pos;
+static void
+triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, Color c){
+    // TODO: REMOVE COLORS
+    Color red = {1.0f, 0.0f, 0.0f};
+    Color blue = {0.0f, 0.0f, 1.0f};
+    Color green = {0.0f, 1.0f, 0.0f};
 
-    process_positions(world, world->tile_col_count, &result.tilemap_x, &result.tile_x, &result.tile_rel_x);
-    process_positions(world, world->tile_row_count, &result.tilemap_y, &result.tile_y, &result.tile_rel_y);
+    i32 rounded_x0 = round_fi32(p0.x);
+    i32 rounded_y0 = round_fi32(p0.y);
+    i32 rounded_x1 = round_fi32(p1.x);
+    i32 rounded_y1 = round_fi32(p1.y);
+    i32 rounded_x2 = round_fi32(p2.x);
+    i32 rounded_y2 = round_fi32(p2.y);
 
-    return(result);
+    if(p0.y > p1.y){ swapv2(&p0, &p1); }
+    if(p0.y > p2.y){ swapv2(&p0, &p2); }
+    if(p1.y > p2.y){ swapv2(&p1, &p2); }
+
+    //i32 x01 = interpolate(rounded
+
+    line(buffer, p0, p1, green);
+    line(buffer, p1, p2, green);
+    line(buffer, p2, p0, red);
 }
 
-static bool
-is_world_point_empty(World *world, WorldPosition pos){
-    bool result = false;
+static void
+rect(RenderBuffer *buffer, v2 pos, v2 dim, Color c){
+    i32 rounded_x = round_fi32(pos.x);
+    i32 rounded_y = round_fi32(pos.y);
+    i32 rounded_w = round_fi32(dim.x);
+    i32 rounded_h = round_fi32(dim.y);
 
-    TileMap *tilemap = get_tilemap(world, pos.tilemap_x, pos.tilemap_y);
-    result = is_tile_empty(world, tilemap, pos.tile_x, pos.tile_y);
+    if(rounded_x < 0) { rounded_x = 0; }
+    if(rounded_y < 0) { rounded_y = 0; }
+    if(rounded_x + rounded_w > buffer->width){ rounded_x = buffer->width - rounded_w; }
+    if(rounded_y + rounded_h > buffer->height){ rounded_y = buffer->height - rounded_h; }
 
-    return(result);
+    for(int y = rounded_y; y < rounded_y + rounded_h; ++y){
+        for(int x = rounded_x; x < rounded_x + rounded_w; ++x){
+            set_pixel(buffer, (f32)x, (f32)y, c);
+        }
+    }
 }
 
 MAIN_GAME_LOOP(main_game_loop){
-    GameState *game_state = (GameState *)memory->permanent_storage;
-
+    //GameState *game_state = (GameState *)memory->permanent_storage;
+    
     if(!memory->initialized){
         memory->initialized = true;
-
-        game_state->player_pos.tile_rel_x = 200;
-        game_state->player_pos.tile_rel_y = 150;
-        game_state->player_pos.tilemap_x = 0;
-        game_state->player_pos.tilemap_y = 0;
-
-        // NOTE: fileIO test
-        //char *filename = __FILE__;
-        //FileData file = memory->read_entire_file(filename);
-        //if(file.content){
-        //    memory->write_entire_file("c:/sh1tz/apesticks/dx11/rafikmade/code/test.out", file.content, file.size);
-        //    memory->free_file_memory(file.content);
-        //}
     }
 
     for(ui32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
         if(event->type == EVENT_KEYDOWN){
-            if(event->key == KEY_W){
-                controller->up = true;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_S){
-                controller->down = true;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_D){
-                controller->right = true;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_A){
-                controller->left = true;
-                event->key = KEY_NONE;
-            }
         }
         if(event->type == EVENT_KEYUP){
-            if(event->key == KEY_W){
-                controller->up = false;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_S){
-                controller->down = false;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_D){
-                controller->right = false;
-                event->key = KEY_NONE;
-            }
-            if(event->key == KEY_A){
-                controller->left = false;
-                event->key = KEY_NONE;
-            }
             if(event->key == KEY_ESCAPE){
                 memory->running = false;
             }
         }
     }
 
+    Color red = {1.0f, 0.0f, 0.0f};
+    Color blue = {0.0f, 0.0f, 1.0f};
+    Color green = {0.0f, 1.0f, 0.0f};
+    Color white = {1.0f, 1.0f, 1.0f};
 
-#define TILEMAP_COL 17
-#define TILEMAP_ROW 9
-    // QUESTION: if i have a ui32 2d array, does that mean each element in that array is represented as a ui32?
-    // meaning that if i do something like this "ui32 *t = (ui32 *)tiles;" t will start at the beginning of the
-    // 2d array and then if i do t++, it will move to the next element [0][1], [0][2], ... and eventually get
-    // to [max_row][max_col]?
-    ui32 tiles00[TILEMAP_ROW][TILEMAP_COL] = {
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,1,1,1, 1,1,1,1, 0,1,1,1, 1,1,1,1, 1}
-    };
-    ui32 tiles01[TILEMAP_ROW][TILEMAP_COL] = {
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,1,1,1, 1,1,1,1, 0,1,1,1, 1,1,1,1, 1}
-    };
-    ui32 tiles10[TILEMAP_ROW][TILEMAP_COL] = {
-        {1,1,1,1, 1,1,1,1, 0,1,1,1, 1,1,1,1, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1}
-    };
-    ui32 tiles11[TILEMAP_ROW][TILEMAP_COL] = {
-        {1,1,1,1, 1,1,1,1, 0,1,1,1, 1,1,1,1, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1},
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1}
-    };
+    v2 pos = {0, 0};
+    v2 dim = {(f32)render_buffer->width, (f32)render_buffer->height};
+    //rect(render_buffer, pos, dim, white);
 
-    World world = {0};
-    world.tile_col_count = TILEMAP_COL;
-    world.tile_row_count = TILEMAP_ROW;
-    world.col_count = 2;
-    world.row_count = 2;
-    world.tile_size_in_meters = 1.4f;
-    world.tile_size_in_pixels = 60;
-    world.meters_to_pixels = (f32)world.tile_size_in_pixels / (f32)world.tile_size_in_meters;
-    world.x = -((f32)world.tile_size_in_pixels/2.0f);
-    world.y = 0;
+    v2 t0[3] = {{10.0f, 70.0f}, {50.0f, 160.0f}, {70.0f, 80.0f}};
+    v2 t1[3] = {{180.0f, 50.0f}, {150.0f, 1.0f}, {70.0f, 180.0f}};
+    v2 t2[3] = {{180.0f, 150.0f}, {120.0f, 160.0f}, {130.0f, 180.0f}};
+    triangle(render_buffer, t0[0], t0[1], t0[2], red);
+    triangle(render_buffer, t1[0], t1[1], t1[2], blue);
+    triangle(render_buffer, t2[0], t2[1], t2[2], green);
 
-    TileMap tilemaps[2][2] = {0};
-    tilemaps[0][0].tiles = (ui32 *)tiles00;
-    tilemaps[0][1].tiles = (ui32 *)tiles01;
-    tilemaps[1][0].tiles = (ui32 *)tiles10;
-    tilemaps[1][1].tiles = (ui32 *)tiles11;
-
-    world.tilemaps = (TileMap *)tilemaps;
-    TileMap *current_tilemap = get_tilemap(&world, game_state->player_pos.tilemap_x, game_state->player_pos.tilemap_y);
-
-    f32 speed = 256.0f;
-    f32 direction_x = 0;
-    f32 direction_y = 0;
-    if(controller->left){
-        direction_x = -1;
-    }
-    if(controller->right){
-        direction_x = 1;
-    }
-    if(controller->up){
-        direction_y = -1;
-    }
-    if(controller->down){
-        direction_y = 1;
-    }
-    direction_x *= speed;
-    direction_y *= speed;
-
-    WorldPosition new_player_pos = game_state->player_pos;
-    new_player_pos.tile_rel_x += (direction_x * controller->dt);
-    new_player_pos.tile_rel_y += (direction_y * controller->dt);
-    new_player_pos = update_world_positions(&world, new_player_pos);
-    game_state->player_pos = new_player_pos;
-
-    //WorldPosition player_pos_left = new_player_pos;
-    //player_pos_left.tile_rel_x += 30;
-    //player_pos_left = update_world_positions(&world, player_pos_left);
-
-    //WorldPosition player_pos_right = new_player_pos;
-    //player_pos_right.tile_rel_y += 30;
-    //player_pos_right = update_world_positions(&world, player_pos_right);
-
-    //if(is_world_point_empty(&world, new_player_pos)){
-    //    print("OK\n");
-    //    game_state->player_pos = new_player_pos;
-    //}
-    //if(is_world_point_empty(&world, new_player_pos) &&
-    //   is_world_point_empty(&world, player_pos_left) &&
-    //   is_world_point_empty(&world, player_pos_right)){
-    //    print("OK\n");
-    //    game_state->player_pos = new_player_pos;
-    //}
-
-    draw_rect(render_buffer, 0, 0, (f32)render_buffer->width, (f32)render_buffer->height, 1.0f, 0.0f, 0.0f);
-    for(int row=0; row<TILEMAP_ROW; ++row){
-        for(int col=0; col<TILEMAP_COL; ++col){
-            f32 gray = 0.5f;
-            if(get_tile_value(&world, current_tilemap, col, row)){
-                gray = 1.0f;
-            }
-
-            f32 x_offset = world.x + ((f32)col * world.tile_size_in_pixels);
-            f32 y_offset = world.y + ((f32)row * world.tile_size_in_pixels);
-            draw_rect(render_buffer, x_offset, y_offset, (f32)world.tile_size_in_pixels, (f32)world.tile_size_in_pixels, gray, gray, gray); 
-        }
-    }
-
-    f32 left = world.x + world.tile_size_in_pixels * game_state->player_pos.tile_x + game_state->player_pos.tile_rel_x;
-    f32 top = world.y + world.tile_size_in_pixels * game_state->player_pos.tile_y + game_state->player_pos.tile_rel_y;
-    draw_rect(render_buffer, left, top, 30, 30, 0.8f, 1.0f, 0.0f);
-    //draw_rect(render_buffer, game_state->player_pos.tile_rel_x, game_state->player_pos.tile_rel_y, 30, 30, 0.8f, 1.0f, 0.0f);
+    v2 p0 = {10, 300};
+    v2 p1 = {10, 200};
+    line(render_buffer, p1, p0, red);
 }
-
-
-/*
-static void
-render_gradient(RenderBuffer *buffer){
-    // QUESTION: ask about what this line means
-    ui8 *row = (ui8 *)buffer->memory;
-
-    for(int y = 0; y < buffer->height; ++y){
-        // QUESTION: ask about what this line means
-        ui32 *pixel = (ui32 *)row;
-        for(int x = 0; x < buffer->width; ++x){
-            ui8 blue = (ui8)(x);
-            ui8 green = (ui8)y;
-            ui8 red = 0;
-            *pixel++ = (0 | (red << 16) | (green << 8) | blue);
-        }
-        row += buffer->pitch;
-    }
-}
-*/

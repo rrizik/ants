@@ -10,6 +10,10 @@
 /*
 TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
+
+    add rotations, add texturing, add clipping, make it fast (threads, simd)
+    color blending
+    alpha blending
 */
 
 /*
@@ -69,6 +73,7 @@ FUTURE STUDY: Things to study
 
     Me
     - sparse storage vs dense storage
+    - Galois' Dream: Group Theory and Differential Equations - Michio Kuga
 */
 
 /*
@@ -339,8 +344,8 @@ WIN_init_render_buffer(WIN_RenderBuffer *buffer, int width, int height){
 
 static void
 WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
-    int x_offset = 10;
-    int y_offset = 10;
+    int x_offset = 0;
+    int y_offset = 0;
 
     PatBlt(DC, 0, 0, width, y_offset, BLACKNESS);
     PatBlt(DC, 0, 0, x_offset, height, BLACKNESS);
