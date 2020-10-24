@@ -87,8 +87,8 @@ fill_flattop_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
 
 static void
 fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
-    f32 slope_1 = -(p2.x - p1.x) / (p2.y - p1.y);
-    f32 slope_2 = -(p3.x - p1.x) / (p3.y - p1.y);
+    f32 slope_1 = (p2.x - p1.x) / (p2.y - p1.y);
+    f32 slope_2 = (p3.x - p1.x) / (p3.y - p1.y);
     
     f32 x1_inc = p1.x;
     f32 x2_inc = p1.x;
@@ -97,8 +97,8 @@ fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
         v2 new_p1 = {x1_inc, y};
         v2 new_p2 = {x2_inc, y};
         line(buffer, new_p1, new_p2, c);
-        x1_inc += slope_1;
-        x2_inc += slope_2;
+        x1_inc -= slope_1;
+        x2_inc -= slope_2;
     }
 }
 
