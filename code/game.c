@@ -6,6 +6,12 @@ round_fi32(f32 value){
     return(result);
 }
 
+static f32
+round_ff(f32 value){
+    f32 result = (f32)(i32)(value + 0.5f);
+    return(result);
+}
+
 static void
 swapf(f32 *a, f32 *b){
     f32 t = *a;
@@ -20,95 +26,103 @@ swapv2(v2 *a, v2 *b){
     *b = t;
 }
 
+// QUESTION: i dont think this should be floats, should be ints, ask about it
 static void
 set_pixel(RenderBuffer *buffer, f32 x, f32 y, Color c){
-    i32 rounded_x = round_fi32(x);
-    i32 rounded_y = round_fi32(y);
+    x = round_ff(x);
+    y = round_ff(y);
 
     ui32 color = (round_fi32(c.r * 255) << 16 | round_fi32(c.g * 255) << 8 | round_fi32(c.b * 255));
-    ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - rounded_y) * buffer->pitch) + (rounded_x * buffer->bytes_per_pixel);
+    ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
     ui32 *pixel = (ui32 *)row;
     *pixel = color;
 }
 
 static void 
-line(RenderBuffer *buffer, v2 p0, v2 p1, Color c){
-    // NOTE: independent from drawing a line
-    //i32 rounded_x0 = round_fi32(p0.x);
-    //i32 rounded_y0 = round_fi32(p0.y);
-    //i32 rounded_x1 = round_fi32(p1.x);
-    //i32 rounded_y1 = round_fi32(p1.y);
+line(RenderBuffer *buffer, v2 p1, v2 p2, Color c){
+    p1.x = round_ff(p1.x);
+    p1.y = round_ff(p1.y);
+    p2.x = round_ff(p2.x);
+    p2.y = round_ff(p2.y);
 
-    // NOTE: STEP1: get the distance of x1 - x0, y1 - y0
-    f32 distance_x =  ABS(p1.x - p0.x);
-    f32 distance_y = -ABS(p1.y - p0.y);
-    // NOTE: STEP2: get step direction in which to draw the line
-    f32 step_x = p0.x < p1.x ? 1.0f : -1.0f;
-    f32 step_y = p0.y < p1.y ? 1.0f : -1.0f; 
+    f32 distance_x =  ABS(p2.x - p1.x);
+    f32 distance_y = -ABS(p2.y - p1.y);
+    f32 step_x = p1.x < p2.x ? 1.0f : -1.0f;
+    f32 step_y = p1.y < p2.y ? 1.0f : -1.0f; 
 
-    // NOTE: STEP3: get the error threshold
     f32 error = distance_x + distance_y;
 
-    do{
-        // NOTE: STEP4: draw atleast 1 pixel. p0 == p1.
-        set_pixel(buffer, p0.x, p0.y, c);
+    for(;;){
+        set_pixel(buffer, p1.x, p1.y, c); // NOTE: before break, so you can draw a single point line (a pixel)
+        if(p1.x == p2.x && p1.y == p2.y) break;
 
-        // NOTE: STEP5: determine in which direction to increment x,y based on error
-        if ((error * 2) >= distance_y){ 
+        f32 error2 = 2 * error;
+        if (error2 >= distance_y){
             error += distance_y; 
-            p0.x += step_x; 
+            p1.x += step_x; 
         }
-        if ((error * 2) <= distance_x){ 
+        if (error2 <= distance_x){ 
             error += distance_x; 
-            p0.y += step_y; 
+            p1.y += step_y; 
         }
-    } while(p0.x != p1.x && p0.y != p1.y);
-}
-
-static void
-interpolate(i32 x0, i32 y0, i32 x1, i32 y1){
-}
-
-static void
-fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
-    f32 slope_p12 = (p2.x - p1.x) / (p2.y - p1.y);
-    f32 slope_p13 = (p3.x - p1.x) / (p3.y - p1.y);
-
-    f32 p2_x = p3.y;
-    f32 p3_x = p3.y;
-
-    for(f32 y=p3.y; y < p1.y; ++y){
-        v2 new_p1 = {p2_x, y};
-        v2 new_p2 = {p3_x, y};
-        line(buffer, p1, p2, c);
-        p2_x += slope_p12;
-        p3_x += slope_p13;
     }
 }
 
 static void
-triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, Color c){
-    // TODO: REMOVE COLORS
-    Color red = {1.0f, 0.0f, 0.0f};
-    Color blue = {0.0f, 0.0f, 1.0f};
-    Color green = {0.0f, 1.0f, 0.0f};
+fill_flattop_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
+    f32 slope_1 = (p1.x - p3.x) / (p1.y - p3.y);
+    f32 slope_2 = (p2.x - p3.x) / (p2.y - p3.y);
+    
+    f32 x1_inc = p3.x;
+    f32 x2_inc = p3.x;
 
-    i32 rounded_x0 = round_fi32(p0.x);
-    i32 rounded_y0 = round_fi32(p0.y);
-    i32 rounded_x1 = round_fi32(p1.x);
-    i32 rounded_y1 = round_fi32(p1.y);
-    i32 rounded_x2 = round_fi32(p2.x);
-    i32 rounded_y2 = round_fi32(p2.y);
+    for(f32 y=p3.y; y < p1.y; ++y){
+        v2 new_p1 = {x1_inc, y};
+        v2 new_p2 = {x2_inc, y};
+        line(buffer, new_p1, new_p2, c);
+        x1_inc += slope_1;
+        x2_inc += slope_2;
+    }
+}
 
-    if(p0.y > p1.y){ swapv2(&p0, &p1); }
-    if(p0.y > p2.y){ swapv2(&p0, &p2); }
-    if(p1.y > p2.y){ swapv2(&p1, &p2); }
+static void
+fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
+    f32 slope_1 = -(p2.x - p1.x) / (p2.y - p1.y);
+    f32 slope_2 = -(p3.x - p1.x) / (p3.y - p1.y);
+    
+    f32 x1_inc = p1.x;
+    f32 x2_inc = p1.x;
 
-    //i32 x01 = interpolate(rounded
+    for(f32 y=p1.y; y >= p2.y; --y){
+        v2 new_p1 = {x1_inc, y};
+        v2 new_p2 = {x2_inc, y};
+        line(buffer, new_p1, new_p2, c);
+        x1_inc += slope_1;
+        x2_inc += slope_2;
+    }
+}
 
-    line(buffer, p0, p1, green);
-    line(buffer, p1, p2, green);
-    line(buffer, p2, p0, red);
+static void
+triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
+    if(p1.y < p2.y){ swapv2(&p1, &p2); }
+    if(p1.y < p3.y){ swapv2(&p1, &p3); }
+    if(p2.y < p3.y){ swapv2(&p2, &p3); }
+
+    if(p2.y == p3.y){
+        fill_flatbottom_triangle(buffer, p1, p2, p3, c);
+    }
+    if(p1.y == p2.y){
+        fill_flattop_triangle(buffer, p1, p2, p3, c);
+    }
+    else{
+        f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
+        v2 p4 = {x, p2.y};
+        fill_flatbottom_triangle(buffer, p1, p2, p4, c);
+        fill_flattop_triangle(buffer, p2, p4, p3, c);
+    }
+    line(buffer, p1, p2, c);
+    line(buffer, p2, p3, c);
+    line(buffer, p3, p1, c);
 }
 
 static void
@@ -165,6 +179,20 @@ MAIN_GAME_LOOP(main_game_loop){
     triangle(render_buffer, t2[0], t2[1], t2[2], green);
 
     v2 p0 = {10, 300};
-    v2 p1 = {10, 200};
-    line(render_buffer, p1, p0, red);
+    v2 p1 = {100, 300};
+    line(render_buffer, p0, p1, red);
+
+    v2 p2 = {100, 300};
+    v2 p3 = {100, 200};
+    line(render_buffer, p2, p3, red);
+
+    // flat bottom
+    v2 t3[3] = {{200.0f, 70.0f}, {250.0f, 160.0f}, {300.0f, 70.0f}};
+    triangle(render_buffer, t3[2], t3[1], t3[0], red);
+    // flat top
+    v2 t4[3] = {{400.0f, 160.0f}, {450.0f, 70.0f}, {500.0f, 160.0f}};
+    triangle(render_buffer, t4[0], t4[1], t4[2], green);
+
+    v2 t5[3] = {{650.0f, 160.0f}, {670.0f, 80.0f}, {614.0f, 80.0f}};
+    triangle(render_buffer, t5[2], t5[1], t5[0], red);
 }
