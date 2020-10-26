@@ -183,6 +183,9 @@ typedef struct GameState{
     i8 placeholder;
     float angle;
     float num;
+    float scale;
+    float direction;
+    float x;
     Color blue;
 } GameState;
 

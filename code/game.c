@@ -2,6 +2,8 @@
 #include "math.h"
 
 global float angle;
+global float scale;
+global float x;
 
 // QUESTION: i dont think this should be floats, should be ints, ask about it
 static void
@@ -117,18 +119,15 @@ calc_centroid(v2 p1, v2 p2, v2 p3){
 
 static void
 triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color *c){
-    if(p1.y < p2.y){ swapv2(&p1, &p2); }
-    if(p1.y < p3.y){ swapv2(&p1, &p3); }
-    if(p2.y < p3.y){ swapv2(&p2, &p3); }
-
-    //v2 add = {100, 100};
-    //p1 = v2_add(p1, add);
-    //p2 = v2_add(p2, add);
-    //p3 = v2_add(p3, add);
-    //v2 mul = {2, 2};
-    //p1 = v2_mul(p1, mul);
-    //p2 = v2_mul(p2, mul);
-    //p3 = v2_mul(p3, mul);
+    v2 add = {x, 0};
+    print("%f.\n", x);
+    p1 = v2_add(p1, add);
+    p2 = v2_add(p2, add);
+    p3 = v2_add(p3, add);
+    v2 mul = {scale, scale};
+    p1 = v2_mul(p1, mul);
+    p2 = v2_mul(p2, mul);
+    p3 = v2_mul(p3, mul);
 
     //p1.x += 2 * p1.y;
     //p2.x += 2 * p2.y;
@@ -158,9 +157,6 @@ triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color *c){
     }
     else{
         f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
-        print("x: %f\n", x);
-        print("p1.y: %f\n", p1.y);
-        print("p3.y: %f\n", p3.y);
         v2 p4 = {x, p2.y};
         fill_flatbottom_triangle(buffer, p1, p2, p4, c);
         fill_flattop_triangle(buffer, p2, p4, p3, c);
@@ -197,6 +193,9 @@ MAIN_GAME_LOOP(main_game_loop){
     if(!memory->initialized){
         memory->initialized = true;
         game_state->angle = 0;
+        game_state->scale = 1;
+        game_state->direction = 0.02f;
+        game_state->x = 0.00f;
         game_state->num = 0;
         game_state->blue.r = 0.0f;// = {0.0f, 0.0f, 1.0f};
         game_state->blue.g = 0.0f;// = {0.0f, 0.0f, 1.0f};
@@ -231,8 +230,12 @@ MAIN_GAME_LOOP(main_game_loop){
     v2 dim = {(f32)render_buffer->width-1, (f32)render_buffer->height-1};
     rect(render_buffer, pos, dim, &black);
 
+    game_state->scale += game_state->direction;
+    game_state->x -= 2.0f;
     game_state->angle += 0.01f;
     angle = game_state->angle;
+    scale = game_state->scale;
+    x = game_state->x;
     v2 t0[3] = {{10.0f, 70.0f}, {50.0f, 160.0f}, {70.0f, 80.0f}};
     v2 t1[3] = {{180.0f, 50.0f}, {150.0f, 1.0f}, {70.0f, 180.0f}};
     v2 t2[3] = {{180.0f, 150.0f}, {120.0f, 160.0f}, {130.0f, 180.0f}};
@@ -261,4 +264,11 @@ MAIN_GAME_LOOP(main_game_loop){
 
     v2 t5[3] = {{650.0f, 160.0f}, {670.0f, 80.0f}, {614.0f, 80.0f}};
     triangle(render_buffer, t5[2], t5[1], t5[0], &red);
+    
+    if(game_state->scale >= 3.0f){
+        game_state->direction = -0.02f;
+    }
+    if(game_state->scale < 0.0f){
+        game_state->direction = 0.02f;
+    }
 }
