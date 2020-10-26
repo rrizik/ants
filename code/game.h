@@ -173,8 +173,17 @@ get_root_dir(char *left, i64 length, char *full_path){
     *left++ = 0;
 }
 
+typedef struct Color{
+    f32 r;
+    f32 g;
+    f32 b;
+} Color;
+
 typedef struct GameState{
     i8 placeholder;
+    float angle;
+    float num;
+    Color blue;
 } GameState;
 
 #define GAME_H
@@ -197,11 +206,6 @@ typedef union v3{
     };
 } v3;
 
-typedef struct Color{
-    f32 r;
-    f32 g;
-    f32 b;
-} Color;
 
 //v2 operator+(v2 a, v2 b){
 //    v1 result;
