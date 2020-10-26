@@ -1,30 +1,5 @@
 #include "game.h"
-
-static i32
-round_fi32(f32 value){
-    i32 result = (i32)(value + 0.5f);
-    return(result);
-}
-
-static f32
-round_ff(f32 value){
-    f32 result = (f32)(i32)(value + 0.5f);
-    return(result);
-}
-
-static void
-swapf(f32 *a, f32 *b){
-    f32 t = *a;
-    *a = *b;
-    *b = t;
-}
-
-static void
-swapv2(v2 *a, v2 *b){
-    v2 t = *a;
-    *a = *b;
-    *b = t;
-}
+#include "math.h"
 
 // QUESTION: i dont think this should be floats, should be ints, ask about it
 static void
@@ -32,10 +7,12 @@ set_pixel(RenderBuffer *buffer, f32 x, f32 y, Color c){
     x = round_ff(x);
     y = round_ff(y);
 
-    ui32 color = (round_fi32(c.r * 255) << 16 | round_fi32(c.g * 255) << 8 | round_fi32(c.b * 255));
-    ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
-    ui32 *pixel = (ui32 *)row;
-    *pixel = color;
+    if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
+        ui32 color = (round_fi32(c.r * 255) << 16 | round_fi32(c.g * 255) << 8 | round_fi32(c.b * 255));
+        ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
+        ui32 *pixel = (ui32 *)row;
+        *pixel = color;
+    }
 }
 
 static void 
@@ -102,24 +79,48 @@ fill_flatbottom_triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
     }
 }
 
+static v2
+translate(v2 p1, v2 p2){
+}
+
+static v2
+calc_centroid(v2 p1, v2 p2, v2 p3){
+    v2 result = {0};
+
+    result.x = (p1.x + p2.x + p3.x) / 3.0f;
+    result.y = (p1.y + p2.y + p3.y) / 3.0f;
+
+    return(result);
+}
+
 static void
 triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
     if(p1.y < p2.y){ swapv2(&p1, &p2); }
     if(p1.y < p3.y){ swapv2(&p1, &p3); }
     if(p2.y < p3.y){ swapv2(&p2, &p3); }
 
-    if(p2.y == p3.y){
-        fill_flatbottom_triangle(buffer, p1, p2, p3, c);
-    }
-    if(p1.y == p2.y){
-        fill_flattop_triangle(buffer, p1, p2, p3, c);
-    }
-    else{
-        f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
-        v2 p4 = {x, p2.y};
-        fill_flatbottom_triangle(buffer, p1, p2, p4, c);
-        fill_flattop_triangle(buffer, p2, p4, p3, c);
-    }
+    //v2 add = {100, 100};
+    //p1 = v2_add(p1, add);
+    //p2 = v2_add(p2, add);
+    //p3 = v2_add(p3, add);
+    //v2 mul = {2, 2};
+    //p1 = v2_mul(p1, mul);
+    //p2 = v2_mul(p2, mul);
+    //p3 = v2_mul(p3, mul);
+    //if(p2.y == p3.y){
+    //    fill_flatbottom_triangle(buffer, p1, p2, p3, c);
+    //}
+    //if(p1.y == p2.y){
+    //    fill_flattop_triangle(buffer, p1, p2, p3, c);
+    //}
+    //else{
+    //    f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
+    //    v2 p4 = {x, p2.y};
+    //    fill_flatbottom_triangle(buffer, p1, p2, p4, c);
+    //    fill_flattop_triangle(buffer, p2, p4, p3, c);
+    //}
+    v2 t1 = calc_centroid(p1, p2, p3);
+    set_pixel(buffer, t1.x, t1.y, c);
     line(buffer, p1, p2, c);
     line(buffer, p2, p3, c);
     line(buffer, p3, p1, c);
@@ -127,21 +128,22 @@ triangle(RenderBuffer *buffer, v2 p1, v2 p2, v2 p3, Color c){
 
 static void
 rect(RenderBuffer *buffer, v2 pos, v2 dim, Color c){
-    i32 rounded_x = round_fi32(pos.x);
-    i32 rounded_y = round_fi32(pos.y);
-    i32 rounded_w = round_fi32(dim.x);
-    i32 rounded_h = round_fi32(dim.y);
+    pos.x = round_ff(pos.x);
+    pos.y = round_ff(pos.y);
+    dim.x = round_ff(dim.x);
+    dim.y = round_ff(dim.y);
 
-    if(rounded_x < 0) { rounded_x = 0; }
-    if(rounded_y < 0) { rounded_y = 0; }
-    if(rounded_x + rounded_w > buffer->width){ rounded_x = buffer->width - rounded_w; }
-    if(rounded_y + rounded_h > buffer->height){ rounded_y = buffer->height - rounded_h; }
-
-    for(int y = rounded_y; y < rounded_y + rounded_h; ++y){
-        for(int x = rounded_x; x < rounded_x + rounded_w; ++x){
-            set_pixel(buffer, (f32)x, (f32)y, c);
-        }
-    }
+    v2 p1 = {(f32)pos.x, (f32)pos.y};
+    v2 p2 = {(f32)(pos.x + dim.x), (f32)pos.y};
+    v2 p3 = {(f32)pos.x, (f32)(pos.y + dim.y)};
+    v2 p4 = {(f32)(pos.x + dim.x), (f32)(pos.y + dim.y)};
+    triangle(buffer, p1, p2, p3, c);
+    triangle(buffer, p2, p3, p4, c);
+    //for(int y = rounded_y; y < rounded_y + rounded_h; ++y){
+    //    for(int x = rounded_x; x < rounded_x + rounded_w; ++x){
+    //        set_pixel(buffer, (f32)x, (f32)y, c);
+    //    }
+    //}
 }
 
 MAIN_GAME_LOOP(main_game_loop){
@@ -168,8 +170,8 @@ MAIN_GAME_LOOP(main_game_loop){
     Color white = {1.0f, 1.0f, 1.0f};
 
     v2 pos = {0, 0};
-    v2 dim = {(f32)render_buffer->width, (f32)render_buffer->height};
-    //rect(render_buffer, pos, dim, white);
+    v2 dim = {(f32)render_buffer->width-1, (f32)render_buffer->height-1};
+    rect(render_buffer, pos, dim, white);
 
     v2 t0[3] = {{10.0f, 70.0f}, {50.0f, 160.0f}, {70.0f, 80.0f}};
     v2 t1[3] = {{180.0f, 50.0f}, {150.0f, 1.0f}, {70.0f, 180.0f}};
@@ -177,6 +179,10 @@ MAIN_GAME_LOOP(main_game_loop){
     triangle(render_buffer, t0[0], t0[1], t0[2], red);
     triangle(render_buffer, t1[0], t1[1], t1[2], blue);
     triangle(render_buffer, t2[0], t2[1], t2[2], green);
+    set_pixel(render_buffer, 0, 0, red);
+    set_pixel(render_buffer, 959, 0, red);
+    set_pixel(render_buffer, 0, 539, red);
+    set_pixel(render_buffer, 959, 539, red);
 
     v2 p0 = {10, 300};
     v2 p1 = {100, 300};

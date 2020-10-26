@@ -11,9 +11,18 @@
 TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
 
-    add rotations, add texturing, add clipping, make it fast (threads, simd)
+    transformation:
+        translation
+        rotation
+        scaling
+        shearing
+
+    add texturing 
+    add clipping 
+    make it fast (threads, simd)
     color blending
     alpha blending
+    anti aliasing
 */
 
 /*
@@ -78,11 +87,11 @@ FUTURE STUDY: Things to study
 
 /*
 FUTURE TODO: Game dev stuff to accomplish
-// write very simple rasterizer (drawing squares/triangles all over the screen)
-// tiny kaboom
-// console
-// ui
-// scene manager
+    write very simple rasterizer (drawing squares/triangles all over the screen)
+    tiny kaboom
+    console
+    ui
+    scene manager
 */
 
 #include "game.h"
@@ -95,7 +104,7 @@ FUTURE TODO: Game dev stuff to accomplish
 #include "win_platform.h"
 
 
-// TODO:declspec this bitch outa here, not sure how figure it out
+// TODO: declspec this bitch outa here, not sure how figure it out
 //static void
 //print(char *format, ...) {
 //    char buffer[4096] = {0};
@@ -344,8 +353,8 @@ WIN_init_render_buffer(WIN_RenderBuffer *buffer, int width, int height){
 
 static void
 WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
-    int x_offset = 0;
-    int y_offset = 0;
+    int x_offset = 10;
+    int y_offset = 10;
 
     PatBlt(DC, 0, 0, width, y_offset, BLACKNESS);
     PatBlt(DC, 0, 0, x_offset, height, BLACKNESS);
