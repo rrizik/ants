@@ -179,19 +179,6 @@ typedef struct Color{
     f32 b;
 } Color;
 
-typedef struct GameState{
-    i8 placeholder;
-    float angle;
-    float num;
-    float scale;
-    float direction;
-    float x;
-    Color blue;
-} GameState;
-
-#define GAME_H
-#endif
-
 typedef union v2{
     f32 e[2];
     struct{
@@ -209,11 +196,17 @@ typedef union v3{
     };
 } v3;
 
+typedef struct tri{
+    v2 p1;
+    v2 p2;
+    v2 p3;
+    Color c;
+} tri;
 
-//v2 operator+(v2 a, v2 b){
-//    v1 result;
-//    result.x = a.x + b.x;
-//    result.y = a.y + b.y;
-//
-//    return(result);
-//}
+typedef struct GameState{
+    i32 placeholder;
+    tri t1;
+} GameState;
+
+#define GAME_H
+#endif
