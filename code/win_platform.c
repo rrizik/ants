@@ -12,17 +12,25 @@ TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
 
     transformation:
-        translation
+        translation 
         rotation
         scaling
         shearing
 
-    add texturing 
-    add clipping 
-    make it fast (threads, simd)
     color blending
     alpha blending
+
+    fill polygon
+    draw circle
+    draw wireframe circle
+
+    add texturing 
+
     anti aliasing
+
+    add clipping 
+
+    make it fast (threads, simd)
 */
 
 /*

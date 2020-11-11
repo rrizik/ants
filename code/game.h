@@ -1,11 +1,14 @@
 #if !defined(GAME_H)
 
-//#include <stdbool.h> //FUTURE: Use this later once your more comfortable for bool
+//#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
 #include <stdint.h>
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
 #define ABS(n) ((n)<0 ? -(n) : (n))
+#define PI 3.14159265f
+#define RAD2DEG(n) ((180.0f/PI) * n);
+#define DEG2RAD(n) ((PI/180.0f) * n);
 
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
@@ -28,6 +31,7 @@ print(char *format, ...) {
     printf("%s", buffer);
     OutputDebugStringA(buffer);
 }
+//typedef float __attribute__((ext_vector_type(2))) vec2;
 typedef size_t size;
 typedef int8_t i8;
 typedef int16_t i16;
@@ -179,33 +183,32 @@ typedef struct Color{
     f32 b;
 } Color;
 
-typedef union v2{
-    f32 e[2];
-    struct{
-        f32 x;
-        f32 y;
-    };
-} v2;
+typedef struct Matrix{
+    f32 *at;
+    ui32 col;
+    ui32 row;
+} Matrix;
 
-typedef union v3{
-    f32 e[3];
-    struct{
-        f32 x;
-        f32 y;
-        f32 z;
-    };
-} v3;
-
+#include "vectors.h"
+//CONSIDER: maybe get rid of this later depending on what the book says
 typedef struct tri{
-    v2 p1;
-    v2 p2;
-    v2 p3;
-    Color c;
+    vec2 p1;
+    vec2 p2;
+    vec2 p3;
 } tri;
+
+//CONSIDER: maybe get rid of this later depending on what the book says
+typedef struct Points{
+    vec2 *at;
+    size_t count;
+} Points;
 
 typedef struct GameState{
     i32 placeholder;
     tri t1;
+    tri t2;
+    Points p;
+    ui16 angle;
 } GameState;
 
 #define GAME_H
