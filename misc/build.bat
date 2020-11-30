@@ -4,8 +4,9 @@ rem warnings wd4459 wd4456
 rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
 
 rem Optimization switches /O2 /Oi /fp:fast
-set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
-set clangcl_flags=-std=c99 -pedantic -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
+set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4101 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
+rem set clangcl_flags=-std=c99 -pedantic -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
+set clangcl_flags=-MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-variable -Wno-missing-braces -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
 set linker_flags=-incremental:no -opt:ref
 set linker_libs=user32.lib gdi32.lib winmm.lib -MAP
 
@@ -16,10 +17,10 @@ rem cl %cl_flags% ..\code\win_platform.c /link -subsystem:windows,5.1 %linker_fl
 
 rem 64-bit build
 del *.pdb > NUL 2> NUL
-cl %cl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
-cl %cl_flags% ..\code\win_platform.c -link  %linker_flags% %linker_libs%
-rem clang-cl %clangcl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
-rem clang-cl %clangcl_flags% ..\code\win_platform.c     -link %linker_flags% %linker_libs%
+rem cl %cl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
+rem cl %cl_flags% ..\code\win_platform.c -link  %linker_flags% %linker_libs%
+clang-cl %clangcl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
+clang-cl %clangcl_flags% ..\code\win_platform.c     -link %linker_flags% %linker_libs%
 rem -link %linker_flags% %linker_libs%
 popd
 

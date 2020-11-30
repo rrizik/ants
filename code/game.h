@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
-#define ArrayCount(value) (sizeof(value)/sizeof(value[0]))
+#define array_count(value) (sizeof(value)/sizeof(value[0]))
 #define ABS(n) ((n)<0 ? -(n) : (n))
 #define PI 3.14159265f
 #define RAD2DEG(n) ((180.0f/PI) * n);
@@ -31,7 +31,7 @@ print(char *format, ...) {
     printf("%s", buffer);
     OutputDebugStringA(buffer);
 }
-//typedef float __attribute__((ext_vector_type(2))) vec2;
+//typedef float __attribute__((ext_vector_type(2))) Vec2;
 typedef size_t size;
 typedef int8_t i8;
 typedef int16_t i16;
@@ -183,32 +183,22 @@ typedef struct Color{
     f32 b;
 } Color;
 
-typedef struct Matrix{
-    f32 *at;
-    ui32 col;
-    ui32 row;
-} Matrix;
-
 #include "vectors.h"
-//CONSIDER: maybe get rid of this later depending on what the book says
-typedef struct tri{
-    vec2 p1;
-    vec2 p2;
-    vec2 p3;
-} tri;
-
-//CONSIDER: maybe get rid of this later depending on what the book says
-typedef struct Points{
-    vec2 *at;
-    size_t count;
-} Points;
 
 typedef struct GameState{
     i32 placeholder;
-    tri t1;
-    tri t2;
-    Points p;
-    ui16 angle;
+    Vec2 geo[5];
+    Vec2 t1[3];
+    Vec2 t2[3];
+    Vec2 t3[3];
+    Vec2 seg1[2];
+    Vec2 ray1[2];
+    Vec2 ray2[2];
+    Vec2 ray3[2];
+    Vec2 ray4[2];
+    Vec2 line1[2];
+    Vec2 line2[2];
+    f32 scale;
 } GameState;
 
 #define GAME_H

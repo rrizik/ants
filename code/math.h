@@ -9,9 +9,9 @@ swapf(f32 *a, f32 *b){
     *b = t;
 }
 
-static vec2
-round_v2(vec2 value){
-    vec2 result;
+static Vec2
+round_v2(Vec2 value){
+    Vec2 result;
     result.x = (f32)((i32)(value.x + 0.5f));
     result.y = (f32)((i32)(value.y + 0.5f));
 

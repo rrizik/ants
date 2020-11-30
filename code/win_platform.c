@@ -410,7 +410,7 @@ WIN_process_controller_input(void){
 
 static void 
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    //Assert((ui64)recording_index < ArrayCount(state->replay_buffers));
+    //Assert((ui64)recording_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
     //if(replay_buffer->memory){
@@ -442,7 +442,7 @@ WIN_record_input(WIN_State *state, Events *events){
 
 static void
 WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, int playback_index){
-    //Assert(playback_index < ArrayCount(state->replay_buffers));
+    //Assert(playback_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[playback_index];
     //if(replay_buffer->memory){
@@ -718,7 +718,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             game_memory.permanent_storage = game_memory.total_storage;
             game_memory.temporary_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
-            for(ui64 i=0; i<ArrayCount(state.replay_buffers); ++i){
+            for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
                 state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
                 // CONSIDER: maybe do this in the future of it ends up slowing down
