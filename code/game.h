@@ -31,6 +31,7 @@ print(char *format, ...) {
     printf("%s", buffer);
     OutputDebugStringA(buffer);
 }
+
 //typedef float __attribute__((ext_vector_type(2))) Vec2;
 typedef size_t size;
 typedef int8_t i8;
@@ -181,24 +182,13 @@ typedef struct Color{
     f32 r;
     f32 g;
     f32 b;
+    f32 a;
 } Color;
 
 #include "vectors.h"
 
 typedef struct GameState{
-    i32 placeholder;
-    Vec2 geo[5];
-    Vec2 t1[3];
-    Vec2 t2[3];
-    Vec2 t3[3];
-    Vec2 seg1[2];
-    Vec2 ray1[2];
-    Vec2 ray2[2];
-    Vec2 ray3[2];
-    Vec2 ray4[2];
-    Vec2 line1[2];
-    Vec2 line2[2];
-    f32 scale;
+    Vec2 test_background[4];
 } GameState;
 
 #define GAME_H

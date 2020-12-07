@@ -49,7 +49,7 @@ vec4(f32 x, f32 y, f32 z, f32 w){
 }
 
 static void
-swapVec2(Vec2 *a, Vec2 *b){
+swap_v2(Vec2 *a, Vec2 *b){
     Vec2 t = *a;
     *a = *b;
     *b = t;
@@ -89,6 +89,13 @@ scale2(Vec2 a, f32 s){
     result.y = a.y * s;
 
     return(result);
+}
+
+static void
+scale_pts(Vec2 *p, size count, f32 s){
+    for(int i=0; i < count; ++i){
+        *p++ = scale2(*p, s);
+    }
 }
 
 static bool
@@ -144,7 +151,7 @@ angle2(Vec2 a, Vec2 b){
     f32 result = 0;
 
     f32 mag = sqrtf(magnitude_sq2(a) * magnitude_sq2(b));
-    result = acos(dot2(a, b) / mag);
+    result = (f32)acos(dot2(a, b) / mag);
 
     return(result);
 }

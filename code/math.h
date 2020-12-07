@@ -10,11 +10,18 @@ swapf(f32 *a, f32 *b){
 }
 
 static Vec2
+ceil_v2(Vec2 value){
+    Vec2 result = {0};
+    result.x = (f32)ceil(value.x);
+    result.y = (f32)ceil(value.y);
+    return(result);
+}
+
+static Vec2
 round_v2(Vec2 value){
     Vec2 result;
     result.x = (f32)((i32)(value.x + 0.5f));
     result.y = (f32)((i32)(value.y + 0.5f));
-
     return(result);
 }
 
@@ -39,6 +46,12 @@ round_fui32(f32 value){
 static i32
 trunc_fi32(f32 value){
     i32 result = (i32)value;
+    return result;
+}
+
+static f32
+trunc_ff(f32 value){
+    f32 result = (f32)(i32)value;
     return result;
 }
 

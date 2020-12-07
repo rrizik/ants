@@ -11,15 +11,9 @@
 TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
 
+NOT DONE:
     transformation:
-        translation 
-        rotation
-        scaling
         shearing
-
-    color blending
-    alpha blending
-
     fill polygon
     draw circle
     draw wireframe circle
@@ -31,6 +25,18 @@ TODO: WIN PLATFORM CODE
     add clipping 
 
     make it fast (threads, simd)
+
+DONE:
+    transformation:
+        translation 
+        rotation
+        scaling
+        shearing
+
+    color blending
+    alpha blending
+
+
 */
 
 /*

@@ -40,7 +40,7 @@ scale(Vec2 *p, ui32 count, f32 scalar, Vec2 origin){
 }
 
 static Vec2
-rotate_pt(Vec2 p, i16 angle, Vec2 origin){
+rotate_pt(Vec2 p, f32 angle, Vec2 origin){
     Vec2 result = {0};
     result.x = (p.x - origin.x) * Cos(angle * 3.14f/180.0f) - (p.y - origin.y) * Sin(angle * 3.14f/180.0f) + origin.x;
     result.y = (p.x - origin.x) * Sin(angle * 3.14f/180.0f) + (p.y - origin.y) * Cos(angle * 3.14f/180.0f) + origin.y;
@@ -48,7 +48,7 @@ rotate_pt(Vec2 p, i16 angle, Vec2 origin){
 }
 
 static void
-rotate_pts(Vec2 *p, ui32 count, i16 angle, Vec2 origin){
+rotate_pts(Vec2 *p, ui32 count, f32 angle, Vec2 origin){
     for(ui32 i=0; i<count; ++i){
         Vec2 result = {0};
         result = rotate_pt(*p, angle, origin);
@@ -59,44 +59,54 @@ rotate_pts(Vec2 *p, ui32 count, i16 angle, Vec2 origin){
     p -= count;
 }
 
+// TODO: REMOVE
+static Color
+get_color_test(GameMemory *memory, RenderBuffer *buffer, f32 x, f32 y){
+    Color result = {0};
+
+    ui8 *location = (ui8 *)memory->temporary_storage + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
+    ui32 *pixel = (ui32 *)location;
+    result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
+    result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
+    result.b = (f32)((*pixel >> 0) & 0xFF) / 255.0f;
+    result.a = 1.0f;
+
+    return(result);
+}
+
+static Color
+get_color(RenderBuffer *buffer, f32 x, f32 y){
+    Color result = {0};
+
+    ui8 *location = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
+    ui32 *pixel = (ui32 *)location;
+    result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
+    result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
+    result.b = (f32)((*pixel >> 0) & 0xFF) / 255.0f;
+    result.a = 1.0f;
+
+    return(result);
+}
+
 static void
 draw_pixel(RenderBuffer *buffer, f32 x, f32 y, Color c){
     x = round_ff(x);
     y = round_ff(y);
 
     if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
-        ui32 color = (round_fi32(c.r * 255) << 16 | round_fi32(c.g * 255) << 8 | round_fi32(c.b * 255));
         ui8 *row = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
         ui32 *pixel = (ui32 *)row;
+
+        f32 current_r = (f32)((*pixel >> 16) & 0xFF);
+        f32 current_g = (f32)((*pixel >> 8) & 0xFF);
+        f32 current_b = (f32)((*pixel >> 0) & 0xFF);
+
+        f32 new_r = ((1.0f - c.a) * current_r + c.a * (c.r * 255.0f));
+        f32 new_g = ((1.0f - c.a) * current_g + c.a * (c.g * 255.0f));
+        f32 new_b = ((1.0f - c.a) * current_b + c.a * (c.b * 255.0f));
+
+        ui32 color = (round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
         *pixel = color;
-    }
-}
-
-static void
-draw_segment(RenderBuffer *buffer, Vec2 p1, Vec2 p2, Color c){
-    p1 = round_v2(p1);
-    p2 = round_v2(p2);
-
-    f32 distance_x =  ABS(p2.x - p1.x);
-    f32 distance_y = -ABS(p2.y - p1.y);
-    f32 step_x = p1.x < p2.x ? 1.0f : -1.0f;
-    f32 step_y = p1.y < p2.y ? 1.0f : -1.0f; 
-
-    f32 error = distance_x + distance_y;
-
-    for(;;){
-        draw_pixel(buffer, p1.x, p1.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-        if(p1.x == p2.x && p1.y == p2.y) break;
-
-        f32 error2 = 2 * error;
-        if (error2 >= distance_y){
-            error += distance_y; 
-            p1.x += step_x; 
-        }
-        if (error2 <= distance_x){ 
-            error += distance_x; 
-            p1.y += step_y; 
-        }
     }
 }
 
@@ -174,129 +184,193 @@ draw_line(RenderBuffer *buffer, Vec2 point, Vec2 direction, Color c){
 }
 
 static void
-fill_flatbottom_triangle(RenderBuffer *buffer, Vec2 p1, Vec2 p2, Vec2 p3, Color c){
-    f32 slope_1 = (p2.x - p1.x) / (p2.y - p1.y);
-    f32 slope_2 = (p3.x - p1.x) / (p3.y - p1.y);
-    
-    f32 x1_inc = p1.x;
-    f32 x2_inc = p1.x;
+draw_segment(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Color c){
+    p0 = round_v2(p0);
+    p1 = round_v2(p1);
 
-    for(f32 y=p1.y; y >= p2.y; --y){
-        Vec2 new_p1 = {x1_inc, y};
-        Vec2 new_p2 = {x2_inc, y};
-        draw_segment(buffer, new_p1, new_p2, c);
-        x1_inc -= slope_1;
-        x2_inc -= slope_2;
+    if(p0.x > p1.x) { swap_v2(&p0, &p1); };
+
+    f32 distance_x =  ABS(p1.x - p0.x);
+    f32 distance_y = -ABS(p1.y - p0.y);
+    f32 step_x = p0.x < p1.x ? 1.0f : -1.0f;
+    f32 step_y = p0.y < p1.y ? 1.0f : -1.0f; 
+
+    f32 error = distance_x + distance_y;
+
+    for(;;){
+        draw_pixel(buffer, p0.x, p0.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
+        if(p0.x == p1.x && p0.y == p1.y) break;
+
+        f32 error2 = 2 * error;
+        if (error2 >= distance_y){
+            error += distance_y; 
+            p0.x += step_x; 
+        }
+        if (error2 <= distance_x){ 
+            error += distance_x; 
+            p0.y += step_y; 
+        }
     }
 }
 
 static void
-fill_flattop_triangle(RenderBuffer *buffer, Vec2 p1, Vec2 p2, Vec2 p3, Color c){
-    f32 slope_1 = (p1.x - p3.x) / (p1.y - p3.y);
-    f32 slope_2 = (p2.x - p3.x) / (p2.y - p3.y);
-    
-    f32 x1_inc = p3.x;
-    f32 x2_inc = p3.x;
+draw_flattop_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Color c){
+    f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
+    f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
-    for(f32 y=p3.y; y < p1.y; ++y){
-        Vec2 new_p1 = {x1_inc, y};
-        Vec2 new_p2 = {x2_inc, y};
-        draw_segment(buffer, new_p1, new_p2, c);
-        x1_inc += slope_1;
-        x2_inc += slope_2;
+    int start_y = (int)round(p2.y);
+    int end_y = (int)round(p0.y);
+
+    for(int y=start_y; y < end_y; ++y){
+        f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
+        f32 x1 = right_slope * (y + 0.5f - p1.y) + p1.x;
+        int start_x = (int)ceil(x0 - 0.5f);
+        int end_x = (int)ceil(x1 - 0.5f);
+        for(int x=start_x; x < end_x; ++x){
+            draw_pixel(buffer, (f32)x, (f32)y, c);
+        }
+    }
+}
+
+static void
+draw_flatbottom_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Color c){
+    f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
+    f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
+    
+    int start_y = (int)round(p0.y);
+    int end_y = (int)round(p1.y);
+
+    for(int y=start_y; y >= end_y; --y){
+        f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
+        f32 x1 = right_slope * (y + 0.5f - p0.y) + p0.x;
+        int start_x = (int)ceil(x0 - 0.5f);
+        int end_x = (int)ceil(x1 - 0.5f);
+        for(int x=start_x; x < end_x; ++x){
+            draw_pixel(buffer, (f32)x, (f32)y, c);
+        }
     }
 }
 
 static void
 draw_triangle(RenderBuffer *buffer, Vec2 *points, Color c, bool fill){
-    Vec2 p1 = round_v2(*points++);
-    Vec2 p2 = round_v2(*points++);
-    Vec2 p3 = round_v2(*points);
+    Vec2 p0 = (*points++);
+    Vec2 p1 = (*points++);
+    Vec2 p2 = (*points);
 
-    if(p1.y < p2.y){ swapVec2(&p1, &p2); }
-    if(p1.y < p3.y){ swapVec2(&p1, &p3); }
-    if(p2.y < p3.y){ swapVec2(&p2, &p3); }
+    if(p0.y < p1.y){ swap_v2(&p0, &p1); }
+    if(p0.y < p2.y){ swap_v2(&p0, &p2); }
+    if(p1.y < p2.y){ swap_v2(&p1, &p2); }
 
     if(fill){
-        if(p2.y == p3.y){
-            fill_flatbottom_triangle(buffer, p1, p2, p3, c);
+        if(p0.y == p1.y){
+            if(p0.x > p1.x){ swap_v2(&p0, &p1); }
+            draw_flattop_triangle(buffer, p0, p1, p2, c);
         }
-        if(p1.y == p2.y){
-            fill_flattop_triangle(buffer, p1, p2, p3, c);
+        else if(p1.y == p2.y){
+            if(p1.x > p2.x){ swap_v2(&p1, &p2); }
+            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
         }
         else{
-            f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
-            Vec2 p4 = {x, p2.y};
-            fill_flatbottom_triangle(buffer, p1, p2, p4, c);
-            fill_flattop_triangle(buffer, p2, p4, p3, c);
+            f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
+            Vec2 p3 = {x, p1.y};
+            if(p1.x > p3.x){ swap_v2(&p1, &p3); }
+            draw_flattop_triangle(buffer, p1, p3, p2, c);
+            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
         }
     }
     else{
+        draw_segment(buffer, p0, p1, c);
         draw_segment(buffer, p1, p2, c);
-        draw_segment(buffer, p2, p3, c);
-        draw_segment(buffer, p3, p1, c);
+        draw_segment(buffer, p2, p0, c);
     }
 }
 
 static void
-draw_triangle_3v2(RenderBuffer *buffer, Vec2 p1, Vec2 p2, Vec2 p3, Color c, bool fill){
-    p1 = round_v2(p1);
-    p2 = round_v2(p2);
-    p3 = round_v2(p3);
-
-    if(p1.y < p2.y){ swapVec2(&p1, &p2); }
-    if(p1.y < p3.y){ swapVec2(&p1, &p3); }
-    if(p2.y < p3.y){ swapVec2(&p2, &p3); }
+draw_triangle_v2(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Color c, bool fill){
+    if(p0.y < p1.y){ swap_v2(&p0, &p1); }
+    if(p0.y < p2.y){ swap_v2(&p0, &p2); }
+    if(p1.y < p2.y){ swap_v2(&p1, &p2); }
 
     if(fill){
-        if(p2.y == p3.y){
-            fill_flatbottom_triangle(buffer, p1, p2, p3, c);
+        if(p0.y == p1.y){
+            if(p0.x > p1.x){ swap_v2(&p0, &p1); }
+            draw_flattop_triangle(buffer, p0, p1, p2, c);
         }
-        if(p1.y == p2.y){
-            fill_flattop_triangle(buffer, p1, p2, p3, c);
+        else if(p1.y == p2.y){
+            if(p1.x > p2.x){ swap_v2(&p1, &p2); }
+            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
         }
         else{
-            f32 x = p1.x + ((p2.y - p1.y) / (p3.y - p1.y)) * (p3.x - p1.x);
-            Vec2 p4 = {x, p2.y};
-            fill_flatbottom_triangle(buffer, p1, p2, p4, c);
-            fill_flattop_triangle(buffer, p2, p4, p3, c);
+            f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
+            Vec2 p3 = {x, p1.y};
+            if(p1.x > p3.x){ swap_v2(&p1, &p3); }
+            draw_flattop_triangle(buffer, p1, p3, p2, c);
+            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
         }
     }
     else{
+        draw_segment(buffer, p0, p1, c);
         draw_segment(buffer, p1, p2, c);
-        draw_segment(buffer, p2, p3, c);
-        draw_segment(buffer, p3, p1, c);
+        draw_segment(buffer, p2, p0, c);
     }
 }
 
 static void
-draw_rect_wire(RenderBuffer *buffer, Vec2 pos, Vec2 dim, Color c){
-    pos.x = round_ff(pos.x);
-    pos.y = round_ff(pos.y);
-    dim.x = round_ff(dim.x);
-    dim.y = round_ff(dim.y);
-
-    Vec2 p1 = {(f32)pos.x, (f32)pos.y};
-    Vec2 p2 = {(f32)(pos.x + dim.x), (f32)pos.y};
-    Vec2 p3 = {(f32)pos.x, (f32)(pos.y + dim.y)};
-    Vec2 p4 = {(f32)(pos.x + dim.x), (f32)(pos.y + dim.y)};
-    draw_triangle_3v2(buffer, p1, p2, p3, c, false);
-    draw_triangle_3v2(buffer, p2, p3, p4, c, false);
+clear(RenderBuffer *buffer, Color c){
+    for(f32 y=0; y < buffer->height; ++y){
+        for(f32 x=0; x < buffer->width; ++x){
+            draw_pixel(buffer, x, y, c);
+        }
+    }
 }
 
 static void
-draw_rect_fill(RenderBuffer *buffer, Vec2 pos, Vec2 dim, Color c){
-    pos.x = round_ff(pos.x);
-    pos.y = round_ff(pos.y);
-    dim.x = round_ff(dim.x);
-    dim.y = round_ff(dim.y);
+r(RenderBuffer *buffer, Vec2 *p, Color c, bool fill){
+    Vec2 p0 = round_v2(*p++);
+    Vec2 p1 = round_v2(*p++);
+    Vec2 p2 = round_v2(*p++);
+    Vec2 p3 = round_v2(*p);
 
-    Vec2 p1 = {(f32)pos.x, (f32)pos.y};
-    Vec2 p2 = {(f32)(pos.x + dim.x), (f32)pos.y};
-    Vec2 p3 = {(f32)pos.x, (f32)(pos.y + dim.y)};
-    Vec2 p4 = {(f32)(pos.x + dim.x), (f32)(pos.y + dim.y)};
-    draw_triangle_3v2(buffer, p1, p2, p3, c, true);
-    draw_triangle_3v2(buffer, p2, p3, p4, c, true);
+    for(f32 y=p0.y; y <= p2.y; ++y){
+        for(f32 x=p0.x; x <= p1.x; ++x){
+            draw_pixel(buffer, x, y, c);
+        }
+    }
+}
+
+static void
+draw_rect(RenderBuffer *buffer, Vec2 *p, Color c, bool fill){
+    Vec2 p0 = (*p++);
+    Vec2 p1 = (*p++);
+    Vec2 p2 = (*p++);
+    Vec2 p3 = (*p);
+
+    draw_triangle_v2(buffer, p0, p1, p2, c, fill);
+    draw_triangle_v2(buffer, p0, p2, p3, c, fill);
+}
+
+static void
+draw_box(RenderBuffer *buffer, Vec2 *p, Color c){
+    Vec2 p0 = round_v2(*p++);
+    Vec2 p1 = round_v2(*p++);
+    Vec2 p2 = round_v2(*p++);
+    Vec2 p3 = round_v2(*p);
+
+    draw_segment(buffer, p0, p1, c);
+    draw_segment(buffer, p1, p3, c);
+    draw_segment(buffer, p3, p2, c);
+    draw_segment(buffer, p2, p0, c);
+}
+
+static void
+draw_rect_wire(RenderBuffer *buffer, Vec2 *p, Color c){
+    Vec2 p0 = *p++;
+    Vec2 p1 = *p++;
+    Vec2 p2 = *p++;
+    Vec2 p3 = *p;
+
+    draw_triangle_v2(buffer, p0, p1, p2, c, false);
+    draw_triangle_v2(buffer, p1, p2, p3, c, false);
 }
 
 static void
@@ -322,41 +396,9 @@ MAIN_GAME_LOOP(main_game_loop){
     
     if(!memory->initialized){
         memory->initialized = true;
+        Vec2 background[4] = {{0.0f, 0.0f}, {20.0f, 0.0f}, {0.0f, 10.0f}, {20.0f, 10.0f}};
 
-        Vec2 t3[3] = {{100.0f, 100.0f}, {150.0f, 200.0f}, {200.0f, 100.0f}};
-        copy_array(game_state->t3, t3, array_count(t3));
-
-        Vec2 t1[3] = {{400.0f, 160.0f}, {450.0f, 70.0f}, {500.0f, 160.0f}};
-        copy_array(game_state->t1, t1, array_count(t1));
-
-        Vec2 t2[3] = {{600.0f, 160.0f}, {650.0f, 70.0f}, {700.0f, 160.0f}};
-        copy_array(game_state->t2, t2, array_count(t2));
-
-        Vec2 geo[5] = {{100.0f, 100.0f}, {300.0f, 100.0f}, {300.0f, 200.0f}, {200.0f, 300.0f}, {100.0f, 300.0f}};
-        copy_array(game_state->geo, geo, array_count(geo));
-
-        Vec2 seg_points[2] = {{600.0f, 100.0f}, {500.0f, 200.0f}};
-        copy_array(game_state->seg1, seg_points, array_count(seg_points));
-
-        Vec2 ray1[2] = {{render_buffer->width/2, render_buffer->height/2}, {700.0f, 400.0f}};
-        copy_array(game_state->ray1, ray1, array_count(ray1));
-
-        Vec2 ray2[2] = {{render_buffer->width/2, render_buffer->height/2}, {700.0f, 100.0f}};
-        copy_array(game_state->ray2, ray2, array_count(ray2));
-
-        Vec2 ray3[2] = {{render_buffer->width/2, render_buffer->height/2}, {100.0f, 100.0f}};
-        copy_array(game_state->ray3, ray3, array_count(ray3));
-
-        Vec2 ray4[2] = {{render_buffer->width/2, render_buffer->height/2}, {100.0f, 400.0f}};
-        copy_array(game_state->ray4, ray4, array_count(ray4));
-
-        Vec2 line1[2] = {{100, render_buffer->height/2}, {200, 400}};
-        copy_array(game_state->line1, line1, array_count(line1));
-
-        Vec2 line2[2] = {{render_buffer->width/2, render_buffer->height/2}, {200, 250}};
-        copy_array(game_state->line2, line2, array_count(line2));
-
-        game_state->scale = 1.01f;
+        copy_array(game_state->test_background, background, array_count(background));
     }
 
 
@@ -371,59 +413,135 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    Color red = {1.0f, 0.0f, 0.0f};
-    Color green = {0.0f, 1.0f, 0.0f};
-    Color blue = {0.0f, 0.0f, 1.0f};
-    Color white = {1.0f, 1.0f, 1.0f};
-    Color black = {0.0f, 0.0f, 0.0f};
+    Color red = {1.0f, 0.0f, 0.0f, 0.5f};
+    Color green = {0.0f, 1.0f, 0.0f, 0.5f};
+    Color blue = {0.0f, 0.0f, 1.0f, 0.5f};
+    Color magenta = {1.0f, 0.0f, 1.0f, 0.5f};
+    Color pink = {1.0f, 0.30f, 0.50, 0.5f};
+    Color yellow = {0.9f, 0.9f, 0.0f, 0.5f};
+    Color teal = {0.0f, 1.0f, 1.0f, 0.5f};
+    Color white = {1.0f, 1.0f, 1.0f, 0.5f};
+    Color black = {0.0f, 0.0f, 0.0f, 0.5f};
+    Color dgray = {0.5f, 0.5f, 0.5f, 0.5f};
+    Color lgray = {0.8f, 0.8f, 0.8f, 0.5f};
 
     // NOTE:clear black
-    Vec2 pos = {0, 0};
-    Vec2 dim = {(f32)render_buffer->width, (f32)render_buffer->height};
-    draw_rect_fill(render_buffer, pos, dim, white);
+    clear(render_buffer, black);
 
-    Vec2 translation = {11.1f, 11.1f};
+    //NOTE: left top 1
+    Vec2 test_t1[3] = {{1.0f, 7.0f},   {2.0f, 4.0f},  {6.0f, 6.0f}};
 
-    //translate(game_state->t1, array_count(game_state->t1), translation);
-    Vec2 center = calc_center(game_state->t1, array_count(game_state->t1));
-    scale(game_state->t1, array_count(game_state->t1), game_state->scale, center);
-    rotate_pts(game_state->t1, array_count(game_state->t1), 1, center);
-    draw_triangle(render_buffer, game_state->t1, green, true);
+    //NOTE: left top dot
+    Vec2 test_t2[3] = {{4.5f, 7.5f},   {4.5f, 7.5f},  {4.5f, 7.5f}};
 
-    center = calc_center(game_state->t2, array_count(game_state->t2));
-    //game_state->t2 = scale(game_state->t2, game_state->scale, center);
-    rotate_pts(game_state->t2, array_count(game_state->t2), 1, center);
-    draw_triangle(render_buffer, game_state->t2, red, true);
+    //NOTE: left top double 
+    Vec2 test_t3[3] = {{5.25f, 6.75f}, {6.25f, 6.75f}, {6.25f, 7.75f}};
+    Vec2 test_t4[3] = {{6.5f, 6.5f},   {7.5f, 6.5f},  {7.5f, 7.5f}};
+
+    //NOTE: bottom 3
+    Vec2 test_t5[3] = {{1.0f, 2.0f}, {5.0f, 2.0f}, {7.0f, 4.0f}};
+    Vec2 test_t6[3] = {{5.0f, 2.0f}, {7.0f, 4.0f}, {8.0f, 1.0f}};
+    Vec2 test_t7[3] = {{8.0f, 1.0f}, {7.0f, 4.0f}, {9.5f, 2.5f}};
+
+    //NOTE: center top 2
+    Vec2 test_t8[3] = {{7.75f, 5.5f}, {11.75f, 5.5f}, {9.75f, 7.25f}};
+    Vec2 test_t9[3] = {{7.75f, 5.5f}, {11.75f, 5.5f}, {9.5f, 2.75f}};
+
+    //NOTE center bottom 1
+    Vec2 test_t10[3] = {{9.5f, 0.5f}, {9.5f, -1.5f}, {10.5f, 0.5f}};
+
+    //NOTE right middle 1
+    Vec2 test_t11[3] = {{11.5f, 1.5f}, {11.5f, 3.5f}, {12.5f, 2.5f}};
+
+    //NOTE: right bottom 2
+    Vec2 test_t13[3] = {{13.5f, 0.5f}, {15.5f, 2.5f}, {15.5f, 0.5f}};
+    Vec2 test_t12[3] = {{13.5f, 0.5f}, {13.5f, 2.5f}, {15.5f, 2.5f}};
     
-    Vec2 center1 = calc_center(game_state->t3, array_count(game_state->t3));
-    draw_triangle(render_buffer, game_state->t3, blue, true);
-    rotate_pts(game_state->t3, array_count(game_state->t3), 10, center1);
+    //NOTE: right top 2
+    Vec2 test_t14[3] = {{15.0f, 8.0}, {13.5f, 6.5f}, {14.5f, 5.5f}};
+    Vec2 test_t15[3] = {{14.5f, 3.5f}, {14.5f, 5.5f}, {13.5f, 6.5f}};
+    
+    r(render_buffer, game_state->test_background, white, true);
 
-    Vec2 poly_center = calc_center(game_state->geo, array_count(game_state->geo));
-    //translate(game_state->geo, array_count(game_state->geo), translation);
-    //scale(game_state->geo, array_count(game_state->geo), game_state->scale, poly_center);
-    rotate_pts(game_state->geo, array_count(game_state->geo), 5, poly_center);
-    draw_polygon(render_buffer, game_state->geo, array_count(game_state->geo), red);
+    //NOTE: left top 1
+    draw_triangle(render_buffer, test_t1, green, true);
 
-    Vec2 seg_center = calc_center(game_state->seg1, array_count(game_state->seg1));
-    rotate_pts(game_state->seg1, array_count(game_state->seg1), 5, seg_center);
-    draw_segment(render_buffer, game_state->seg1[0], game_state->seg1[1], green);
+    //NOTE: left top dot
+    draw_triangle(render_buffer, test_t2, blue, true);
 
-    rotate_pts(game_state->ray1, array_count(game_state->ray1), 3, game_state->ray1[0]);
-    draw_ray(render_buffer, game_state->ray1[0], game_state->ray1[1], blue);
+    //NOTE: left top double 
+    draw_triangle(render_buffer, test_t3, red, true);
+    draw_triangle(render_buffer, test_t4, magenta, true);
 
-    rotate_pts(game_state->ray2, array_count(game_state->ray2), 1, game_state->ray2[0]);
-    draw_ray(render_buffer, game_state->ray2[0], game_state->ray2[1], green);
+    //NOTE: bottom 3
+    draw_triangle(render_buffer, test_t5, yellow, true);
+    draw_triangle(render_buffer, test_t6, teal, true);
+    draw_triangle(render_buffer, test_t7, green, true);
 
-    rotate_pts(game_state->ray3, array_count(game_state->ray3), 3, game_state->ray3[0]);
-    draw_ray(render_buffer, game_state->ray3[0], game_state->ray3[1], red);
+    //NOTE: center top 2
+    draw_triangle(render_buffer, test_t8, blue, true);
+    draw_triangle(render_buffer, test_t9, red, true);
 
-    rotate_pts(game_state->ray4, array_count(game_state->ray4), 5, game_state->ray4[0]);
-    draw_ray(render_buffer, game_state->ray4[0], game_state->ray4[1], black);
+    //NOTE center bottom 1
+    draw_triangle(render_buffer, test_t10, yellow, true);
 
-    rotate_pts(game_state->line1, array_count(game_state->line1), 3, game_state->line1[0]);
-    draw_line(render_buffer, game_state->line1[0], game_state->line1[1], black);
+    //NOTE right middle 1
+    draw_triangle(render_buffer, test_t11, teal, true);
 
-    rotate_pts(game_state->line2, array_count(game_state->line2), 5, game_state->line2[0]);
-    draw_line(render_buffer, game_state->line2[0], game_state->line2[1], black);
+    ////NOTE: right bottom 2
+    draw_triangle(render_buffer, test_t12, magenta, true);
+    draw_triangle(render_buffer, test_t13, yellow, true);
+
+    //NOTE: right_top 2
+    draw_triangle(render_buffer, test_t14, blue, true);
+    draw_triangle(render_buffer, test_t15, green, true);
+    
+    memcpy(memory->temporary_storage, render_buffer->memory, render_buffer->memory_size);
+
+    for(f32 y=round_ff(game_state->test_background[0].y); y <= round_ff(game_state->test_background[2].y); ++y){
+        for(f32 x=round_ff(game_state->test_background[0].x); x <= (round_ff(game_state->test_background[1].x) + 1.0f); ++x){
+            Color c = get_color_test(memory, render_buffer, x, y);
+            f32 new_x = x * 40.0f;
+            f32 new_y = y * 40.0f;
+            for(f32 y2=new_y; y2 < (new_y + 39.0f); ++y2){
+                for(f32 x2=new_x; x2 < (new_x + 39.0f); ++x2){
+                    draw_pixel(render_buffer, x2, y2, c);
+                }
+            }
+        }
+    }
+
+    scale_pts(test_t1, array_count(test_t1), 40.0f);
+    scale_pts(test_t2, array_count(test_t2), 40.0f);
+    scale_pts(test_t3, array_count(test_t3), 40.0f);
+    scale_pts(test_t4, array_count(test_t4), 40.0f);
+    scale_pts(test_t5, array_count(test_t5), 40.0f);
+    scale_pts(test_t6, array_count(test_t6), 40.0f);
+    scale_pts(test_t7, array_count(test_t7), 40.0f);
+    scale_pts(test_t8, array_count(test_t8), 40.0f);
+    scale_pts(test_t9, array_count(test_t9), 40.0f);
+    scale_pts(test_t10, array_count(test_t10), 40.0f);
+    scale_pts(test_t11, array_count(test_t11), 40.0f);
+    scale_pts(test_t12, array_count(test_t12), 40.0f);
+    scale_pts(test_t13, array_count(test_t13), 40.0f);
+    scale_pts(test_t14, array_count(test_t14), 40.0f);
+    scale_pts(test_t15, array_count(test_t15), 40.0f);
+    draw_triangle(render_buffer, test_t1, black, false);
+    draw_triangle(render_buffer, test_t2, black, false);
+    draw_triangle(render_buffer, test_t3, black, false);
+    draw_triangle(render_buffer, test_t4, black, false);
+    draw_triangle(render_buffer, test_t5, black, false);
+    draw_triangle(render_buffer, test_t6, black, false);
+    draw_triangle(render_buffer, test_t7, black, false);
+    draw_triangle(render_buffer, test_t8, black, false);
+    draw_triangle(render_buffer, test_t9, black, false);
+    draw_triangle(render_buffer, test_t10, black, false);
+    draw_triangle(render_buffer, test_t11, black, false);
+    draw_triangle(render_buffer, test_t12, black, false);
+    draw_triangle(render_buffer, test_t13, black, false);
+    draw_triangle(render_buffer, test_t14, black, false);
+    draw_triangle(render_buffer, test_t15, black, false);
+
+    Vec2 border[4] = {{0.0f, 0.0f}, {(f32)render_buffer->width-1, 0.0f}, {0.0f, (f32)render_buffer->height-1}, {(f32)render_buffer->width-1, (f32)render_buffer->height-1}};
+    draw_box(render_buffer, border, red);
 }
