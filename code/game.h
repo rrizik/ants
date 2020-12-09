@@ -187,8 +187,81 @@ typedef struct Color{
 
 #include "vectors.h"
 
+typedef struct Move{
+    bool up;
+    bool down;
+    bool right;
+    bool left;
+} Move;
+
+typedef struct Rect{
+    f32 x, y, w, h, width, height;
+    Vec2 bottom_left, bottom_right, top_left, top_right;
+} Rect;
+
+static Rect
+rect(Vec2 pos, Vec2 dim){
+    Rect result = {0};
+    result.x = pos.x;
+    result.y = pos.y;
+    result.w = dim.x;
+    result.h = dim.y;
+    result.width = result.w;
+    result.height = result.h;
+    result.bottom_left = vec2(result.x, result.y);
+    result.bottom_right = vec2(result.x + result.w, result.y);
+    result.top_left = vec2(result.x, result.y + result.h);
+    result.top_right = vec2(result.x + result.w, result.y + result.h);
+    return(result);
+}
+
+static bool
+rect_collide_rect(Rect r1, Rect r2){
+    if((r1.x < r2.x + r2.w) &&
+       (r1.x + r1.w > r2.x) &&
+       (r1.y < r2.y + r2.h) &&
+       (r1.y + r1.h > r2.y)){
+        return true;
+    }
+    return false;
+}
+
+static bool
+rect_collide_point(Rect r1, Vec2 p){
+    if((p.x < r1.x + r1.w) &&
+       (p.x > r1.x) &&
+       (p.y < r1.y + r1.h) &&
+       (p.y > r1.y)){
+        return true;
+    }
+    return false;
+}
+
+static bool
+rect_contains_rect(Rect r1, Rect r2){
+    if((r2.x > r1.x) &&
+       (r2.x + r2.w < r1.x + r1.w) &&
+       (r2.y > r1.y) &&
+       (r2.y + r2.h < r1.y + r1.h)){
+        return true;
+    }
+    return false;
+}
+
+typedef struct Quad{
+    Vec2 p0;
+    Vec2 p1;
+    Vec2 p2;
+    Vec2 p3;
+} Quad;
+
 typedef struct GameState{
+    Move move;
     Vec2 test_background[4];
+    Vec2 box1[4];
+    Vec2 box2[4];
+    Rect r1;
+    Rect r2;
 } GameState;
 
 #define GAME_H

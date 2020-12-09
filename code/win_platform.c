@@ -19,10 +19,10 @@ NOT DONE:
     draw wireframe circle
 
     add texturing 
-
     anti aliasing
-
     add clipping 
+
+    overlap/intersection
 
     make it fast (threads, simd)
 

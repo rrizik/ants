@@ -17,10 +17,10 @@ rem cl %cl_flags% ..\code\win_platform.c /link -subsystem:windows,5.1 %linker_fl
 
 rem 64-bit build
 del *.pdb > NUL 2> NUL
-rem cl %cl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
-rem cl %cl_flags% ..\code\win_platform.c -link  %linker_flags% %linker_libs%
-clang-cl %clangcl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
-clang-cl %clangcl_flags% ..\code\win_platform.c     -link %linker_flags% %linker_libs%
+cl %cl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
+cl %cl_flags% ..\code\win_platform.c -link  %linker_flags% %linker_libs%
+rem clang-cl %clangcl_flags% ..\code\game.c         -LD -link %linker_flags% -PDB:game_%random%.pdb -EXPORT:main_game_loop
+rem clang-cl %clangcl_flags% ..\code\win_platform.c     -link %linker_flags% %linker_libs%
 rem -link %linker_flags% %linker_libs%
 popd
 
