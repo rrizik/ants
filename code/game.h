@@ -50,6 +50,7 @@ typedef double f64;
 typedef int32_t bool;
 enum{false, true};
 
+typedef enum{PIXEL, SEGMENT, RAY, LINE, TRIANGLE, RECTANGLE, QUAD, BOX, CIRCLE} GeometryType;
 typedef enum{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
 typedef enum{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
 typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE, KEY_1, KEY_2, KEY_3} EventKey;
@@ -278,6 +279,29 @@ rect_contains_rect(Rect r1, Rect r2){
     return false;
 }
 
+typedef struct Entity{
+    bool is_geometry; 
+    GeometryType geometry_type;
+} Entity;
+
+typedef struct Entities{
+    Entity *e;
+    i32 i;
+    size count;
+} Entities;
+
+static void
+add_entity(Entities *entities, Entity e){
+    entities->e[entities->i] = e;
+    entities->i++;
+}
+
+static Entity
+entity(bool is_geometry, GeometryType geometry_type){
+    Entity result = {is_geometry, geometry_type};
+    return(result);
+}
+
 typedef struct GameState{
     Move move;
     Vec2 test_background[4];
@@ -285,10 +309,9 @@ typedef struct GameState{
     Vec2 box2[4];
     Rect r1;
     Rect r2;
-    bool one;
-    bool two;
-    bool three;
+    Entities entities;
 } GameState;
+
 
 #define GAME_H
 #endif

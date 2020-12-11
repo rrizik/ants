@@ -250,7 +250,7 @@ draw_flatbottom_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Color 
 }
 
 static void
-draw_triangle_outline(RenderBuffer *buffer, Vec2 *points, Color c, Color c_outline, bool fill){
+draw_triangle_outlined(RenderBuffer *buffer, Vec2 *points, Color c, Color c_outlined, bool fill){
     Vec2 p0 = (*points++);
     Vec2 p1 = (*points++);
     Vec2 p2 = (*points);
@@ -276,9 +276,9 @@ draw_triangle_outline(RenderBuffer *buffer, Vec2 *points, Color c, Color c_outli
             draw_flatbottom_triangle(buffer, p0, p1, p3, c);
         }
     }
-    draw_segment(buffer, p0, p1, c_outline);
-    draw_segment(buffer, p1, p2, c_outline);
-    draw_segment(buffer, p2, p0, c_outline);
+    draw_segment(buffer, p0, p1, c_outlined);
+    draw_segment(buffer, p1, p2, c_outlined);
+    draw_segment(buffer, p2, p0, c_outlined);
 }
 
 static void
@@ -457,11 +457,13 @@ copy_array(Vec2 *a, Vec2 *b, i32 count){
 
 MAIN_GAME_LOOP(main_game_loop){
     GameState *game_state = (GameState *)memory->permanent_storage;
+
+    Entities *entities;
     
     if(!memory->initialized){
         memory->initialized = true;
 
-        Vec2 box1[4] = {{100, 100}, {200, 100}, {200, 200}, {100, 200}};
+        Vec2 box1[4] = {{100, 250}, {200, 250}, {200, 350}, {100, 350}};
         copy_array(game_state->box1, box1, array_count(box1));
 
         Vec2 box2[4] = {{100, 300}, {200, 300}, {200, 400}, {100, 400}};
@@ -472,11 +474,13 @@ MAIN_GAME_LOOP(main_game_loop){
 
         game_state->r1 = rect(vec2(100, 100), vec2(50, 50));
         game_state->r2 = rect(vec2(100, 300), vec2(100, 100));
-        game_state->one = true;
-        game_state->two = false;
-        game_state->three = false;
-    }
 
+        Entity e[256] = {0};
+        game_state->entities.e = e;
+        game_state->entities.i = 0;
+        game_state->entities.count = 256;
+        entities = &game_state->entities;
+    }
 
     for(ui32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
@@ -492,17 +496,6 @@ MAIN_GAME_LOOP(main_game_loop){
             }
             if(event->key == KEY_D){
                 game_state->move.right = true;
-            }
-            if(event->key == KEY_1){
-                game_state->one = !game_state->one;
-                game_state->two = !game_state->two;
-            }
-            if(event->key == KEY_2){
-                game_state->two = !game_state->two;
-                game_state->one = !game_state->one;
-            }
-            if(event->key == KEY_3){
-                game_state->three = !game_state->three;
             }
         }
         if(event->type == EVENT_KEYUP){
@@ -524,7 +517,7 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    f32 speed = 4.0f;
+    f32 speed = 8.0f;
 
     if(game_state->move.up){
         game_state->r1.y += speed;
@@ -554,166 +547,20 @@ MAIN_GAME_LOOP(main_game_loop){
 
     clear(render_buffer, black);
 
-    Vec2 test_t1[3] =  {{0.5f, 10.5f},   {0.5f, 5.5f},    {2.5f, 8.5f}};
-    Vec2 test_t2[3] =  {{0.5f, 5.5f},    {3.5f, 4.5f},    {0.5f, 0.5f}};
-    Vec2 test_t3[3] =  {{0.5f, 10.5f},   {2.5f, 8.5f},    {4.5f, 10.5f}};
-    Vec2 test_t4[3] =  {{2.5f, 8.5f},    {0.5f, 5.5f},    {3.5f, 4.5f}};
-    Vec2 test_t5[3] =  {{0.5f, 0.5f},    {3.5f, 4.5f},    {6.5f, 1.5f}};
-    Vec2 test_t6[3] =  {{2.5f, 8.5f},    {4.5f, 10.5f},   {6.5f, 7.5f}};
-    Vec2 test_t7[3] =  {{2.5f, 8.5f},    {6.5f, 7.5f},    {3.5f, 4.5f}};
-    Vec2 test_t8[3] =  {{3.5f, 4.5f},    {6.5f, 4.5f},    {6.5f, 7.5f}};
-    Vec2 test_t9[3] =  {{3.5f, 4.5f},    {6.5f, 4.5f},    {6.5f, 1.5f}};
-    Vec2 test_t10[3] = {{0.5f, 0.5f},    {6.5f, 1.5f},    {15.5f, 0.5f}};
-    Vec2 test_t11[3] = {{4.5f, 10.5f},   {6.5f, 7.5f},    {10.5f, 10.5f}};
-    Vec2 test_t12[3] = {{6.5f, 7.5f},    {9.5f, 4.5f},    {10.5f, 10.5f}};
-    Vec2 test_t13[3] = {{6.5f, 7.5f},    {6.5f, 4.5f},    {9.5f, 4.5f}};
-    Vec2 test_t14[3] = {{6.5f, 4.5f},    {6.5f, 1.5f},    {9.5f, 4.5f}};
-    Vec2 test_t15[3] = {{6.5f, 1.5f},    {9.5f, 4.5f},    {10.15f, 4.20f}};
-    Vec2 test_t16[3] = {{10.5f, 10.5f},  {9.5f, 4.5f},    {10.75f, 6.25f}};
-    Vec2 test_t17[3] = {{9.5f, 4.5f},    {10.75f, 6.25f}, {10.4f, 4.75f}};
-    Vec2 test_t18[3] = {{9.5f, 4.5f},    {10.4f, 4.75f},  {10.15f, 4.20f}};
-    Vec2 test_t19[3] = {{6.5f, 1.5f},    {15.5f, 0.5f},   {10.15f, 4.20f}};
-    Vec2 test_t20[3] = {{10.5f, 10.5f},  {16.5f, 10.5f},  {10.75f, 6.25f}};
-    Vec2 test_t21[3] = {{10.75f, 6.25f}, {16.5f, 10.5f},  {11.8f, 5.1f}};
-    Vec2 test_t22[3] = {{10.75f, 6.25f}, {10.4f, 4.75f},  {11.8f, 5.1f}};
-    Vec2 test_t23[3] = {{10.4f, 4.75f},  {11.8f, 5.1f},   {16.5f, 1.5f}};
-    Vec2 test_t24[3] = {{10.4f, 4.75f},  {10.15f, 4.20f}, {16.5f, 1.5f}};
-    Vec2 test_t25[3] = {{10.15f, 4.20f}, {15.5f, 0.5f},   {16.5f, 1.5f}};
-    Vec2 test_t26[3] = {{16.5f, 1.5f},   {16.5f, 10.5f},  {11.8f, 5.1f}};
-    Vec2 test_t27[3] = {{15.5f, 0.5f},   {16.5f, 0.5f},   {16.5f, 1.5f}};
-    
-    draw_rect_pts(render_buffer, game_state->test_background, white);
-
-    bool fill = game_state->two;
-    if(game_state->one){
-        draw_triangle(render_buffer, test_t1,  red, true);
-        draw_triangle(render_buffer, test_t2,  yellow, true);
-        draw_triangle(render_buffer, test_t3,  blue, true);
-        draw_triangle(render_buffer, test_t4,  green, true);
-        draw_triangle(render_buffer, test_t5,  red, true);
-        draw_triangle(render_buffer, test_t6,  yellow, true);
-        draw_triangle(render_buffer, test_t7,  pink, true);
-        draw_triangle(render_buffer, test_t8,  teal, true);
-        draw_triangle(render_buffer, test_t9,  blue, true);
-        draw_triangle(render_buffer, test_t10, green, true);
-        draw_triangle(render_buffer, test_t11, green, true);
-        draw_triangle(render_buffer, test_t12, blue, true);
-        draw_triangle(render_buffer, test_t13, red, true);
-        draw_triangle(render_buffer, test_t14, pink, true);
-        draw_triangle(render_buffer, test_t15, teal, true);
-        draw_triangle(render_buffer, test_t16, yellow, true);
-        draw_triangle(render_buffer, test_t17, green, true);
-        draw_triangle(render_buffer, test_t18, orange, true);
-        draw_triangle(render_buffer, test_t19, yellow, true);
-        draw_triangle(render_buffer, test_t20, red, true);
-        draw_triangle(render_buffer, test_t21, teal, true);
-        draw_triangle(render_buffer, test_t22, blue, true);
-        draw_triangle(render_buffer, test_t23, yellow, true);
-        draw_triangle(render_buffer, test_t24, pink, true);
-        draw_triangle(render_buffer, test_t25, red, true);
-        draw_triangle(render_buffer, test_t26, green, true);
-        draw_triangle(render_buffer, test_t27, blue, true);
+    if(rect_contains_rect(game_state->r2, game_state->r1)){
+        draw_box(render_buffer, game_state->r1, yellow);
     }
-    
-    memcpy(memory->temporary_storage, render_buffer->memory, render_buffer->memory_size);
-
-    for(f32 y=round_ff(game_state->test_background[0].y); y <= round_ff(game_state->test_background[2].y); ++y){
-        for(f32 x=round_ff(game_state->test_background[0].x); x <= (round_ff(game_state->test_background[1].x) + 1.0f); ++x){
-            Color c = get_color_test(memory, render_buffer, x, y);
-            f32 new_x = x * 48.0f;
-            f32 new_y = y * 48.0f;
-            for(f32 y2=new_y; y2 < (new_y + 47.0f); ++y2){
-                for(f32 x2=new_x; x2 < (new_x + 47.0f); ++x2){
-                    draw_pixel(render_buffer, x2, y2, c);
-                }
-            }
-        }
+    else if(rect_collide_rect(game_state->r1, game_state->r2)){
+        draw_box(render_buffer, game_state->r1, green);
+    }
+    else if(rect_collide_point(game_state->r1, vec2(300, 300))){
+        draw_box(render_buffer, game_state->r1, orange);
+    }
+    else{
+        draw_box(render_buffer, game_state->r1, red);
     }
 
-    scale_pts(test_t1, array_count(test_t1), 48.0f);
-    scale_pts(test_t2, array_count(test_t2), 48.0f);
-    scale_pts(test_t3, array_count(test_t3), 48.0f);
-    scale_pts(test_t4, array_count(test_t4), 48.0f);
-    scale_pts(test_t5, array_count(test_t5), 48.0f);
-    scale_pts(test_t6, array_count(test_t6), 48.0f);
-    scale_pts(test_t7, array_count(test_t7), 48.0f);
-    scale_pts(test_t8, array_count(test_t8), 48.0f);
-    scale_pts(test_t9, array_count(test_t9), 48.0f);
-    scale_pts(test_t10, array_count(test_t10), 48.0f);
-    scale_pts(test_t11, array_count(test_t11), 48.0f);
-    scale_pts(test_t12, array_count(test_t12), 48.0f);
-    scale_pts(test_t13, array_count(test_t13), 48.0f);
-    scale_pts(test_t14, array_count(test_t14), 48.0f);
-    scale_pts(test_t15, array_count(test_t15), 48.0f);
-    scale_pts(test_t16, array_count(test_t16), 48.0f);
-    scale_pts(test_t17, array_count(test_t17), 48.0f);
-    scale_pts(test_t18, array_count(test_t18), 48.0f);
-    scale_pts(test_t19, array_count(test_t19), 48.0f);
-    scale_pts(test_t20, array_count(test_t20), 48.0f);
-    scale_pts(test_t21, array_count(test_t21), 48.0f);
-    scale_pts(test_t22, array_count(test_t22), 48.0f);
-    scale_pts(test_t23, array_count(test_t23), 48.0f);
-    scale_pts(test_t24, array_count(test_t24), 48.0f);
-    scale_pts(test_t25, array_count(test_t25), 48.0f);
-    scale_pts(test_t26, array_count(test_t26), 48.0f);
-    scale_pts(test_t27, array_count(test_t27), 48.0f);
-
-    if(game_state->two){
-        draw_triangle_outline(render_buffer, test_t1, red, black, fill);
-        draw_triangle_outline(render_buffer, test_t2, yellow, black, fill);
-        draw_triangle_outline(render_buffer, test_t3, blue, black, fill);
-        draw_triangle_outline(render_buffer, test_t4, green, black, fill);
-        draw_triangle_outline(render_buffer, test_t5, red, black, fill);
-        draw_triangle_outline(render_buffer, test_t6, yellow, black, fill);
-        draw_triangle_outline(render_buffer, test_t7, pink, black, fill);
-        draw_triangle_outline(render_buffer, test_t8, teal, black, fill);
-        draw_triangle_outline(render_buffer, test_t9, blue, black, fill);
-        draw_triangle_outline(render_buffer, test_t10, green, black, fill);
-        draw_triangle_outline(render_buffer, test_t11, green, black, fill);
-        draw_triangle_outline(render_buffer, test_t12, blue, black, fill);
-        draw_triangle_outline(render_buffer, test_t13, red, black, fill);
-        draw_triangle_outline(render_buffer, test_t14, pink, black, fill);
-        draw_triangle_outline(render_buffer, test_t15, teal, black, fill);
-        draw_triangle_outline(render_buffer, test_t16, yellow, black, fill);
-        draw_triangle_outline(render_buffer, test_t17, green, black, fill);
-        draw_triangle_outline(render_buffer, test_t18, orange, black, fill);
-        draw_triangle_outline(render_buffer, test_t19, yellow, black, fill);
-        draw_triangle_outline(render_buffer, test_t20, red, black, fill);
-        draw_triangle_outline(render_buffer, test_t21, teal, black, fill);
-        draw_triangle_outline(render_buffer, test_t22, blue, black, fill);
-        draw_triangle_outline(render_buffer, test_t23, yellow, black, fill);
-        draw_triangle_outline(render_buffer, test_t24, pink, black, fill);
-        draw_triangle_outline(render_buffer, test_t25, red, black, fill);
-        draw_triangle_outline(render_buffer, test_t26, green, black, fill);
-        draw_triangle_outline(render_buffer, test_t27, blue, black, fill);
-    }
-    if(game_state->three){
-        draw_triangle_outline(render_buffer, test_t1, red, black, false);
-        draw_triangle_outline(render_buffer, test_t2, yellow, black, false);
-        draw_triangle_outline(render_buffer, test_t3, blue, black, false);
-        draw_triangle_outline(render_buffer, test_t4, green, black, false);
-        draw_triangle_outline(render_buffer, test_t5, red, black, false);
-        draw_triangle_outline(render_buffer, test_t6, yellow, black, false);
-        draw_triangle_outline(render_buffer, test_t7, pink, black, false);
-        draw_triangle_outline(render_buffer, test_t8, teal, black, false);
-        draw_triangle_outline(render_buffer, test_t9, blue, black, false);
-        draw_triangle_outline(render_buffer, test_t10, green, black, false);
-        draw_triangle_outline(render_buffer, test_t11, green, black, false);
-        draw_triangle_outline(render_buffer, test_t12, blue, black, false);
-        draw_triangle_outline(render_buffer, test_t13, red, black, false);
-        draw_triangle_outline(render_buffer, test_t14, pink, black, false);
-        draw_triangle_outline(render_buffer, test_t15, teal, black, false);
-        draw_triangle_outline(render_buffer, test_t16, yellow, black, false);
-        draw_triangle_outline(render_buffer, test_t17, green, black, false);
-        draw_triangle_outline(render_buffer, test_t18, orange, black, false);
-        draw_triangle_outline(render_buffer, test_t19, yellow, black, false);
-        draw_triangle_outline(render_buffer, test_t20, red, black, false);
-        draw_triangle_outline(render_buffer, test_t21, teal, black, false);
-        draw_triangle_outline(render_buffer, test_t22, blue, black, false);
-        draw_triangle_outline(render_buffer, test_t23, yellow, black, false);
-        draw_triangle_outline(render_buffer, test_t24, pink, black, false);
-        draw_triangle_outline(render_buffer, test_t25, red, black, false);
-        draw_triangle_outline(render_buffer, test_t26, green, black, false);
-        draw_triangle_outline(render_buffer, test_t27, blue, black, false);
-    }
+    draw_box(render_buffer, game_state->r2, orange);
+    draw_pixel(render_buffer, 300, 300, orange);
+    draw_circle(render_buffer, 400, 400, 50, green, true);
 }

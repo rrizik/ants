@@ -12,13 +12,18 @@ TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
 
 NOT DONE:
+    entities - why? because it makes it easier to refer to things as a whole rather than little bitty points and bullshit
+    layers
+    add clipping 
+    simd
+    add texturing 
+
     transformation:
         shearing
-    fill polygon
 
-    add texturing 
+    fill polygon
     anti aliasing
-    add clipping 
+
 
     overlap/intersection
         narrow
@@ -30,7 +35,6 @@ DONE:
         translation 
         rotation
         scaling
-        shearing
 
     color blending
     alpha blending
@@ -735,7 +739,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
                 state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
-                // CONSIDER: maybe do this in the future of it ends up slowing down
+                // CONSIDER: maybe do this in the future if it ends up slowing down
                 //WIN_ReplayBuffer *replay_buffer = &state.replay_buffers[i];
                 //char recording_string[64];
                 //wsprintf(recording_string, "build\\recording_%d.hmi", i);
