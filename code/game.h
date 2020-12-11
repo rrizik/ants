@@ -52,7 +52,7 @@ enum{false, true};
 
 typedef enum{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
 typedef enum{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
-typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE} EventKey;
+typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE, KEY_1, KEY_2, KEY_3} EventKey;
 typedef enum{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_MOUSEWHEEL, EVENT_MOUSEDOWN, EVENT_MOUSEUP, EVENT_MOUSEMOTION, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
 
 typedef struct Event{
@@ -196,7 +196,6 @@ typedef struct Move{
 
 typedef struct Rect{
     f32 x, y, w, h, width, height;
-    Vec2 bottom_left, bottom_right, top_left, top_right;
 } Rect;
 
 static Rect
@@ -208,11 +207,42 @@ rect(Vec2 pos, Vec2 dim){
     result.h = dim.y;
     result.width = result.w;
     result.height = result.h;
-    result.bottom_left = vec2(result.x, result.y);
-    result.bottom_right = vec2(result.x + result.w, result.y);
-    result.top_left = vec2(result.x, result.y + result.h);
-    result.top_right = vec2(result.x + result.w, result.y + result.h);
     return(result);
+}
+
+typedef struct Tri{
+    Vec2 p0;
+    Vec2 p1;
+    Vec2 p2;
+    Rect rect;
+} Tri;
+
+static Tri
+triangle(Vec2 p0, Vec2 p1, Vec2 p2){
+    Tri result = {0};
+    result.p0 = p0;
+    result.p1 = p1;
+    result.p2 = p2;
+    
+    if(result.p0.x > result.p1.x) { swap_v2(&result.p0, &result.p1); };
+    if(result.p0.x > result.p2.x) { swap_v2(&result.p0, &result.p2); };
+    if(result.p1.x > result.p2.x) { swap_v2(&result.p1, &result.p2); };
+
+    f32 left_x = p0.x;
+    f32 right_x = p2.x;
+
+    if(result.p0.y > result.p1.y) { swap_v2(&result.p0, &result.p1); };
+    if(result.p0.y > result.p2.y) { swap_v2(&result.p0, &result.p2); };
+    if(result.p1.y > result.p2.y) { swap_v2(&result.p1, &result.p2); };
+
+    f32 bottom_y = result.p0.y; 
+    f32 top_y = result.p2.y; 
+
+    Vec2 pos = {left_x, bottom_y};
+    Vec2 dim = {ABS(right_x - left_x), ABS(top_y - bottom_y)};
+    Rect r = rect(pos, dim);
+
+    result.rect = r;
 }
 
 static bool
@@ -248,13 +278,6 @@ rect_contains_rect(Rect r1, Rect r2){
     return false;
 }
 
-typedef struct Quad{
-    Vec2 p0;
-    Vec2 p1;
-    Vec2 p2;
-    Vec2 p3;
-} Quad;
-
 typedef struct GameState{
     Move move;
     Vec2 test_background[4];
@@ -262,6 +285,9 @@ typedef struct GameState{
     Vec2 box2[4];
     Rect r1;
     Rect r2;
+    bool one;
+    bool two;
+    bool three;
 } GameState;
 
 #define GAME_H

@@ -15,14 +15,13 @@ NOT DONE:
     transformation:
         shearing
     fill polygon
-    draw circle
-    draw wireframe circle
 
     add texturing 
     anti aliasing
     add clipping 
 
     overlap/intersection
+        narrow
 
     make it fast (threads, simd)
 
@@ -35,6 +34,12 @@ DONE:
 
     color blending
     alpha blending
+
+    draw circle
+    draw wireframe circle
+
+    overlap/intersection
+        broad
 
 
 */
@@ -147,6 +152,9 @@ global ui32 eventkey_mapping[0xFF] = {
     ['D']=KEY_D,
     ['L']=KEY_L,
     ['P']=KEY_P,
+    ['1']=KEY_1,
+    ['2']=KEY_2,
+    ['3']=KEY_3,
 };
 
 global ui32 eventpad_mapping[0x5838] = {
