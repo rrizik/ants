@@ -1,10 +1,11 @@
 #if !defined(GAME_H)
-
 //#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
 #include <stdint.h>
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define array_count(value) (sizeof(value)/sizeof(value[0]))
+#define array_length(value) (sizeof(value)/sizeof(value[0]))
+#define array_size(value) (sizeof(value)/sizeof(value[0]))
 #define ABS(n) ((n)<0 ? -(n) : (n))
 #define PI 3.14159265f
 #define RAD2DEG(n) ((180.0f/PI) * n);
@@ -33,7 +34,7 @@ print(char *format, ...) {
 }
 
 //typedef float __attribute__((ext_vector_type(2))) Vec2;
-typedef size_t size;
+//typedef size_t size;
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -50,11 +51,10 @@ typedef double f64;
 typedef int32_t bool;
 enum{false, true};
 
-typedef enum{PIXEL, SEGMENT, RAY, LINE, TRIANGLE, RECTANGLE, QUAD, BOX, CIRCLE} GeometryType;
-typedef enum{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
-typedef enum{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
-typedef enum{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE, KEY_1, KEY_2, KEY_3} EventKey;
-typedef enum{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_MOUSEWHEEL, EVENT_MOUSEDOWN, EVENT_MOUSEUP, EVENT_MOUSEMOTION, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
+typedef enum EventMouse{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
+typedef enum EventPad{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
+typedef enum EventKey{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE, KEY_1, KEY_2, KEY_3} EventKey;
+typedef enum EventType{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_MOUSEWHEEL, EVENT_MOUSEDOWN, EVENT_MOUSEUP, EVENT_MOUSEMOTION, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
 
 typedef struct Event{
     EventType type;
@@ -95,9 +95,40 @@ typedef struct Controller{
     bool down;
     bool left;
     bool right;
-
-    f32 dt;
 } Controller;
+
+typedef struct Clock{
+    f32 dt;
+} Clock;
+
+#pragma pack(push, 1)
+typedef struct BitmapHeader {
+    ui16 file_type;
+	ui32 file_size;
+	ui16 reserved1;
+	ui16 reserved2;
+	ui32 bitmap_offset;
+	ui32 header_size;
+	i32  width;
+	i32  height;
+	ui16 planes;
+	ui16 bits_per_pixel;
+    ui32 Compression;
+	ui32 SizeOfBitmap;
+	i32  HorzResolution;
+	i32  VertResolution;
+	ui32 ColorsUsed;
+	ui32 ColorsImportant;
+//    ui32 RedMask;
+//    ui32 GreenMask;
+//    ui32 BlueMask;
+} BitmapHeader;
+#pragma pack(pop)
+
+typedef struct Bitmap{
+    BitmapHeader *header;
+    ui32 *pixels;
+} Bitmap;
 
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
 typedef READ_ENTIRE_FILE(ReadEntireFile);
@@ -120,12 +151,15 @@ typedef struct GameMemory{
     void *temporary_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
     void *permanent_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
 
+    char root_dir[256];
+    char data_dir[256];
+
     ReadEntireFile *read_entire_file;
     WriteEntireFile *write_entire_file;
     FreeFileMemory *free_file_memory;
 } GameMemory;
 
-#define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Controller *controller)
+#define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Clock *clock)
 typedef MAIN_GAME_LOOP(MainGameLoop);
 
 static int
@@ -170,6 +204,13 @@ cat_strings(char *left, char *right, char *dest){
     *dest++ = 0;
 }
 
+static char*
+end_of_string(char *str){
+    while(*str++){
+    }
+    return(str);
+}
+
 static void
 get_root_dir(char *left, i64 length, char *full_path){
     int i=0;
@@ -179,21 +220,14 @@ get_root_dir(char *left, i64 length, char *full_path){
     *left++ = 0;
 }
 
-typedef struct Color{
-    f32 r;
-    f32 g;
-    f32 b;
-    f32 a;
-} Color;
+static void
+copy_string(char *src, char *dst, size_t size){
+    for(ui32 i=0; i < size; ++i){
+        *dst++ = *src++;
+    }
+}
 
 #include "vectors.h"
-
-typedef struct Move{
-    bool up;
-    bool down;
-    bool right;
-    bool left;
-} Move;
 
 typedef struct Rect{
     f32 x, y, w, h, width, height;
@@ -209,41 +243,6 @@ rect(Vec2 pos, Vec2 dim){
     result.width = result.w;
     result.height = result.h;
     return(result);
-}
-
-typedef struct Tri{
-    Vec2 p0;
-    Vec2 p1;
-    Vec2 p2;
-    Rect rect;
-} Tri;
-
-static Tri
-triangle(Vec2 p0, Vec2 p1, Vec2 p2){
-    Tri result = {0};
-    result.p0 = p0;
-    result.p1 = p1;
-    result.p2 = p2;
-    
-    if(result.p0.x > result.p1.x) { swap_v2(&result.p0, &result.p1); };
-    if(result.p0.x > result.p2.x) { swap_v2(&result.p0, &result.p2); };
-    if(result.p1.x > result.p2.x) { swap_v2(&result.p1, &result.p2); };
-
-    f32 left_x = p0.x;
-    f32 right_x = p2.x;
-
-    if(result.p0.y > result.p1.y) { swap_v2(&result.p0, &result.p1); };
-    if(result.p0.y > result.p2.y) { swap_v2(&result.p0, &result.p2); };
-    if(result.p1.y > result.p2.y) { swap_v2(&result.p1, &result.p2); };
-
-    f32 bottom_y = result.p0.y; 
-    f32 top_y = result.p2.y; 
-
-    Vec2 pos = {left_x, bottom_y};
-    Vec2 dim = {ABS(right_x - left_x), ABS(top_y - bottom_y)};
-    Rect r = rect(pos, dim);
-
-    result.rect = r;
 }
 
 static bool
@@ -279,38 +278,181 @@ rect_contains_rect(Rect r1, Rect r2){
     return false;
 }
 
-typedef struct Entity{
-    bool is_geometry; 
-    GeometryType geometry_type;
-} Entity;
+typedef struct GeometryType{
+    bool PIXEL;
+    bool LINE;
+    bool RAY;
+    bool SEGMENT;
+    bool TRIANGLE;
+    bool RECTANGLE;
+    bool QUAD;
+    bool BOX;
+    bool CRICLE;
+} GeometryType;
 
-typedef struct Entities{
-    Entity *e;
-    i32 i;
-    size count;
-} Entities;
+typedef struct Pixel{
+    int temp;
+} Pixel;
 
-static void
-add_entity(Entities *entities, Entity e){
-    entities->e[entities->i] = e;
-    entities->i++;
+typedef struct Quad{
+    int temp;
+} Quad;
+
+typedef struct Line{
+    int temp;
+} Line;
+
+typedef struct Ray{
+    int temp;
+} Ray;
+
+typedef struct Segment{
+    int temp;
+} Segment;
+
+typedef union Triangle{
+    Vec2 e[3];
+    struct{
+        Vec2 p0, p1, p2;
+    };
+
+} Triangle;
+
+static Triangle
+triangle(Vec2 p0, Vec2 p1, Vec2 p2){
+    Triangle result = {0};
+    result.p0 = p0;
+    result.p1 = p1;
+    result.p2 = p2;
+    return(result);
 }
 
-static Entity
-entity(bool is_geometry, GeometryType geometry_type){
-    Entity result = {is_geometry, geometry_type};
+typedef struct Box{
+    f32 x, y, w, h, width, height;
+} Box;
+
+static Box
+box(Vec2 pos, Vec2 dim){
+    Box result = {0};
+    result.x = pos.x;
+    result.y = pos.y;
+    result.w = dim.w;
+    result.h = dim.h;
+    result.width = result.w;
+    result.height = result.h;
+}
+
+typedef struct Circle{
+    int temp;
+} Circle;
+
+typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
+typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_PIXEL, EntityType_LINE, EntityType_RAY, EntityType_SEGMENT, EntityType_Triangle, EntityType_Rectangle, EntityType_QUAD, EntityType_BOX, EntityType_CRICLE} EntityType;
+
+typedef struct Entity{
+    int id;
+    int index;
+    ui32 flags;
+    EntityType type;
+
+    Vec4 color;
+    Vec4 outline_color;
+
+    //bool is_geometry; 
+    //GeometryType geometry_type;
+
+    Triangle triangle;
+    Rect rect;
+    Box bounding_box;
+    //Quad quad;
+    //Line line;
+    //Ray ray;
+    //Segment segment;
+    //Circle circle;
+} Entity;
+
+
+static bool
+has_flags(Entity *e, ui32 flags){
+    return(e->flags & flags);
+}
+
+static void
+set_flags(Entity *e, ui32 flags){
+    e->flags |= flags;
+}
+
+static void
+clear_flags(Entity *e, ui32 flags){
+    e->flags &= ~flags; 
+}
+
+typedef struct memory_arena {
+    ui8 *base;
+    size_t size;
+    size_t used;
+} memory_arena; 
+
+static void
+initialize_arena(memory_arena *arena, size_t size, ui8 *base){
+    arena->size = size;
+    arena->base = base;
+    arena->used = 0;
+}
+
+#define push_struct(arena, type) (type *)push_struct_(arena, sizeof(type), type);
+static void*
+push_struct_(memory_arena *arena, size_t size){
+    Assert((arena->used + size) < arena->size);
+    void *result = arena->base + arena->used;
+    arena->used += size;
+
     return(result);
 }
 
 typedef struct GameState{
-    Move move;
     Vec2 test_background[4];
     Vec2 box1[4];
     Vec2 box2[4];
     Rect r1;
     Rect r2;
-    Entities entities;
+    Entity entities[256];
+    ui32 entity_count;
+    ui32 player_index;
+    memory_arena a;
+    Controller controller;
+    Bitmap test;
+    Bitmap circle;
+    Bitmap image;
 } GameState;
+
+static Entity*
+add_entity(GameState *game_state, EntityType type){
+    Entity *result = game_state->entities + game_state->entity_count;
+    result->index = game_state->entity_count;
+    result->type = type;
+    game_state->entity_count++;
+
+    return(result);
+}
+
+static Entity*
+add_triangle(GameState *game_state, Triangle tri, Vec4 color){
+    Entity *e = add_entity(game_state, EntityType_Triangle);
+    e->triangle = tri;
+    e->color = color;
+    // TODO: add Box for bounding_box
+    return(e);
+}
+
+static Entity*
+add_player(GameState *game_state, Rect rect, Vec4 color){
+    Entity *e = add_entity(game_state, EntityType_Player);
+    e->rect = rect;
+    e->color = color;
+    // TODO: add Box for bounding_box
+    return(e);
+}
 
 
 #define GAME_H

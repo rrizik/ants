@@ -5,8 +5,13 @@
 typedef union Vec2{
     f32 e[2];
     struct{
-        f32 x;
-        f32 y;
+        f32 x; f32 y;
+    };
+    struct{
+        f32 p0, p1;
+    };
+    struct{
+        f32 w; f32 h;
     };
 } Vec2;
 
@@ -14,6 +19,9 @@ typedef union Vec3{
     f32 e[3];
     struct{
         f32 x, y, z;
+    };
+    struct{
+        f32 p0, p1, p2;
     };
     struct{
         f32 r, g, b;
@@ -24,6 +32,9 @@ typedef union Vec4{
     f32 e[4];
     struct{
         f32 x, y, z, w;
+    };
+    struct{
+        f32 p0, p1, p2, p3;
     };
     struct{
         f32 r, g, b, a;
@@ -92,7 +103,7 @@ scale2(Vec2 a, f32 s){
 }
 
 static void
-scale_pts(Vec2 *p, size count, f32 s){
+scale_pts(Vec2 *p, size_t count, f32 s){
     for(int i=0; i < count; ++i){
         *p++ = scale2(*p, s);
     }

@@ -4,7 +4,10 @@ rem warnings wd4459 wd4456
 rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
 
 rem Optimization switches /O2 /Oi /fp:fast
-set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4101 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
+rem
+rem UNUTILIAZED LOCAL VARIABLES 
+rem set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4101 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
+set cl_flags=-nologo -MTd -Gm- -GR- -EHa- -Od -Oi -FC -Z7 -Fm -WX -W4 -wd4700 -wd4101 -wd4204 -wd4505 -wd4456 -wd4459 -wd4201 -wd4100 -wd4189 -DDEBUG=1
 rem set clangcl_flags=-std=c99 -pedantic -MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
 set clangcl_flags=-MTd -GR- -EHa- -Od -Oi -fdiagnostics-absolute-paths -Z7 -WX -W4 -Wno-unused-variable -Wno-missing-braces -Wno-unused-parameter -Wno-unused-function -DDEBUG=1 -ftime-trace
 set linker_flags=-incremental:no -opt:ref

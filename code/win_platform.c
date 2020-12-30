@@ -144,7 +144,7 @@ FUTURE TODO: Game dev stuff to accomplish
 // TODO: re-organize this
 global bool global_pause;
 global int global_running;
-global WIN_Clock clock;
+global WIN_Clock win_clock;
 global WIN_RenderBuffer offscreen_render_buffer;
 global Events events;
 
@@ -512,7 +512,7 @@ WIN_get_clock(void){
 static f32
 WIN_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end){
     f32 result;
-    result = ((f32)(end.QuadPart - start.QuadPart) / ((f32)clock.frequency.QuadPart));
+    result = ((f32)(end.QuadPart - start.QuadPart) / ((f32)win_clock.frequency.QuadPart));
 
     return(result);
 }
@@ -520,23 +520,23 @@ WIN_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end){
 static void
 WIN_sync_framerate(void){
     LARGE_INTEGER time_stamp = WIN_get_clock();
-    f32 seconds_elapsed = WIN_get_seconds_elapsed(clock.start, time_stamp);
-    if(seconds_elapsed < clock.target_seconds_per_frame){
-        if(clock.sleep_granularity_set){
-            DWORD sleep_ms = (DWORD)(1000.0f * (clock.target_seconds_per_frame - seconds_elapsed));
+    f32 seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, time_stamp);
+    if(seconds_elapsed < win_clock.target_seconds_per_frame){
+        if(win_clock.sleep_granularity_set){
+            DWORD sleep_ms = (DWORD)(1000.0f * (win_clock.target_seconds_per_frame - seconds_elapsed));
             if(sleep_ms > 0){
                 Sleep(sleep_ms);
             }
         }
 
-        f32 seconds_elapsed_remaining = WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
-        if(seconds_elapsed_remaining < clock.target_seconds_per_frame){
+        f32 seconds_elapsed_remaining = WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+        if(seconds_elapsed_remaining < win_clock.target_seconds_per_frame){
             // TODO: LOG MISSED SLEEP HERE
         }
 
-        seconds_elapsed = WIN_get_seconds_elapsed(clock.start, time_stamp);
-        while(seconds_elapsed < clock.target_seconds_per_frame){
-            seconds_elapsed = WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
+        seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, time_stamp);
+        while(seconds_elapsed < win_clock.target_seconds_per_frame){
+            seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
         }
     }
     else{
@@ -677,23 +677,23 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
     //window_class.hIcon; // TODO: place an icon here
 
     UINT sleep_granularity = 1;
-    clock.sleep_granularity_set = (timeBeginPeriod(sleep_granularity) == TIMERR_NOERROR);
+    win_clock.sleep_granularity_set = (timeBeginPeriod(sleep_granularity) == TIMERR_NOERROR);
 
     if(RegisterClassA(&window_class)){
         HWND window = CreateWindowExA(0, window_class.lpszClassName, "game", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
-        if(window){
 
+        if(window){
             HDC DC = GetDC(window);
             // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
             //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
             int gpu_monitor_refresh_hz = 60;
             f32 soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
-            clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
+            win_clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
 
             // NOTE: maybe move this outside RegisterClassA
-            clock.start = WIN_get_clock();
-            QueryPerformanceFrequency(&clock.frequency);
-            clock.cpu_start = __rdtsc();
+            win_clock.start = WIN_get_clock();
+            QueryPerformanceFrequency(&win_clock.frequency);
+            win_clock.cpu_start = __rdtsc();
 
             WIN_State state = {0};
 
@@ -732,9 +732,15 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             game_memory.free_file_memory = free_file_memory;
 
             game_memory.total_size = game_memory.permanent_storage_size + game_memory.temporary_storage_size;
-            game_memory.total_storage = VirtualAlloc(base_address, (size)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             game_memory.permanent_storage = game_memory.total_storage;
             game_memory.temporary_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+
+            copy_string(state.root_dir, game_memory.root_dir, state.root_dir_length);
+            char root_dir[100];
+            copy_string(state.root_dir, root_dir, state.root_dir_length);
+            char data[] = "data\\";
+            cat_strings(root_dir, data, game_memory.data_dir);
 
             for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
                 state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
@@ -770,13 +776,13 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             events.size = 256;
             events.index = 0;
 
-            Controller controller = {0};
+            Clock clock = {0};
             global_running = true;
             global_pause = false;
 
             if(game_memory.permanent_storage && game_memory.temporary_storage && render_buffer.memory){
                 while(global_running){
-                    controller.dt = clock.target_seconds_per_frame;
+                    clock.dt = win_clock.target_seconds_per_frame;
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                     if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
                         WIN_unload_gamecode(&gamecode);
@@ -826,7 +832,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                             WIN_play_input(&state, &game_memory, &events);
                         }
                         if(gamecode.main_game_loop){
-                            gamecode.main_game_loop(&game_memory, &render_buffer, &events, &controller);
+                            gamecode.main_game_loop(&game_memory, &render_buffer, &events, &clock);
                             if(!game_memory.running){
                                 global_running = game_memory.running;
                             }
@@ -835,18 +841,18 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
                         WIN_sync_framerate();
 
-                        //f32 MSPF = 1000 * WIN_get_seconds_elapsed(clock.start, WIN_get_clock());
-                        //f32 FPS = ((f32)clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - clock.start.QuadPart));
-                        //f32 CPUCYCLES = (f32)(__rdtsc() - clock.cpu_start) / (1000 * 1000);
+                        //f32 MSPF = 1000 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+                        //f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
+                        //f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
                         //print("MSPF: %.02fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
 
                         WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
                         WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
 
-                        clock.cpu_end = __rdtsc();
-                        clock.end = WIN_get_clock();
-                        clock.start = clock.end;
-                        clock.cpu_start = clock.cpu_end;
+                        win_clock.cpu_end = __rdtsc();
+                        win_clock.end = WIN_get_clock();
+                        win_clock.start = win_clock.end;
+                        win_clock.cpu_start = win_clock.cpu_end;
                     }
                 }
             }
