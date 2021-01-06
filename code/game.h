@@ -33,7 +33,7 @@ print(char *format, ...) {
     OutputDebugStringA(buffer);
 }
 
-//typedef float __attribute__((ext_vector_type(2))) Vec2;
+//typedef float __attribute__((ext_vector_type(2))) v2;
 //typedef size_t size;
 typedef int8_t i8;
 typedef int16_t i16;
@@ -126,7 +126,9 @@ typedef struct BitmapHeader {
 #pragma pack(pop)
 
 typedef struct Bitmap{
-    BitmapHeader *header;
+    //BitmapHeader *header; maybe i dont want this here?
+	i32  width;
+	i32  height;
     ui32 *pixels;
 } Bitmap;
 
@@ -234,7 +236,7 @@ typedef struct Rect{
 } Rect;
 
 static Rect
-rect(Vec2 pos, Vec2 dim){
+rect(v2 pos, v2 dim){
     Rect result = {0};
     result.x = pos.x;
     result.y = pos.y;
@@ -257,7 +259,7 @@ rect_collide_rect(Rect r1, Rect r2){
 }
 
 static bool
-rect_collide_point(Rect r1, Vec2 p){
+rect_collide_point(Rect r1, v2 p){
     if((p.x < r1.x + r1.w) &&
        (p.x > r1.x) &&
        (p.y < r1.y + r1.h) &&
@@ -311,15 +313,15 @@ typedef struct Segment{
 } Segment;
 
 typedef union Triangle{
-    Vec2 e[3];
+    v2 e[3];
     struct{
-        Vec2 p0, p1, p2;
+        v2 p0, p1, p2;
     };
 
 } Triangle;
 
 static Triangle
-triangle(Vec2 p0, Vec2 p1, Vec2 p2){
+triangle(v2 p0, v2 p1, v2 p2){
     Triangle result = {0};
     result.p0 = p0;
     result.p1 = p1;
@@ -332,7 +334,7 @@ typedef struct Box{
 } Box;
 
 static Box
-box(Vec2 pos, Vec2 dim){
+box(v2 pos, v2 dim){
     Box result = {0};
     result.x = pos.x;
     result.y = pos.y;
@@ -354,13 +356,18 @@ typedef struct Entity{
     int index;
     ui32 flags;
     EntityType type;
+    v2 position;
+    v2 dimension;
+    v4 color;
+    v4 outline_color;
 
-    Vec4 color;
-    Vec4 outline_color;
 
+    //TODO: this stuff goes away once we implement arenas and then
+    //create a render arena
+    //
     //bool is_geometry; 
     //GeometryType geometry_type;
-
+    //
     Triangle triangle;
     Rect rect;
     Box bounding_box;
@@ -394,15 +401,15 @@ typedef struct memory_arena {
 } memory_arena; 
 
 static void
-initialize_arena(memory_arena *arena, size_t size, ui8 *base){
+initialize_arena(memory_arena *arena, ui8 *base, size_t size){
     arena->size = size;
     arena->base = base;
     arena->used = 0;
 }
 
-#define push_struct(arena, type) (type *)push_struct_(arena, sizeof(type), type);
+#define push_size(arena, type) (type *)push_struct_(arena, sizeof(type));
 static void*
-push_struct_(memory_arena *arena, size_t size){
+push_size_(memory_arena *arena, size_t size){
     Assert((arena->used + size) < arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
@@ -411,9 +418,9 @@ push_struct_(memory_arena *arena, size_t size){
 }
 
 typedef struct GameState{
-    Vec2 test_background[4];
-    Vec2 box1[4];
-    Vec2 box2[4];
+    v2 test_background[4];
+    v2 box1[4];
+    v2 box2[4];
     Rect r1;
     Rect r2;
     Entity entities[256];
@@ -437,7 +444,7 @@ add_entity(GameState *game_state, EntityType type){
 }
 
 static Entity*
-add_triangle(GameState *game_state, Triangle tri, Vec4 color){
+add_triangle(GameState *game_state, Triangle tri, v4 color){
     Entity *e = add_entity(game_state, EntityType_Triangle);
     e->triangle = tri;
     e->color = color;
@@ -446,7 +453,7 @@ add_triangle(GameState *game_state, Triangle tri, Vec4 color){
 }
 
 static Entity*
-add_player(GameState *game_state, Rect rect, Vec4 color){
+add_player(GameState *game_state, Rect rect, v4 color){
     Entity *e = add_entity(game_state, EntityType_Player);
     e->rect = rect;
     e->color = color;
@@ -454,6 +461,15 @@ add_player(GameState *game_state, Rect rect, Vec4 color){
     return(e);
 }
 
+static v4
+conver_ui32_v4_normalized(ui32 value){
+	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
+	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
+	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
+	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
+    v4 result = {red, green, blue, alpha};
+    return result;
+}
 
 #define GAME_H
 #endif

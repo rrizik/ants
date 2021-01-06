@@ -3,10 +3,14 @@
 #include "vectors.h"
 #include "matrices.h"
 
+// PushSize added 34
+// PushPiece added 59
+// game_offscreen_buffer not used in 82
 
-static Vec2
-calc_center(Vec2 *p, ui32 count){
-    Vec2 result = {0};
+
+static v2
+calc_center(v2 *p, ui32 count){
+    v2 result = {0};
 
     for(ui32 i=0; i<count; ++i){
         result.x += p->x;
@@ -22,7 +26,7 @@ calc_center(Vec2 *p, ui32 count){
 }
 
 static void
-translate(Vec2 *p, ui32 count, Vec2 translation){
+translate(v2 *p, ui32 count, v2 translation){
     for(ui32 i=0; i<count; ++i){
         *p = add2(*p, translation);
         p++;
@@ -31,7 +35,7 @@ translate(Vec2 *p, ui32 count, Vec2 translation){
 }
 
 static void
-scale(Vec2 *p, ui32 count, f32 scalar, Vec2 origin){
+scale(v2 *p, ui32 count, f32 scalar, v2 origin){
     for(ui32 i=0; i<count; ++i){
         *p = add2(scale2(sub2(*p, origin), scalar), origin);
         p++;
@@ -39,18 +43,18 @@ scale(Vec2 *p, ui32 count, f32 scalar, Vec2 origin){
     p -= count;
 }
 
-static Vec2
-rotate_pt(Vec2 p, f32 angle, Vec2 origin){
-    Vec2 result = {0};
+static v2
+rotate_pt(v2 p, f32 angle, v2 origin){
+    v2 result = {0};
     result.x = (p.x - origin.x) * Cos(angle * 3.14f/180.0f) - (p.y - origin.y) * Sin(angle * 3.14f/180.0f) + origin.x;
     result.y = (p.x - origin.x) * Sin(angle * 3.14f/180.0f) + (p.y - origin.y) * Cos(angle * 3.14f/180.0f) + origin.y;
     return(result);
 }
 
 static void
-rotate_pts(Vec2 *p, ui32 count, f32 angle, Vec2 origin){
+rotate_pts(v2 *p, ui32 count, f32 angle, v2 origin){
     for(ui32 i=0; i<count; ++i){
-        Vec2 result = {0};
+        v2 result = {0};
         result = rotate_pt(*p, angle, origin);
         p->x = result.x;
         p->y = result.y;
@@ -59,51 +63,24 @@ rotate_pts(Vec2 *p, ui32 count, f32 angle, Vec2 origin){
     p -= count;
 }
 
-static Vec4
+static v4
 get_color_at(RenderBuffer *buffer, f32 x, f32 y){
-    Vec4 result = {0};
+    v4 result = {0};
 
-    ui8 *location = (ui8 *)buffer->memory + ((buffer->height - 1 - (i32)y) * buffer->pitch) + ((i32)x * buffer->bytes_per_pixel);
+    ui8 *location = (ui8 *)buffer->memory + 
+                    ((buffer->height - (i32)y - 1) * buffer->pitch) + 
+                    ((i32)x * buffer->bytes_per_pixel);
     ui32 *pixel = (ui32 *)location;
+    result.a = (f32)((*pixel >> 24) & 0xFF) / 255.0f;
     result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
     result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
     result.b = (f32)((*pixel >> 0) & 0xFF) / 255.0f;
-    result.a = 1.0f;
 
     return(result);
 }
 
 static void
-draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, Vec4 color){
-    i32 x = round_fi32(float_x);
-    i32 y = round_fi32(float_y);
-
-    if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
-        ui8 *row = (ui8 *)buffer->memory + 
-                   ((buffer->height - y - 1) * buffer->pitch) +
-                   (x * buffer->bytes_per_pixel);
-
-        ui32 *pixel = (ui32 *)row;
-
-        f32 current_a = (f32)((*pixel >> 24) & 0xFF);
-        f32 current_r = (f32)((*pixel >> 16) & 0xFF);
-        f32 current_g = (f32)((*pixel >> 8) & 0xFF);
-        f32 current_b = (f32)((*pixel >> 0) & 0xFF);
-
-        color.r *= 255.0f;
-        color.g *= 255.0f;
-        color.b *= 255.0f;
-        f32 new_r = current_r + color.a * (color.r - current_r);
-        f32 new_g = current_g + color.a * (color.g - current_g);
-        f32 new_b = current_b + color.a * (color.b - current_b);
-
-        ui32 new_color = ((ui32)(color.a * 255.0) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
-        *pixel = new_color;
-    }
-}
-
-static void
-draw_pixel_bitmap(RenderBuffer *buffer, f32 float_x, f32 float_y, ui32 src_pixel){
+draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
     i32 x = round_fi32(float_x);
     i32 y = round_fi32(float_y);
 
@@ -119,22 +96,21 @@ draw_pixel_bitmap(RenderBuffer *buffer, f32 float_x, f32 float_y, ui32 src_pixel
         f32 current_g = (f32)((*pixel >> 8) & 0xFF);
         f32 current_b = (f32)((*pixel >> 0) & 0xFF);
 
-        f32 src_a = ((f32)((src_pixel >> 24) & 0xFF) / 255.0f);
-        f32 src_r = (f32)((src_pixel >> 16) & 0xFF);
-        f32 src_g = (f32)((src_pixel >> 8) & 0xFF);
-        f32 src_b = (f32)((src_pixel >> 0) & 0xFF);
+        color.r *= 255.0f;
+        color.g *= 255.0f;
+        color.b *= 255.0f;
 
-        f32 new_r = (1 - src_a) * current_r + (src_a * src_r);
-        f32 new_g = (1 - src_a) * current_g + (src_a * src_g);
-        f32 new_b = (1 - src_a) * current_b + (src_a * src_b);
+        f32 new_r = (1 - color.a) * current_r + (color.a * color.r);
+        f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
+        f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-        ui32 new_color = (round_fi32(src_a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
         *pixel = new_color;
     }
 }
 
 static void
-draw_ray(RenderBuffer *buffer, Vec2 point, Vec2 direction, Vec4 c){
+draw_ray(RenderBuffer *buffer, v2 point, v2 direction, v4 c){
     point = round_v2(point);
     direction = round_v2(direction);
 
@@ -162,9 +138,9 @@ draw_ray(RenderBuffer *buffer, Vec2 point, Vec2 direction, Vec4 c){
 }
 
 static void
-draw_line(RenderBuffer *buffer, Vec2 point, Vec2 direction, Vec4 c){
-    Vec2 point1 = round_v2(point);
-    Vec2 point2 = point1;
+draw_line(RenderBuffer *buffer, v2 point, v2 direction, v4 c){
+    v2 point1 = round_v2(point);
+    v2 point2 = point1;
     direction = round_v2(direction);
 
     f32 distance_x =  ABS(direction.x - point1.x);
@@ -207,7 +183,7 @@ draw_line(RenderBuffer *buffer, Vec2 point, Vec2 direction, Vec4 c){
 }
 
 static void
-draw_segment(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec4 c){
+draw_segment(RenderBuffer *buffer, v2 p0, v2 p1, v4 c){
     p0 = round_v2(p0);
     p1 = round_v2(p1);
 
@@ -221,12 +197,7 @@ draw_segment(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec4 c){
     for(;;){
         if(p0.x == p1.x && p0.y == p1.y) break;
         draw_pixel(buffer, p0.x, p0.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-	DWORD Compression;     /* Compression methods used */
-	DWORD SizeOfBitmap;    /* Size of bitmap in bytes */
-	LONG  HorzResolution;  /* Horizontal resolution in pixels per meter */
-	LONG  VertResolution;  /* Vertical resolution in pixels per meter */
-	DWORD ColorsUsed;      /* Number of colors in the image */
-	DWORD ColorsImportant; /* Minimum number of important colors */
+
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
             error += distance_y; 
@@ -240,7 +211,7 @@ draw_segment(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec4 c){
 }
 
 static void
-draw_flattop_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Vec4 c){
+draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
     f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
@@ -259,7 +230,7 @@ draw_flattop_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Vec4 c){
 }
 
 static void
-draw_flatbottom_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Vec4 c){
+draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
     f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
     
@@ -278,10 +249,10 @@ draw_flatbottom_triangle(RenderBuffer *buffer, Vec2 p0, Vec2 p1, Vec2 p2, Vec4 c
 }
 
 static void
-draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, Vec4 c, Vec4 c_outlined, bool fill){
-    Vec2 p0 = tri.p0;
-    Vec2 p1 = tri.p1;
-    Vec2 p2 = tri.p2;
+draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, v4 c, v4 c_outlined, bool fill){
+    v2 p0 = tri.p0;
+    v2 p1 = tri.p1;
+    v2 p2 = tri.p2;
 
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
@@ -298,7 +269,7 @@ draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, Vec4 c, Vec4 c_outlin
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
-            Vec2 p3 = {x, p1.y};
+            v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
             draw_flattop_triangle(buffer, p1, p3, p2, c);
             draw_flatbottom_triangle(buffer, p0, p1, p3, c);
@@ -310,10 +281,10 @@ draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, Vec4 c, Vec4 c_outlin
 }
 
 static void
-draw_triangle(RenderBuffer *buffer, Triangle tri, Vec4 c, bool fill){
-    Vec2 p0 = tri.p0;
-    Vec2 p1 = tri.p1;
-    Vec2 p2 = tri.p2;
+draw_triangle(RenderBuffer *buffer, Triangle tri, v4 c, bool fill){
+    v2 p0 = tri.p0;
+    v2 p1 = tri.p1;
+    v2 p2 = tri.p2;
 
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
@@ -330,7 +301,7 @@ draw_triangle(RenderBuffer *buffer, Triangle tri, Vec4 c, bool fill){
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
-            Vec2 p3 = {x, p1.y};
+            v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
             draw_flattop_triangle(buffer, p1, p3, p2, c);
             draw_flatbottom_triangle(buffer, p0, p1, p3, c);
@@ -344,7 +315,7 @@ draw_triangle(RenderBuffer *buffer, Triangle tri, Vec4 c, bool fill){
 }
 
 static void
-clear(RenderBuffer *buffer, Vec4 c){
+clear(RenderBuffer *buffer, v4 c){
     for(f32 y=0; y < buffer->height; ++y){
         for(f32 x=0; x < buffer->width; ++x){
             draw_pixel(buffer, x, y, c);
@@ -354,19 +325,22 @@ clear(RenderBuffer *buffer, Vec4 c){
 
 static void
 draw_bitmap(RenderBuffer *buffer, f32 float_x, f32 float_y, Bitmap image){
-    for(f32 y=float_y; y < float_y + image.header->height; ++y){
-        for(f32 x=float_x; x < float_x + image.header->width; ++x){
-            draw_pixel_bitmap(buffer, x, y, *image.pixels++);
+    f32 rounded_x = round_ff(float_x);
+    f32 rounded_y = round_ff(float_y);
+    for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
+        for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
+            v4 color = conver_ui32_v4_normalized(*image.pixels++);
+            draw_pixel(buffer, x, y, color);
         }
     }
 }
 
 static void
-draw_rect(RenderBuffer *buffer, Rect r, Vec4 c){
-    Vec2 p0 = {r.x, r.y};
-    Vec2 p1 = {r.x + r.w, r.y};
-    Vec2 p2 = {r.x, r.y + r.h};
-    Vec2 p3 = {r.x + r.w, r.y + r.h};
+draw_rect(RenderBuffer *buffer, Rect r, v4 c){
+    v2 p0 = {r.x, r.y};
+    v2 p1 = {r.x + r.w, r.y};
+    v2 p2 = {r.x, r.y + r.h};
+    v2 p3 = {r.x + r.w, r.y + r.h};
 
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
@@ -376,11 +350,11 @@ draw_rect(RenderBuffer *buffer, Rect r, Vec4 c){
 }
 
 static void
-draw_rect_pts(RenderBuffer *buffer, Vec2 *p, Vec4 c){
-    Vec2 p0 = round_v2(*p++);
-    Vec2 p1 = round_v2(*p++);
-    Vec2 p2 = round_v2(*p++);
-    Vec2 p3 = round_v2(*p);
+draw_rect_pts(RenderBuffer *buffer, v2 *p, v4 c){
+    v2 p0 = round_v2(*p++);
+    v2 p1 = round_v2(*p++);
+    v2 p2 = round_v2(*p++);
+    v2 p3 = round_v2(*p);
 
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
@@ -390,11 +364,11 @@ draw_rect_pts(RenderBuffer *buffer, Vec2 *p, Vec4 c){
 }
 
 static void
-draw_quad(RenderBuffer *buffer, Vec2 *p, Vec4 c, bool fill){
-    Vec2 p0 = (*p++);
-    Vec2 p1 = (*p++);
-    Vec2 p2 = (*p++);
-    Vec2 p3 = (*p);
+draw_quad(RenderBuffer *buffer, v2 *p, v4 c, bool fill){
+    v2 p0 = (*p++);
+    v2 p1 = (*p++);
+    v2 p2 = (*p++);
+    v2 p3 = (*p);
 
     Triangle t1 = triangle(p0, p1, p2);
     Triangle t2 = triangle(p0, p2, p3);
@@ -404,11 +378,11 @@ draw_quad(RenderBuffer *buffer, Vec2 *p, Vec4 c, bool fill){
 }
 
 static void
-draw_box(RenderBuffer *buffer, Rect rect, Vec4 c){
-    Vec2 p0 = {rect.x, rect.y};
-    Vec2 p1 = {rect.x + rect.w, rect.y};
-    Vec2 p2 = {rect.x + rect.w, rect.y + rect.h};
-    Vec2 p3 = {rect.x, rect.y + rect.h};
+draw_box(RenderBuffer *buffer, Rect rect, v4 c){
+    v2 p0 = {rect.x, rect.y};
+    v2 p1 = {rect.x + rect.w, rect.y};
+    v2 p2 = {rect.x + rect.w, rect.y + rect.h};
+    v2 p3 = {rect.x, rect.y + rect.h};
 
     draw_segment(buffer, p0, p1, c);
     draw_segment(buffer, p1, p2, c);
@@ -417,9 +391,9 @@ draw_box(RenderBuffer *buffer, Rect rect, Vec4 c){
 }
 
 static void
-draw_polygon(RenderBuffer *buffer, Vec2 *points, ui32 count, Vec4 c){
-    Vec2 first = *points++;
-    Vec2 prev = first;
+draw_polygon(RenderBuffer *buffer, v2 *points, ui32 count, v4 c){
+    v2 first = *points++;
+    v2 prev = first;
     for(ui32 i=1; i<count; ++i){
         draw_segment(buffer, prev, *points, c);
         prev = *points++;
@@ -428,7 +402,7 @@ draw_polygon(RenderBuffer *buffer, Vec2 *points, ui32 count, Vec4 c){
 }
 
 static void 
-draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, Vec4 c, bool fill) {
+draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
    f32 x = -r; 
    f32 y = 0; 
    f32 err = 2-2*r; 
@@ -459,7 +433,7 @@ draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, Vec4 c, bool fill) {
 }
 
 static void
-copy_array(Vec2 *a, Vec2 *b, i32 count){
+copy_array(v2 *a, v2 *b, i32 count){
     for(i32 i=0; i < count; ++i){
         *a++ = *b++;
     }
@@ -471,12 +445,13 @@ load_bitmap(GameMemory *memory, char *filename){
 
     char full_path[256];
     cat_strings(memory->data_dir, filename, full_path);
-    FileData bitmap_file = memory->read_entire_file(full_path);
 
+    FileData bitmap_file = memory->read_entire_file(full_path);
     if(bitmap_file.size > 0){
-        result.header = (BitmapHeader *)bitmap_file.content;
-        ui32 *pixels = (ui32 *)((ui8 *)bitmap_file.content + result.header->bitmap_offset);
-        result.pixels = pixels;
+        BitmapHeader *header = (BitmapHeader *)bitmap_file.content;
+        result.pixels = (ui32 *)((ui8 *)bitmap_file.content + header->bitmap_offset);
+        result.width = header->width;
+        result.height = header->height;
         // IMPORTANT: depending on compression type you might have to re order the bytes to make it AA RR GG BB
         // as well as consider the masks for each color included in the header
     }
@@ -488,32 +463,32 @@ MAIN_GAME_LOOP(main_game_loop){
     Assert(sizeof(GameState) <= memory->permanent_storage_size);    
     GameState *game_state = (GameState *)memory->permanent_storage;
 
-    Vec4 red =     {1.0f, 0.0f, 0.0f,  0.5f};
-    Vec4 green =   {0.0f, 1.0f, 0.0f,  0.5f};
-    Vec4 blue =    {0.0f, 0.0f, 1.0f,  0.5f};
-    Vec4 magenta = {1.0f, 0.0f, 1.0f,  0.5f};
-    Vec4 pink =    {0.92f, 0.62f, 0.96f, 0.5f};
-    Vec4 yellow =  {0.9f, 0.9f, 0.0f,  0.5f};
-    Vec4 teal =    {0.0f, 1.0f, 1.0f,  0.5f};
-    Vec4 orange =  {1.0f, 0.5f, 0.15f,  0.5f};
-    Vec4 dgray =   {0.5f, 0.5f, 0.5f,  0.5f};
-    Vec4 lgray =   {0.8f, 0.8f, 0.8f,  0.5f};
-    Vec4 white =   {1.0f, 1.0f, 1.0f,  1.0f};
-    Vec4 black =   {0.0f, 0.0f, 0.0f,  1.0f};
+    v4 red =     {1.0f, 0.0f, 0.0f,  0.5f};
+    v4 green =   {0.0f, 1.0f, 0.0f,  0.5f};
+    v4 blue =    {0.0f, 0.0f, 1.0f,  0.5f};
+    v4 magenta = {1.0f, 0.0f, 1.0f,  0.5f};
+    v4 pink =    {0.92f, 0.62f, 0.96f, 0.5f};
+    v4 yellow =  {0.9f, 0.9f, 0.0f,  0.5f};
+    v4 teal =    {0.0f, 1.0f, 1.0f,  0.5f};
+    v4 orange =  {1.0f, 0.5f, 0.15f,  0.5f};
+    v4 dgray =   {0.5f, 0.5f, 0.5f,  0.5f};
+    v4 lgray =   {0.8f, 0.8f, 0.8f,  0.5f};
+    v4 white =   {1.0f, 1.0f, 1.0f,  1.0f};
+    v4 black =   {0.0f, 0.0f, 0.0f,  1.f};
 
     if(!memory->initialized){
         add_entity(game_state, EntityType_None);
-        Vec2 box1[4] = {{100, 250}, {200, 250}, {200, 350}, {100, 350}};
+        v2 box1[4] = {{100, 250}, {200, 250}, {200, 350}, {100, 350}};
         copy_array(game_state->box1, box1, array_count(box1));
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
         game_state->image = load_bitmap(memory, "image.bmp");
 
-        Vec2 box2[4] = {{100, 300}, {200, 300}, {200, 400}, {100, 400}};
+        v2 box2[4] = {{100, 300}, {200, 300}, {200, 400}, {100, 400}};
         copy_array(game_state->box2, box2, array_count(box2));
 
-        Vec2 background[4] = {{0.0f, 0.0f}, {16.0f, 0.0f}, {0.0f, 10.0f}, {16.0f, 10.0f}};
+        v2 background[4] = {{0.0f, 0.0f}, {16.0f, 0.0f}, {0.0f, 10.0f}, {16.0f, 10.0f}};
         copy_array(game_state->test_background, background, array_count(background));
 
         game_state->r1 = rect(vec2(100, 100), vec2(50, 50));
@@ -578,9 +553,9 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    clear(render_buffer, white);
+    clear(render_buffer, black);
 
-    for(ui32 entity_index = 0; entity_index <= game_state->entity_count; ++entity_index){
+    for(ui32 entity_index = 1; entity_index <= game_state->entity_count; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
             case EntityType_Triangle:{
@@ -602,7 +577,7 @@ MAIN_GAME_LOOP(main_game_loop){
     draw_box(render_buffer, game_state->r2, orange);
     draw_pixel(render_buffer, 300, 300, orange);
     draw_circle(render_buffer, 400, 400, 50, green, true);
-    //draw_bitmap(render_buffer, 0, 0, game_state->test);
-    //draw_bitmap(render_buffer, 100, 100, game_state->image);
+    draw_bitmap(render_buffer, 0, 0, game_state->test);
+    draw_bitmap(render_buffer, 500, 100, game_state->image);
     draw_bitmap(render_buffer, 100, 100, game_state->circle);
 }

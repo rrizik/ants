@@ -50,10 +50,12 @@ DONE:
 
 /*
 TODO: RESUME
-    update resume - have at least 3 different versions for different fields
-    update linkden - actually completely finish it to the T
-    create my own portfolio - my own website
-    find a set of startups that im interested in
+    NOT DONE:
+        update linkden - actually completely finish it to the T
+        create my own portfolio - my own website
+
+    DONE:
+        update resume - have at least 3 different versions for different fields
 */
 
 /*
@@ -111,6 +113,8 @@ FUTURE STUDY: Things to study
 /*
 FUTURE TODO: Game dev stuff to accomplish
     write very simple rasterizer (drawing squares/triangles all over the screen)
+    astroids
+    space invaders
     tiny kaboom
     console
     ui

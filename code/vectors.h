@@ -2,7 +2,7 @@
 
 #include <math.h>
 
-typedef union Vec2{
+typedef union v2{
     f32 e[2];
     struct{
         f32 x; f32 y;
@@ -13,9 +13,9 @@ typedef union Vec2{
     struct{
         f32 w; f32 h;
     };
-} Vec2;
+} v2;
 
-typedef union Vec3{
+typedef union v3{
     f32 e[3];
     struct{
         f32 x, y, z;
@@ -26,9 +26,9 @@ typedef union Vec3{
     struct{
         f32 r, g, b;
     };
-} Vec3;
+} v3;
 
-typedef union Vec4{
+typedef union v4{
     f32 e[4];
     struct{
         f32 x, y, z, w;
@@ -39,63 +39,63 @@ typedef union Vec4{
     struct{
         f32 r, g, b, a;
     };
-} Vec4;
+} v4;
 
-static Vec2
+static v2
 vec2(f32 x, f32 y){
-    Vec2 result = {x, y};
+    v2 result = {x, y};
     return(result);
 }
 
-static Vec3
+static v3
 vec3(f32 x, f32 y, f32 z){
-    Vec3 result = {x, y, z};
+    v3 result = {x, y, z};
     return(result);
 }
 
-static Vec4
+static v4
 vec4(f32 x, f32 y, f32 z, f32 w){
-    Vec4 result = {x, y, z, w};
+    v4 result = {x, y, z, w};
     return(result);
 }
 
 static void
-swap_v2(Vec2 *a, Vec2 *b){
-    Vec2 t = *a;
+swap_v2(v2 *a, v2 *b){
+    v2 t = *a;
     *a = *b;
     *b = t;
 }
 
-static Vec2
-add2(Vec2 a, Vec2 b){
-    Vec2 result = {0};
+static v2
+add2(v2 a, v2 b){
+    v2 result = {0};
     result.x = a.x + b.x;
     result.y = a.y + b.y;
 
     return(result);
 }
 
-static Vec2
-sub2(Vec2 a, Vec2 b){
-    Vec2 result = {0};
+static v2
+sub2(v2 a, v2 b){
+    v2 result = {0};
     result.x = a.x - b.x;
     result.y = a.y - b.y;
 
     return(result);
 }
 
-static Vec2
-mul2(Vec2 a, Vec2 b){
-    Vec2 result = {0};
+static v2
+mul2(v2 a, v2 b){
+    v2 result = {0};
     result.x = a.x * b.x;
     result.y = a.y * b.y;
 
     return(result);
 }
 
-static Vec2
-scale2(Vec2 a, f32 s){
-    Vec2 result = {0};
+static v2
+scale2(v2 a, f32 s){
+    v2 result = {0};
     result.x = a.x * s;
     result.y = a.y * s;
 
@@ -103,14 +103,14 @@ scale2(Vec2 a, f32 s){
 }
 
 static void
-scale_pts(Vec2 *p, size_t count, f32 s){
+scale_pts(v2 *p, size_t count, f32 s){
     for(int i=0; i < count; ++i){
         *p++ = scale2(*p, s);
     }
 }
 
 static bool
-cmp2(Vec2 a, Vec2 b){
+cmp2(v2 a, v2 b){
     bool result = false;
     if(a.x == b.x && a.y == b.y){
         result = true;
@@ -119,36 +119,36 @@ cmp2(Vec2 a, Vec2 b){
 }
 
 static f32
-dot2(Vec2 a, Vec2 b){
+dot2(v2 a, v2 b){
     return((a.x * b.x) + (a.y * b.y));
 }
 
 static f32
-magnitude2(Vec2 a){
+magnitude2(v2 a){
     return(sqrtf((a.x * a.x) + (a.y * a.y)));
 }
 
 static f32
-magnitude_sq2(Vec2 a){
+magnitude_sq2(v2 a){
     return((a.x * a.x) + (a.y * a.y));
 }
 
 static f32
-distance2(Vec2 a, Vec2 b){
-    Vec2 result = sub2(a, b);
+distance2(v2 a, v2 b){
+    v2 result = sub2(a, b);
     return(magnitude2(result));
 }
 
 static void
-normalize2(Vec2 *a){
+normalize2(v2 *a){
     f32 mag = magnitude2(*a);
     a->x = (a->x / mag);
     a->y = (a->y / mag);
 }
 
-static Vec2
-normalized2(Vec2 a){
-    Vec2 result = {0};
+static v2
+normalized2(v2 a){
+    v2 result = {0};
 
     f32 mag = magnitude2(a);
     result.x = (a.x / mag);
@@ -158,7 +158,7 @@ normalized2(Vec2 a){
 }
 
 static f32
-angle2(Vec2 a, Vec2 b){
+angle2(v2 a, v2 b){
     f32 result = 0;
 
     f32 mag = sqrtf(magnitude_sq2(a) * magnitude_sq2(b));
@@ -167,9 +167,9 @@ angle2(Vec2 a, Vec2 b){
     return(result);
 }
 
-static Vec2
-project2(Vec2 a, Vec2 b){
-    Vec2 result = {0};
+static v2
+project2(v2 a, v2 b){
+    v2 result = {0};
 
     f32 n = dot2(a, b);
     f32 d = magnitude_sq2(a);
@@ -178,17 +178,17 @@ project2(Vec2 a, Vec2 b){
     return(result);
 }
 
-static Vec2
-perpendicular2(Vec2 a, Vec2 b){
-    Vec2 result = {0};
+static v2
+perpendicular2(v2 a, v2 b){
+    v2 result = {0};
 
     result = sub2(a, project2(a, b));
     return(result);
 }
 
-static Vec2
-reflection2(Vec2 vec, Vec2 normal){
-    Vec2 result = {0};
+static v2
+reflection2(v2 vec, v2 normal){
+    v2 result = {0};
 
     f32 d = dot2(vec, normal);
     result.x = vec.x - normal.x * (d * 2.0f);
