@@ -2,7 +2,7 @@
 //#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
 #include <stdint.h>
 
-#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #define array_count(value) (sizeof(value)/sizeof(value[0]))
 #define array_length(value) (sizeof(value)/sizeof(value[0]))
 #define array_size(value) (sizeof(value)/sizeof(value[0]))
@@ -141,17 +141,18 @@ typedef WRITE_ENTIRE_FILE(WriteEntireFile);
 #define FREE_FILE_MEMORY(name) void name(void *memory)
 typedef FREE_FILE_MEMORY(FreeFileMemory);
 
+#include "vectors.h"
 typedef struct GameMemory{
 	bool running;
     bool initialized;
 
+    void *total_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
+    void *permanent_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
+    void *transient_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
+
     ui64 total_size;
     ui64 permanent_storage_size;
-    ui64 temporary_storage_size;
-
-    void *total_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
-    void *temporary_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
-    void *permanent_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
+    ui64 transient_storage_size;
 
     char root_dir[256];
     char data_dir[256];
@@ -160,6 +161,31 @@ typedef struct GameMemory{
     WriteEntireFile *write_entire_file;
     FreeFileMemory *free_file_memory;
 } GameMemory;
+
+typedef struct MemoryArena {
+    ui8 *base;
+    size_t size;
+    size_t used;
+} MemoryArena; 
+
+static void
+initialize_arena(MemoryArena *arena, ui8 *base, size_t size){
+    arena->size = size;
+    arena->base = base;
+    arena->used = 0;
+}
+
+#define push_array(arena, count, type) (type *)push_size_(arena, count * sizeof(type));
+#define push_struct(arena, type) (type *)push_size_(arena, sizeof(type));
+#define push_size(arena, size) push_size_(arena, size);
+static void*
+push_size_(MemoryArena *arena, size_t size){
+    assert((arena->used + size) < arena->size);
+    void *result = arena->base + arena->used;
+    arena->used += size;
+
+    return(result);
+}
 
 #define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Clock *clock)
 typedef MAIN_GAME_LOOP(MainGameLoop);
@@ -229,57 +255,6 @@ copy_string(char *src, char *dst, size_t size){
     }
 }
 
-#include "vectors.h"
-
-typedef struct Rect{
-    f32 x, y, w, h, width, height;
-} Rect;
-
-static Rect
-rect(v2 pos, v2 dim){
-    Rect result = {0};
-    result.x = pos.x;
-    result.y = pos.y;
-    result.w = dim.x;
-    result.h = dim.y;
-    result.width = result.w;
-    result.height = result.h;
-    return(result);
-}
-
-static bool
-rect_collide_rect(Rect r1, Rect r2){
-    if((r1.x < r2.x + r2.w) &&
-       (r1.x + r1.w > r2.x) &&
-       (r1.y < r2.y + r2.h) &&
-       (r1.y + r1.h > r2.y)){
-        return true;
-    }
-    return false;
-}
-
-static bool
-rect_collide_point(Rect r1, v2 p){
-    if((p.x < r1.x + r1.w) &&
-       (p.x > r1.x) &&
-       (p.y < r1.y + r1.h) &&
-       (p.y > r1.y)){
-        return true;
-    }
-    return false;
-}
-
-static bool
-rect_contains_rect(Rect r1, Rect r2){
-    if((r2.x > r1.x) &&
-       (r2.x + r2.w < r1.x + r1.w) &&
-       (r2.y > r1.y) &&
-       (r2.y + r2.h < r1.y + r1.h)){
-        return true;
-    }
-    return false;
-}
-
 typedef struct GeometryType{
     bool PIXEL;
     bool LINE;
@@ -289,7 +264,7 @@ typedef struct GeometryType{
     bool RECTANGLE;
     bool QUAD;
     bool BOX;
-    bool CRICLE;
+    bool CIRCLE;
 } GeometryType;
 
 typedef struct Pixel{
@@ -344,12 +319,8 @@ box(v2 pos, v2 dim){
     result.height = result.h;
 }
 
-typedef struct Circle{
-    int temp;
-} Circle;
-
 typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
-typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_PIXEL, EntityType_LINE, EntityType_RAY, EntityType_SEGMENT, EntityType_Triangle, EntityType_Rectangle, EntityType_QUAD, EntityType_BOX, EntityType_CRICLE} EntityType;
+typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle} EntityType;
 
 typedef struct Entity{
     int id;
@@ -358,24 +329,14 @@ typedef struct Entity{
     EntityType type;
     v2 position;
     v2 dimension;
+    v2 direction;
     v4 color;
     v4 outline_color;
-
-
-    //TODO: this stuff goes away once we implement arenas and then
-    //create a render arena
-    //
-    //bool is_geometry; 
-    //GeometryType geometry_type;
-    //
-    Triangle triangle;
-    Rect rect;
-    Box bounding_box;
-    //Quad quad;
-    //Line line;
-    //Ray ray;
-    //Segment segment;
-    //Circle circle;
+    v2 p0;
+    v2 p1;
+    v2 p2;
+    v2 p3;
+    ui8 rad;
 } Entity;
 
 
@@ -394,44 +355,26 @@ clear_flags(Entity *e, ui32 flags){
     e->flags &= ~flags; 
 }
 
-typedef struct memory_arena {
-    ui8 *base;
-    size_t size;
-    size_t used;
-} memory_arena; 
-
-static void
-initialize_arena(memory_arena *arena, ui8 *base, size_t size){
-    arena->size = size;
-    arena->base = base;
-    arena->used = 0;
-}
-
-#define push_size(arena, type) (type *)push_struct_(arena, sizeof(type));
-static void*
-push_size_(memory_arena *arena, size_t size){
-    Assert((arena->used + size) < arena->size);
-    void *result = arena->base + arena->used;
-    arena->used += size;
-
-    return(result);
-}
-
 typedef struct GameState{
+    MemoryArena permanent_arena;
     v2 test_background[4];
     v2 box1[4];
     v2 box2[4];
-    Rect r1;
-    Rect r2;
     Entity entities[256];
     ui32 entity_count;
     ui32 player_index;
-    memory_arena a;
+    MemoryArena a;
     Controller controller;
     Bitmap test;
     Bitmap circle;
     Bitmap image;
 } GameState;
+
+#include "renderer.h"
+typedef struct TranState{
+    MemoryArena transient_arena;
+    RenderCommands *render_commands;
+} TranState;
 
 static Entity*
 add_entity(GameState *game_state, EntityType type){
@@ -444,25 +387,96 @@ add_entity(GameState *game_state, EntityType type){
 }
 
 static Entity*
-add_triangle(GameState *game_state, Triangle tri, v4 color){
+add_triangle(GameState *game_state, v2 p0, v2 p1, v2 p2, v4 color){
     Entity *e = add_entity(game_state, EntityType_Triangle);
-    e->triangle = tri;
+    e->p0 = p0;
+    e->p1 = p1;
+    e->p2 = p2;
     e->color = color;
-    // TODO: add Box for bounding_box
     return(e);
 }
 
 static Entity*
-add_player(GameState *game_state, Rect rect, v4 color){
-    Entity *e = add_entity(game_state, EntityType_Player);
-    e->rect = rect;
+add_circle(GameState *game_state, v2 pos, ui8 rad, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Circle);
+    e->position = pos;
     e->color = color;
-    // TODO: add Box for bounding_box
+    return(e);
+}
+
+static Entity*
+add_pixel(GameState* game_state, v2 position, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Pixel);
+    e->position = position;
+    e->color = color;
+    return(e);
+}
+
+static Entity*
+add_segment(GameState* game_state, v2 p0, v2 p1, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Segment);
+    e->color = color;
+    e->p0 = p0;
+    e->p1 = p1;
+    return(e);
+}
+
+static Entity*
+add_line(GameState* game_state, v2 position, v2 direction, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Line);
+    e->color = color;
+    e->position = position;
+    e->direction = direction;
+    return(e);
+}
+
+static Entity*
+add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Ray);
+    e->color = color;
+    e->position = position;
+    e->direction = direction;
+    return(e);
+}
+
+//static Entity*
+//add_rect(GameState* game_state, Rect rect, v4 color){
+//}
+
+//static Entity*
+//add_box(GameState* game_state, Rect rect, v4 color){
+//}
+
+static Entity*
+add_quad(GameState* game_state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Quad);
+    e->color = color;
+    e->p0 = p0;
+    e->p1 = p1;
+    e->p2 = p2;
+    e->p3 = p3;
+    return(e);
+}
+
+//static Entity*
+//add_bitmap(GameState* game_state, v2 position, Bitmap image){
+//    Entity *e = add_entity(game_state, EntityType_Bitmap);
+//    e->position = position
+//    e->color = color;
+//    return(e);
+//}
+
+
+static Entity*
+add_player(GameState *game_state, v2 position, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Player);
+    e->position = position;
+    e->color = color;
     return(e);
 }
 
 static v4
-conver_ui32_v4_normalized(ui32 value){
+convert_ui32_v4_normalized(ui32 value){
 	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
 	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
 	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);

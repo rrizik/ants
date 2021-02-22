@@ -1,11 +1,14 @@
 //TODO
-//NOTE 
-//INCOMPLETE 
-//IMPORTANT 
-//QUESTION 
-//CONSIDER 
-//FUTURE 
+
 //STUDY
+//INCOMPLETE
+//QUESTION
+//CONSIDER
+//FUTURE
+
+//IMPORTANT
+//NOTE
+
 
 /*
 TODO: WIN PLATFORM CODE
@@ -14,9 +17,9 @@ TODO: WIN PLATFORM CODE
 NOT DONE:
     entities - why? because it makes it easier to refer to things as a whole rather than little bitty points and bullshit
     layers
-    add clipping 
+    add clipping
     simd
-    add texturing 
+    add texturing
 
     transformation:
         shearing
@@ -32,7 +35,7 @@ NOT DONE:
 
 DONE:
     transformation:
-        translation 
+        translation
         rotation
         scaling
 
@@ -76,7 +79,7 @@ NOTE: Take notes of these in your dope ass notebook
 	c truncates towards 0
 	triangle is simplist 2d shape
 	designated initalizers
-    
+
     QUESTION:
         - whats the point of inlining, when, why, where
         - how to know when to create i8, i16, i32, i64, int
@@ -290,7 +293,7 @@ READ_ENTIRE_FILE(read_entire_file){
     if(filehandle != INVALID_HANDLE_VALUE){
         LARGE_INTEGER filesize;
         if(GetFileSizeEx(filehandle, &filesize)){
-            //Assert(filesize.QuadPart <= 0xFFFFFFFF); // NOTE: temporary for now, this isnt the final file I/O
+            //assert(filesize.QuadPart <= 0xFFFFFFFF); // NOTE: temporary for now, this isnt the final file I/O
             result.content = VirtualAlloc(0, (ui32)filesize.QuadPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // FUTURE: Dont use VirtualAlloc when this is more robust, use something like HeapAlloc
             if(result.content){
                 DWORD bytes_read;
@@ -430,9 +433,9 @@ WIN_process_controller_input(void){
     }
 }
 
-static void 
+static void
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    //Assert((ui64)recording_index < array_count(state->replay_buffers));
+    //assert((ui64)recording_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
     //if(replay_buffer->memory){
@@ -464,7 +467,7 @@ WIN_record_input(WIN_State *state, Events *events){
 
 static void
 WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, int playback_index){
-    //Assert(playback_index < array_count(state->replay_buffers));
+    //assert(playback_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[playback_index];
     //if(replay_buffer->memory){
@@ -663,9 +666,9 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
     return(result);
 }
 
-// FUTURE: think about using int main (int argc, char *argv[]){} 
+// FUTURE: think about using int main (int argc, char *argv[]){}
 // being consistant with all your C programs could be helpfull later
-// this will give you access to a console more easily if you wanted it 
+// this will give you access to a console more easily if you wanted it
 // but if not maybe stick to using WinMain
 // GetModuleHandle(0) -> gets hinstance
 int CALLBACK
@@ -709,11 +712,11 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             get_root_dir(state.root_dir, state.root_dir_length, exe_path);
 
             char gamecode_dll[] = "build\\game.dll";
-            char gamecode_dll_fullpath[256]; 
+            char gamecode_dll_fullpath[256];
             cat_strings(state.root_dir, gamecode_dll, gamecode_dll_fullpath);
 
             char copy_gamecode_dll[] = "build\\copy_game.dll";
-            char copy_gamecode_dll_fullpath[256]; 
+            char copy_gamecode_dll_fullpath[256];
             cat_strings(state.root_dir, copy_gamecode_dll, copy_gamecode_dll_fullpath);
 
             WIN_GameCode gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
@@ -729,16 +732,16 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             GameMemory game_memory = {0};
             game_memory.running = true;
             game_memory.permanent_storage_size = Megabytes(64);
-            game_memory.temporary_storage_size = Gigabytes(1);
+            game_memory.transient_storage_size = Gigabytes(1);
 
             game_memory.read_entire_file = read_entire_file;
             game_memory.write_entire_file = write_entire_file;
             game_memory.free_file_memory = free_file_memory;
 
-            game_memory.total_size = game_memory.permanent_storage_size + game_memory.temporary_storage_size;
+            game_memory.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
             game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             game_memory.permanent_storage = game_memory.total_storage;
-            game_memory.temporary_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+            game_memory.transient_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
             copy_string(state.root_dir, game_memory.root_dir, state.root_dir_length);
             char root_dir[100];
@@ -784,7 +787,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             global_running = true;
             global_pause = false;
 
-            if(game_memory.permanent_storage && game_memory.temporary_storage && render_buffer.memory){
+            if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
                 while(global_running){
                     clock.dt = win_clock.target_seconds_per_frame;
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
