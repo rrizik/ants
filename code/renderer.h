@@ -151,11 +151,11 @@ push_command_(RenderCommands* commands, size_t size){
 }
 
 static void
-push_pixel(RenderCommands *commands, v2 point, v4 color){
+push_pixel(RenderCommands *commands, v2 position, v4 color){
     PixelCommand* command = push_command(commands, PixelCommand);
     command->base.type = RenderCommand_Pixel;
+    command->base.position = position;
     command->base.color = color;
-    command->point = point;
 }
 
 static void

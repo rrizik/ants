@@ -464,34 +464,48 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
         BaseCommand* command = (BaseCommand*)at;
 
         switch(command->type){
-            case RenderCommand_Circle:{
-                CircleCommand *circle = (CircleCommand*)command;
-                draw_circle(render_buffer, command->position.x, command->position.y, circle->rad, command->color, command->fill);
-                at = circle + 1;
+            case RenderCommand_Pixel:{
+                PixelCommand *pixel = (PixelCommand*)command;
+                at = pixel + 1;
+            } break;
+            case RenderCommand_Segment:{
+                SegmentCommand *segment = (SegmentCommand*)command;
+                at = segment + 1;
+            } break;
+            case RenderCommand_Line:{
+                LineCommand *line = (LineCommand*)command;
+                at = line + 1;
+            } break;
+            case RenderCommand_Ray:{
+                RayCommand *ray = (RayCommand*)command;
+                at = ray + 1;
+            } break;
+            case RenderCommand_Rect:{
+                RectCommand *rect = (RectCommand*)command;
+                at = rect + 1;
+            } break;
+            case RenderCommand_Box:{
+                BoxCommand *box = (BoxCommand*)command;
+                at = box + 1;
+            } break;
+            case RenderCommand_Quad:{
+                QuadCommand *quad = (QuadCommand*)command;
+                at = quad + 1;
             } break;
             case RenderCommand_Triangle:{
                 TriangleCommand *triangle = (TriangleCommand*)command;
                 draw_triangle(render_buffer, triangle->p0, triangle->p1, triangle->p2, command->color, command->fill);
                 at = triangle + 1;
             } break;
-            case RenderCommand_Pixel:{
-                PixelCommand *pixel = (PixelCommand*)command;
-                at = pixel + 1;
-            } break;
-            case RenderCommand_Box:{
-                BoxCommand *box = (BoxCommand*)command;
-                at = box + 1;
+            case RenderCommand_Circle:{
+                CircleCommand *circle = (CircleCommand*)command;
+                draw_circle(render_buffer, command->position.x, command->position.y, circle->rad, command->color, command->fill);
+                at = circle + 1;
             } break;
             case RenderCommand_Bitmap:{
                 BitmapCommand *bitmap = (BitmapCommand*)command;
                 at = bitmap + 1;
             } break;
-    //draw_box(render_buffer, game_state->r2, orange);
-    //draw_pixel(render_buffer, 300, 300, orange);
-    //draw_circle(render_buffer, 400, 400, 50, green, true);
-    //draw_bitmap(render_buffer, 0, 0, game_state->test);
-    //draw_bitmap(render_buffer, 500, 100, game_state->image);
-    //draw_bitmap(render_buffer, 100, 100, game_state->circle);
         }
     }
 }
@@ -615,8 +629,29 @@ MAIN_GAME_LOOP(main_game_loop){
     for(ui32 entity_index = 1; entity_index <= game_state->entity_count; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
-            case EntityType_Player:{
-                push_bitmap(transient_state->render_commands, entity->position, entity->color);
+            //case EntityType_Player:{
+            //    push_bitmap(transient_state->render_commands, entity->position, color);
+            //}break;
+            case EntityType_Pixel:{
+                push_pixel(transient_state->render_commands, entity->position, entity->color);
+            }break;
+            case EntityType_Segment:{
+                push_segment(transient_state->render_commands, entity->p0, entity->p1, entity->color);
+            }break;
+            case EntityType_Line:{
+                push_line(transient_state->render_commands, entity->position, entity->direction, entity->color);
+            }break;
+            case EntityType_Ray:{
+                push_ray(transient_state->render_commands, entity->position, entity->direction, entity->color);
+            }break;
+            //case EntityType_Rect:{
+            //    push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
+            //}break;
+            //case EntityType_Box:{
+            //    push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
+            //}break;
+            case EntityType_Quad:{
+                push_quad(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->p3, entity->color);
             }break;
             case EntityType_Triangle:{
                 push_triangle(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->color, true);
