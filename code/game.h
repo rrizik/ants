@@ -328,6 +328,9 @@ typedef struct Entity{
     ui32 flags;
     EntityType type;
     v2 position;
+    f32 x;
+    f32 y;
+    bool fill;
     v2 dimension;
     v2 direction;
     v4 color;
@@ -357,9 +360,6 @@ clear_flags(Entity *e, ui32 flags){
 
 typedef struct GameState{
     MemoryArena permanent_arena;
-    v2 test_background[4];
-    v2 box1[4];
-    v2 box2[4];
     Entity entities[256];
     ui32 entity_count;
     ui32 player_index;
@@ -387,27 +387,10 @@ add_entity(GameState *game_state, EntityType type){
 }
 
 static Entity*
-add_triangle(GameState *game_state, v2 p0, v2 p1, v2 p2, v4 color){
-    Entity *e = add_entity(game_state, EntityType_Triangle);
-    e->p0 = p0;
-    e->p1 = p1;
-    e->p2 = p2;
-    e->color = color;
-    return(e);
-}
-
-static Entity*
-add_circle(GameState *game_state, v2 pos, ui8 rad, v4 color){
-    Entity *e = add_entity(game_state, EntityType_Circle);
-    e->position = pos;
-    e->color = color;
-    return(e);
-}
-
-static Entity*
-add_pixel(GameState* game_state, v2 position, v4 color){
+add_pixel(GameState* game_state, f32 x, f32 y, v4 color){
     Entity *e = add_entity(game_state, EntityType_Pixel);
-    e->position = position;
+    e->x = x;
+    e->y = y;
     e->color = color;
     return(e);
 }
@@ -422,8 +405,8 @@ add_segment(GameState* game_state, v2 p0, v2 p1, v4 color){
 }
 
 static Entity*
-add_line(GameState* game_state, v2 position, v2 direction, v4 color){
-    Entity *e = add_entity(game_state, EntityType_Line);
+add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Ray);
     e->color = color;
     e->position = position;
     e->direction = direction;
@@ -431,8 +414,8 @@ add_line(GameState* game_state, v2 position, v2 direction, v4 color){
 }
 
 static Entity*
-add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
-    Entity *e = add_entity(game_state, EntityType_Ray);
+add_line(GameState* game_state, v2 position, v2 direction, v4 color){
+    Entity *e = add_entity(game_state, EntityType_Line);
     e->color = color;
     e->position = position;
     e->direction = direction;
@@ -448,13 +431,35 @@ add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
 //}
 
 static Entity*
-add_quad(GameState* game_state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color){
+add_quad(GameState* game_state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
     Entity *e = add_entity(game_state, EntityType_Quad);
     e->color = color;
     e->p0 = p0;
     e->p1 = p1;
     e->p2 = p2;
     e->p3 = p3;
+    e->fill = fill;
+    return(e);
+}
+
+static Entity*
+add_triangle(GameState *game_state, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
+    Entity *e = add_entity(game_state, EntityType_Triangle);
+    e->p0 = p0;
+    e->p1 = p1;
+    e->p2 = p2;
+    e->color = color;
+    e->fill = fill;
+    return(e);
+}
+
+static Entity*
+add_circle(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
+    Entity *e = add_entity(game_state, EntityType_Circle);
+    e->position = pos;
+    e->color = color;
+    e->fill = fill;
+    e->rad = rad;
     return(e);
 }
 

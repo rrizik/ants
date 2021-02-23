@@ -107,36 +107,36 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
 }
 
 static void
-draw_ray(RenderBuffer *buffer, v2 point, v2 direction, v4 c){
-    point = round_v2(point);
+draw_ray(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
+    position = round_v2(position);
     direction = round_v2(direction);
 
-    f32 distance_x =  ABS(direction.x - point.x);
-    f32 distance_y = -ABS(direction.y - point.y);
-    f32 step_x = point.x < direction.x ? 1.0f : -1.0f;
-    f32 step_y = point.y < direction.y ? 1.0f : -1.0f;
+    f32 distance_x =  ABS(direction.x - position.x);
+    f32 distance_y = -ABS(direction.y - position.y);
+    f32 step_x = position.x < direction.x ? 1.0f : -1.0f;
+    f32 step_y = position.y < direction.y ? 1.0f : -1.0f;
 
     f32 error = distance_x + distance_y;
 
     for(;;){
-        draw_pixel(buffer, point.x, point.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-        if(point.x < 0 || point.x > buffer->width || point.y < 0 || point.y > buffer->height)break;
+        draw_pixel(buffer, position.x, position.y, c); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
+        if(position.x < 0 || position.x > buffer->width || position.y < 0 || position.y > buffer->height)break;
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
             error += distance_y;
-            point.x += step_x;
+            position.x += step_x;
         }
         if (error2 <= distance_x){
             error += distance_x;
-            point.y += step_y;
+            position.y += step_y;
         }
     }
 }
 
 static void
-draw_line(RenderBuffer *buffer, v2 point, v2 direction, v4 c){
-    v2 point1 = round_v2(point);
+draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
+    v2 point1 = round_v2(position);
     v2 point2 = point1;
     direction = round_v2(direction);
 
@@ -367,11 +367,29 @@ draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill)
     v2 p2 = p2_;
     v2 p3 = p3_;
 
-    Triangle t1 = triangle(p0, p1, p2);
-    Triangle t2 = triangle(p0, p2, p3);
+    if(p0.x > p1.x){ swap_v2(&p0, &p1); }
+    if(p0.x > p2.x){ swap_v2(&p0, &p2); }
+    if(p0.y > p2.y){ swap_v2(&p0, &p2); }
+    if(p0.x > p3.x){ swap_v2(&p0, &p3); }
+    if(p0.y > p3.y){ swap_v2(&p0, &p3); }
+
+    if(p1.x < p0.x){ swap_v2(&p1, &p0); }
+    if(p1.x < p3.x){ swap_v2(&p1, &p3); }
+    if(p1.y > p2.y){ swap_v2(&p1, &p2); }
+    if(p1.y > p3.y){ swap_v2(&p1, &p3); }
+
+    if(p2.x < p0.x){ swap_v2(&p2, &p0); }
+    if(p2.x < p3.x){ swap_v2(&p2, &p3); }
+    if(p2.y < p0.y){ swap_v2(&p2, &p0); }
+    if(p2.y < p1.y){ swap_v2(&p2, &p1); }
+
+    if(p3.x > p1.x){ swap_v2(&p3, &p1); }
+    if(p3.x > p2.x){ swap_v2(&p3, &p2); }
+    if(p3.y < p0.y){ swap_v2(&p3, &p0); }
+    if(p3.y < p1.y){ swap_v2(&p3, &p1); }
 
     draw_triangle(buffer, p0, p1, p2, c, fill);
-    draw_triangle(buffer, p0, p1, p2, c, fill);
+    draw_triangle(buffer, p0, p2, p3, c, fill);
 }
 
 static void
@@ -467,18 +485,22 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
             case RenderCommand_Pixel:{
                 PixelCommand *pixel = (PixelCommand*)command;
                 at = pixel + 1;
+                draw_pixel(render_buffer, pixel->x, pixel->y, pixel->base.color);
             } break;
             case RenderCommand_Segment:{
                 SegmentCommand *segment = (SegmentCommand*)command;
                 at = segment + 1;
-            } break;
-            case RenderCommand_Line:{
-                LineCommand *line = (LineCommand*)command;
-                at = line + 1;
+                draw_segment(render_buffer, segment->p0, segment->p1, segment->base.color);
             } break;
             case RenderCommand_Ray:{
                 RayCommand *ray = (RayCommand*)command;
                 at = ray + 1;
+                draw_ray(render_buffer, ray->base.position, ray->direction, ray->base.color);
+            } break;
+            case RenderCommand_Line:{
+                LineCommand *line = (LineCommand*)command;
+                at = line + 1;
+                draw_line(render_buffer, line->base.position, line->direction, line->base.color);
             } break;
             case RenderCommand_Rect:{
                 RectCommand *rect = (RectCommand*)command;
@@ -491,6 +513,7 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
             case RenderCommand_Quad:{
                 QuadCommand *quad = (QuadCommand*)command;
                 at = quad + 1;
+                draw_quad(render_buffer, quad->p0, quad->p1, quad->p2, quad->p3, quad->base.color, quad->base.fill);
             } break;
             case RenderCommand_Triangle:{
                 TriangleCommand *triangle = (TriangleCommand*)command;
@@ -532,28 +555,26 @@ MAIN_GAME_LOOP(main_game_loop){
 
     if(!memory->initialized){
         add_entity(game_state, EntityType_None);
-        v2 box1[4] = {{100, 250}, {200, 250}, {200, 350}, {100, 350}};
-        copy_array(game_state->box1, box1, array_count(box1));
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
         game_state->image = load_bitmap(memory, "image.bmp");
 
-        v2 box2[4] = {{100, 300}, {200, 300}, {200, 400}, {100, 400}};
-        copy_array(game_state->box2, box2, array_count(box2));
-
-        v2 background[4] = {{0.0f, 0.0f}, {16.0f, 0.0f}, {0.0f, 10.0f}, {16.0f, 10.0f}};
-        copy_array(game_state->test_background, background, array_count(background));
-
-        add_pixel(game_state, vec2(1, 1), red);
-        add_segment(game_state, vec2(300, 300), vec2(200, 200), magenta);
-        add_line(game_state, vec2(250, 300), vec2(200, 200), pink);
-        add_ray(game_state, vec2(400, 400), vec2(50, 50), teal);
+        add_pixel(game_state, 1, 1, red);
         //add_rect(game_state, rect(vec2(100, 100), vec2(50, 50)), orange);
         //add_box(game_state, rect(vec2(100, 300), vec2(100, 100)), blue);
-        add_quad(game_state, vec2(0, 500), vec2(20, 500), vec2(0, 400), vec2(20, 400), green);
-        add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray);
-        add_circle(game_state, vec2(400, 400), 50, dgray);
+        
+        add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
+        add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
+        add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
+        add_ray(game_state, vec2(20, 100), vec2(1, 1), teal);
+        add_line(game_state, vec2(40, 120), vec2(21, 21), pink);
+        add_quad(game_state, vec2(0, 400), vec2(20, 400), vec2(20, 500), vec2(0, 500), green, false);
+        add_quad(game_state, vec2(40, 400), vec2(60, 400), vec2(60, 500), vec2(40, 500), green, true);
+
+        add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
+        add_circle(game_state, vec2(400, 400), 50, green, true);
+        add_circle(game_state, vec2(450, 400), 50, dgray, false);
         //add_bitmap(game_state, vec2(20, 20), game_state->circle);
         //add_bitmap(game_state, vec2(0, 300), game_state->image);
         game_state->player_index = add_player(game_state, vec2(100, 100), red)->index;
@@ -633,7 +654,7 @@ MAIN_GAME_LOOP(main_game_loop){
             //    push_bitmap(transient_state->render_commands, entity->position, color);
             //}break;
             case EntityType_Pixel:{
-                push_pixel(transient_state->render_commands, entity->position, entity->color);
+                push_pixel(transient_state->render_commands, entity->x, entity->y, entity->color);
             }break;
             case EntityType_Segment:{
                 push_segment(transient_state->render_commands, entity->p0, entity->p1, entity->color);
@@ -651,13 +672,13 @@ MAIN_GAME_LOOP(main_game_loop){
             //    push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
             //}break;
             case EntityType_Quad:{
-                push_quad(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->p3, entity->color);
+                push_quad(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->p3, entity->color, entity->fill);
             }break;
             case EntityType_Triangle:{
-                push_triangle(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->color, true);
+                push_triangle(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->color, entity->fill);
             }break;
             case EntityType_Circle:{
-                push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
             }break;
         }
     }
@@ -665,8 +686,6 @@ MAIN_GAME_LOOP(main_game_loop){
     draw_commands(render_buffer, transient_state->render_commands);
 
     //draw_box(render_buffer, game_state->r2, orange);
-    //draw_pixel(render_buffer, 300, 300, orange);
-    //draw_circle(render_buffer, 400, 400, 50, green, true);
     //draw_bitmap(render_buffer, 0, 0, game_state->test);
     //draw_bitmap(render_buffer, 500, 100, game_state->image);
     //draw_bitmap(render_buffer, 100, 100, game_state->circle);

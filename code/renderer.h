@@ -71,7 +71,8 @@ typedef struct BaseCommand{
 
 typedef struct PixelCommand{
     BaseCommand base; 
-    v2 point;
+    f32 x;
+    f32 y;
 } PixelCommand;
 
 typedef struct SegmentCommand{
@@ -80,17 +81,15 @@ typedef struct SegmentCommand{
     v2 p1;
 } SegmentCommand;
 
-typedef struct LineCommand{
-    BaseCommand base; 
-    v2 point;
-    v2 direction;
-} LineCommand;
-
 typedef struct RayCommand{
     BaseCommand base; 
-    v2 point;
     v2 direction;
 } RayCommand;
+
+typedef struct LineCommand{
+    BaseCommand base; 
+    v2 direction;
+} LineCommand;
 
 typedef struct RectCommand{
     BaseCommand base; 
@@ -151,10 +150,10 @@ push_command_(RenderCommands* commands, size_t size){
 }
 
 static void
-push_pixel(RenderCommands *commands, v2 position, v4 color){
+push_pixel(RenderCommands *commands, f32 x, f32 y, v4 color){
     PixelCommand* command = push_command(commands, PixelCommand);
     command->base.type = RenderCommand_Pixel;
-    command->base.position = position;
+    command->base.position = vec2(x, y);
     command->base.color = color;
 }
 
@@ -168,18 +167,18 @@ push_segment(RenderCommands *commands, v2 p0, v2 p1, v4 color){
 }
 
 static void
-push_line(RenderCommands *commands, v2 position, v2 direction, v4 color){
-    LineCommand* command = push_command(commands, LineCommand);
-    command->base.type = RenderCommand_Line;
+push_ray(RenderCommands *commands, v2 position, v2 direction, v4 color){
+    RayCommand* command = push_command(commands, RayCommand);
+    command->base.type = RenderCommand_Ray;
     command->base.position = position;
     command->base.color = color;
     command->direction = direction;
 }
 
 static void
-push_ray(RenderCommands *commands, v2 position, v2 direction, v4 color){
-    RayCommand* command = push_command(commands, RayCommand);
-    command->base.type = RenderCommand_Ray;
+push_line(RenderCommands *commands, v2 position, v2 direction, v4 color){
+    LineCommand* command = push_command(commands, LineCommand);
+    command->base.type = RenderCommand_Line;
     command->base.position = position;
     command->base.color = color;
     command->direction = direction;
@@ -203,10 +202,11 @@ push_box(RenderCommands *commands, Rect r, v4 color){
 }
 
 static void
-push_quad(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color){
+push_quad(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
     QuadCommand* command = push_command(commands, QuadCommand);
     command->base.type = RenderCommand_Quad;
     command->base.color = color;
+    command->base.fill = fill;
     command->p0 = p0;
     command->p1 = p1;
     command->p2 = p2;
