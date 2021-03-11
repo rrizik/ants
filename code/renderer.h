@@ -50,6 +50,7 @@ rect_contains_rect(Rect r1, Rect r2){
 }
 
 typedef enum RenderCommandType{
+    RenderCommand_ClearColor,
     RenderCommand_Pixel,
     RenderCommand_Segment, 
     RenderCommand_Line, 
@@ -68,6 +69,10 @@ typedef struct BaseCommand{
     v4 color;
     bool fill;
 } BaseCommand;
+
+typedef struct ClearColorCommand{
+    BaseCommand base;
+} ClearColorCommand;
 
 typedef struct PixelCommand{
     BaseCommand base; 
@@ -93,12 +98,12 @@ typedef struct LineCommand{
 
 typedef struct RectCommand{
     BaseCommand base; 
-    Rect rect;
+    v2 dimension;
 } RectCommand;
 
 typedef struct BoxCommand{
     BaseCommand base; 
-    Rect rect;
+    v2 dimension;
 } BoxCommand;
 
 typedef struct QuadCommand{
@@ -150,6 +155,12 @@ push_command_(RenderCommands* commands, size_t size){
 }
 
 static void
+push_clear_color(RenderCommands *commands, v4 color){
+    ClearColorCommand* command = push_command(commands, ClearColorCommand);
+    command->base.color = color;
+}
+
+static void
 push_pixel(RenderCommands *commands, f32 x, f32 y, v4 color){
     PixelCommand* command = push_command(commands, PixelCommand);
     command->base.type = RenderCommand_Pixel;
@@ -185,20 +196,21 @@ push_line(RenderCommands *commands, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_rect(RenderCommands *commands, Rect r, v4 color, bool fill){
+push_rect(RenderCommands *commands, v2 position, v2 dimension, v4 color){
     RectCommand* command = push_command(commands, RectCommand);
     command->base.type = RenderCommand_Rect;
     command->base.color = color;
-    command->base.fill = fill;
-    command->rect = r;
+    command->base.position = position;
+    command->dimension = dimension;
 }
 
 static void
-push_box(RenderCommands *commands, Rect r, v4 color){
+push_box(RenderCommands *commands, v2 position, v2 dimension, v4 color){
     BoxCommand* command = push_command(commands, BoxCommand);
     command->base.type = RenderCommand_Box;
     command->base.color = color;
-    command->rect = r;
+    command->base.position = position;
+    command->dimension = dimension;
 }
 
 static void

@@ -1,8 +1,6 @@
 #include "game.h"
 #include "math.h"
-#include "vectors.h"
 #include "matrices.h"
-#include "renderer.h"
 
 
 static v2
@@ -246,11 +244,7 @@ draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
 }
 
 static void
-draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, v4 c, v4 c_outlined, bool fill){
-    v2 p0 = tri.p0;
-    v2 p1 = tri.p1;
-    v2 p2 = tri.p2;
-
+draw_triangle_outlined(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_outlined, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -278,11 +272,7 @@ draw_triangle_outlined(RenderBuffer *buffer, Triangle tri, v4 c, v4 c_outlined, 
 }
 
 static void
-draw_triangle(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v4 c, bool fill){
-    v2 p0 = p0_;
-    v2 p1 = p1_;
-    v2 p2 = p2_;
-
+draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -333,11 +323,11 @@ draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
 }
 
 static void
-draw_rect(RenderBuffer *buffer, Rect r, v4 c){
-    v2 p0 = {r.x, r.y};
-    v2 p1 = {r.x + r.w, r.y};
-    v2 p2 = {r.x, r.y + r.h};
-    v2 p3 = {r.x + r.w, r.y + r.h};
+draw_rect(RenderBuffer *buffer, v2 position, v2 dimension, v4 c){
+    v2 p0 = {position.x, position.y};
+    v2 p1 = {position.x + dimension.w, position.y};
+    v2 p2 = {position.x, position.y + dimension.h};
+    v2 p3 = {position.x + dimension.w, position.y + dimension.h};
 
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
@@ -358,6 +348,19 @@ draw_rect_pts(RenderBuffer *buffer, v2 *p, v4 c){
             draw_pixel(buffer, x, y, c);
         }
     }
+}
+
+static void
+draw_box(RenderBuffer *buffer, v2 position, v2 dimension, v4 c){
+    v2 p0 = {position.x, position.y};
+    v2 p1 = {position.x + dimension.w, position.y};
+    v2 p2 = {position.x + dimension.w, position.y + dimension.h};
+    v2 p3 = {position.x, position.y + dimension.h};
+
+    draw_segment(buffer, p0, p1, c);
+    draw_segment(buffer, p1, p2, c);
+    draw_segment(buffer, p2, p3, c);
+    draw_segment(buffer, p3, p0, c);
 }
 
 static void
@@ -390,19 +393,6 @@ draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill)
 
     draw_triangle(buffer, p0, p1, p2, c, fill);
     draw_triangle(buffer, p0, p2, p3, c, fill);
-}
-
-static void
-draw_box(RenderBuffer *buffer, Rect rect, v4 c){
-    v2 p0 = {rect.x, rect.y};
-    v2 p1 = {rect.x + rect.w, rect.y};
-    v2 p2 = {rect.x + rect.w, rect.y + rect.h};
-    v2 p3 = {rect.x, rect.y + rect.h};
-
-    draw_segment(buffer, p0, p1, c);
-    draw_segment(buffer, p1, p2, c);
-    draw_segment(buffer, p2, p3, c);
-    draw_segment(buffer, p3, p0, c);
 }
 
 static void
@@ -482,6 +472,11 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
         BaseCommand* command = (BaseCommand*)at;
 
         switch(command->type){
+            case RenderCommand_ClearColor:{
+                ClearColorCommand *color = (ClearColorCommand*)command;
+                at = color + 1;
+                clear(render_buffer, color->base.color);
+            } break;
             case RenderCommand_Pixel:{
                 PixelCommand *pixel = (PixelCommand*)command;
                 at = pixel + 1;
@@ -505,10 +500,12 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
             case RenderCommand_Rect:{
                 RectCommand *rect = (RectCommand*)command;
                 at = rect + 1;
+                draw_rect(render_buffer, rect->base.position, rect->dimension, rect->base.color);
             } break;
             case RenderCommand_Box:{
                 BoxCommand *box = (BoxCommand*)command;
                 at = box + 1;
+                draw_box(render_buffer, box->base.position, box->dimension, box->base.color);
             } break;
             case RenderCommand_Quad:{
                 QuadCommand *quad = (QuadCommand*)command;
@@ -522,12 +519,13 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
             } break;
             case RenderCommand_Circle:{
                 CircleCommand *circle = (CircleCommand*)command;
-                draw_circle(render_buffer, command->position.x, command->position.y, circle->rad, command->color, command->fill);
+                draw_circle(render_buffer, circle->base.position.x, circle->base.position.y, circle->rad, circle->base.color, circle->base.fill);
                 at = circle + 1;
             } break;
             case RenderCommand_Bitmap:{
                 BitmapCommand *bitmap = (BitmapCommand*)command;
                 at = bitmap + 1;
+                draw_bitmap(render_buffer, bitmap->base.position, bitmap->image);
             } break;
         }
     }
@@ -561,9 +559,8 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->image = load_bitmap(memory, "image.bmp");
 
         add_pixel(game_state, 1, 1, red);
-        //add_rect(game_state, rect(vec2(100, 100), vec2(50, 50)), orange);
-        //add_box(game_state, rect(vec2(100, 300), vec2(100, 100)), blue);
         
+        game_state->player_index = add_player(game_state, vec2(150, 100), vec2(50, 50), red, game_state->circle)->index;
         add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
         add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
         add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
@@ -571,13 +568,14 @@ MAIN_GAME_LOOP(main_game_loop){
         add_line(game_state, vec2(40, 120), vec2(21, 21), pink);
         add_quad(game_state, vec2(0, 400), vec2(20, 400), vec2(20, 500), vec2(0, 500), green, false);
         add_quad(game_state, vec2(40, 400), vec2(60, 400), vec2(60, 500), vec2(40, 500), green, true);
+        add_rect(game_state, vec2(100, 100), vec2(50, 50), orange);
+        add_box(game_state, vec2(100, 300), vec2(100, 100), blue);
 
         add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
         add_circle(game_state, vec2(400, 400), 50, green, true);
         add_circle(game_state, vec2(450, 400), 50, dgray, false);
-        //add_bitmap(game_state, vec2(20, 20), game_state->circle);
-        //add_bitmap(game_state, vec2(0, 300), game_state->image);
-        game_state->player_index = add_player(game_state, vec2(100, 100), red)->index;
+        add_bitmap(game_state, vec2(20, 20), game_state->circle);
+        add_bitmap(game_state, vec2(500, 50), game_state->image);
 
 
         initialize_arena(&game_state->permanent_arena, 
@@ -628,31 +626,31 @@ MAIN_GAME_LOOP(main_game_loop){
 
     f32 speed = 150.0f;
 
-    //if(game_state->player_index != 0){
-    //    Entity *player = game_state->entities + game_state->player_index;
-    //    if(game_state->controller.up){
-    //        player->rect.y += speed * clock->dt;
-    //    }
-    //    if(game_state->controller.down){
-    //        player->rect.y -= speed * clock->dt;
-    //    }
-    //    if(game_state->controller.left){
-    //        player->rect.x -= speed * clock->dt;
-    //    }
-    //    if(game_state->controller.right){
-    //        player->rect.x += speed * clock->dt;
-    //    }
-    //}
-
-    clear(render_buffer, black);
+    if(game_state->player_index != 0){
+        Entity *player = game_state->entities + game_state->player_index;
+        if(game_state->controller.up){
+            player->position.y += speed * clock->dt;
+        }
+        if(game_state->controller.down){
+            player->position.y -= speed * clock->dt;
+        }
+        if(game_state->controller.left){
+            player->position.x -= speed * clock->dt;
+        }
+        if(game_state->controller.right){
+            player->position.x += speed * clock->dt;
+        }
+    }
 
     transient_state->render_commands->used_bytes = 0;
+    push_clear_color(transient_state->render_commands, black);
     for(ui32 entity_index = 1; entity_index <= game_state->entity_count; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
-            //case EntityType_Player:{
-            //    push_bitmap(transient_state->render_commands, entity->position, color);
-            //}break;
+            case EntityType_Player:{
+                push_bitmap(transient_state->render_commands, entity->position, entity->image);
+                //push_rect(transient_state->render_commands, entity->position, entity->dimension, entity->color);
+            }break;
             case EntityType_Pixel:{
                 push_pixel(transient_state->render_commands, entity->x, entity->y, entity->color);
             }break;
@@ -665,12 +663,12 @@ MAIN_GAME_LOOP(main_game_loop){
             case EntityType_Ray:{
                 push_ray(transient_state->render_commands, entity->position, entity->direction, entity->color);
             }break;
-            //case EntityType_Rect:{
-            //    push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
-            //}break;
-            //case EntityType_Box:{
-            //    push_circle(transient_state->render_commands, vec2(400, 400), 50, green, true);
-            //}break;
+            case EntityType_Rect:{
+                push_rect(transient_state->render_commands, entity->position, entity->dimension, entity->color);
+            }break;
+            case EntityType_Box:{
+                push_box(transient_state->render_commands, entity->position, entity->dimension, entity->color);
+            }break;
             case EntityType_Quad:{
                 push_quad(transient_state->render_commands, entity->p0, entity->p1, entity->p2, entity->p3, entity->color, entity->fill);
             }break;
@@ -680,13 +678,16 @@ MAIN_GAME_LOOP(main_game_loop){
             case EntityType_Circle:{
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
             }break;
+            case EntityType_Bitmap:{
+                push_bitmap(transient_state->render_commands, entity->position, entity->image);
+            }break;
+            case EntityType_None:{
+            }break; 
+            case EntityType_Object:{
+            }break; 
+
         }
     }
 
     draw_commands(render_buffer, transient_state->render_commands);
-
-    //draw_box(render_buffer, game_state->r2, orange);
-    //draw_bitmap(render_buffer, 0, 0, game_state->test);
-    //draw_bitmap(render_buffer, 500, 100, game_state->image);
-    //draw_bitmap(render_buffer, 100, 100, game_state->circle);
 }

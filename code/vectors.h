@@ -8,9 +8,6 @@ typedef union v2{
         f32 x; f32 y;
     };
     struct{
-        f32 p0, p1;
-    };
-    struct{
         f32 w; f32 h;
     };
 } v2;
@@ -21,9 +18,6 @@ typedef union v3{
         f32 x, y, z;
     };
     struct{
-        f32 p0, p1, p2;
-    };
-    struct{
         f32 r, g, b;
     };
 } v3;
@@ -32,9 +26,6 @@ typedef union v4{
     f32 e[4];
     struct{
         f32 x, y, z, w;
-    };
-    struct{
-        f32 p0, p1, p2, p3;
     };
     struct{
         f32 r, g, b, a;
@@ -102,10 +93,12 @@ scale2(v2 a, f32 s){
     return(result);
 }
 
+// INCOMPLETE: LOOK AT SIZE_T VS INT DIFFERENCES
 static void
 scale_pts(v2 *p, size_t count, f32 s){
-    for(int i=0; i < count; ++i){
-        *p++ = scale2(*p, s);
+    for(int i=0; i < (int)count; ++i){
+        *p = scale2(*p, s);
+        p++;
     }
 }
 

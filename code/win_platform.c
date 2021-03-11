@@ -15,7 +15,6 @@ TODO: WIN PLATFORM CODE
     get rid of all int's replace with specific sizes
 
 NOT DONE:
-    entities - why? because it makes it easier to refer to things as a whole rather than little bitty points and bullshit
     layers
     add clipping
     simd
@@ -24,7 +23,6 @@ NOT DONE:
     transformation:
         shearing
 
-    fill polygon
     anti aliasing
 
 
@@ -34,6 +32,8 @@ NOT DONE:
     make it fast (threads, simd)
 
 DONE:
+    entities 
+    render_buffer
     transformation:
         translation
         rotation
@@ -47,8 +47,6 @@ DONE:
 
     overlap/intersection
         broad
-
-
 */
 
 /*
