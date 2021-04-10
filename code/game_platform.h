@@ -91,6 +91,87 @@ typedef struct Clock{
     f32 dt;
 } Clock;
 
+static int
+string_length(char* s){
+    int count = 0;
+    while(*s++){
+        ++count;
+    }
+
+    return(count);
+}
+
+static char *
+string_point_at_last(char s[], char t, int count){
+    char *result = NULL;
+    char *found[10];
+    ui32 i = 0;
+
+    while(*s++){
+        if(*s == t){
+            found[i] = s + 1;
+            i++;
+        }
+    }
+    result = found[i - count];
+
+    return(result);
+}
+
+static void
+cat_strings(char *left, char *right, char *dest){
+    int left_size = string_length(left);
+    int right_size = string_length(right);
+
+    for(int i=0; i < left_size; ++i){
+        *dest++ = *left++;
+    }
+    for(int i=0; i < right_size; ++i){
+        *dest++ = *right++;
+    }
+
+    *dest++ = 0;
+}
+
+static char*
+end_of_string(char *str){
+    while(*str++){
+    }
+    return(str);
+}
+
+static void
+get_root_dir(char *left, i64 length, char *full_path){
+    int i=0;
+    for(;i < length; ++i){
+        *left++ = *full_path++;
+    }
+    *left++ = 0;
+}
+
+static void
+copy_string(char *src, char *dst, size_t size){
+    for(ui32 i=0; i < size; ++i){
+        *dst++ = *src++;
+    }
+}
+
+static f32
+f32_max(f32 a, f32 b){
+    if(a >= b){
+        return(a);
+    }
+    return(b);
+}
+
+static f32
+f32_min(f32 a, f32 b){
+    if(a <= b){
+        return(a);
+    }
+    return(b);
+}
+
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
 typedef READ_ENTIRE_FILE(ReadEntireFile);
 

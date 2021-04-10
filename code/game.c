@@ -1,6 +1,5 @@
 #include "game.h"
 #include "math.h"
-#include "matrices.h"
 
 
 static v2
@@ -73,7 +72,6 @@ get_color_at(RenderBuffer *buffer, f32 x, f32 y){
 
     return(result);
 }
-
 static void
 draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
     i32 x = round_fi32(float_x);
@@ -99,7 +97,8 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
         f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
         f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
+        //ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
         *pixel = new_color;
     }
 }
@@ -310,16 +309,63 @@ clear(RenderBuffer *buffer, v4 c){
     }
 }
 
+//static vec4
+//get_clipped_region(v2 pos, v2 dim){
+//}
+
 static void
 draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
-    f32 rounded_x = round_ff(position.x);
-    f32 rounded_y = round_ff(position.y);
-    for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
-        for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-            v4 color = convert_ui32_v4_normalized(*image.pixels++);
+    //add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
+    v2 test_pos = vec2(100, 300);
+    v2 test_dim = vec2(200, 200);
+    v2 result_pos = vec2(position.x, position.y);
+    v2 result_dim = vec2(image.width, image.height);
+
+    if(position.x < test_pos.x){
+        result_pos.x = test_pos.x;
+        result_dim.w = image.width - (test_pos.x - position.x);
+    }
+    if((result_pos.x + result_dim.w) > (test_pos.x + test_dim.w)){
+        result_dim.w = result_dim.w - ((result_pos.x + result_dim.w) - (test_pos.x + test_dim.w));
+    }
+
+    if(position.y < test_pos.y){
+        result_pos.y = test_pos.y;
+        result_dim.h = image.height - (test_pos.h - position.h);
+    }
+    if((result_pos.y + result_dim.h) > (test_pos.y + test_dim.h)){
+        result_dim.h = result_dim.h - ((result_pos.y + result_dim.h) - (test_pos.y + test_dim.h));
+    }
+
+    f32 rounded_x = round_ff(result_pos.x);
+    f32 rounded_y = round_ff(result_pos.y);
+    ui32 iy = 0;
+    ui32 ix = 0;
+    for(ui32 y = rounded_y; y < rounded_y + result_dim.h; ++y){
+        for(ui32 x = rounded_x; x < rounded_x + result_dim.w; ++x){
+            //ui8 *row = (ui8 *)buffer->memory +
+            //           ((buffer->height - y - 1) * buffer->pitch) +
+            //           (x * buffer->bytes_per_pixel);
+            //buffer->pitch = buffer->width * buffer->bytes_per_pixel;
+            //ui8 *byte = (ui8 *)image.pixels + ((image.width * 4) * ABS(round_fui32(test_pos.y - position.y))) + (ABS(round_fui32(test_pos.x - position.x)) * 4);
+            ui32 x_diff = (ui32)ceil(-50);
+            //ui8 *byte = (ui8 *)image.pixels + (((image.width * 4) * 50) + (iy * 4)) + ((50 * 4) + (ix * 4));
+            ui8 *byte = (ui8 *)image.pixels;
+            ui32 *c = (ui32 *)byte;
+            v4 color = convert_ui32_v4_normalized(*c);
             draw_pixel(buffer, x, y, color);
         }
+        iy++;
+        ix++;
     }
+    //f32 rounded_x = round_ff(position.x);
+    //f32 rounded_y = round_ff(position.y);
+    //for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
+    //    for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
+    //        v4 color = convert_ui32_v4_normalized(*image.pixels++);
+    //        draw_pixel(buffer, x, y, color);
+    //    }
+    //}
 }
 
 static void
@@ -469,63 +515,63 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
     void* at = commands->buffer;
     void* end = (char*)commands->buffer + commands->used_bytes;
     while(at != end){
-        BaseCommand* command = (BaseCommand*)at;
+        BaseCommand* base_command = (BaseCommand*)at;
 
-        switch(command->type){
+        switch(base_command->type){
             case RenderCommand_ClearColor:{
-                ClearColorCommand *color = (ClearColorCommand*)command;
-                at = color + 1;
-                clear(render_buffer, color->base.color);
+                ClearColorCommand *command = (ClearColorCommand*)base_command;
+                clear(render_buffer, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Pixel:{
-                PixelCommand *pixel = (PixelCommand*)command;
-                at = pixel + 1;
-                draw_pixel(render_buffer, pixel->x, pixel->y, pixel->base.color);
+                PixelCommand *command = (PixelCommand*)base_command;
+                draw_pixel(render_buffer, command->x, command->y, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Segment:{
-                SegmentCommand *segment = (SegmentCommand*)command;
-                at = segment + 1;
-                draw_segment(render_buffer, segment->p0, segment->p1, segment->base.color);
+                SegmentCommand *command = (SegmentCommand*)base_command;
+                draw_segment(render_buffer, command->p0, command->p1, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Ray:{
-                RayCommand *ray = (RayCommand*)command;
-                at = ray + 1;
-                draw_ray(render_buffer, ray->base.position, ray->direction, ray->base.color);
+                RayCommand *command = (RayCommand*)base_command;
+                draw_ray(render_buffer, command->base.position, command->direction, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Line:{
-                LineCommand *line = (LineCommand*)command;
-                at = line + 1;
-                draw_line(render_buffer, line->base.position, line->direction, line->base.color);
+                LineCommand *command = (LineCommand*)base_command;
+                draw_line(render_buffer, command->base.position, command->direction, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Rect:{
-                RectCommand *rect = (RectCommand*)command;
-                at = rect + 1;
-                draw_rect(render_buffer, rect->base.position, rect->dimension, rect->base.color);
+                RectCommand *command = (RectCommand*)base_command;
+                draw_rect(render_buffer, command->base.position, command->dimension, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Box:{
-                BoxCommand *box = (BoxCommand*)command;
-                at = box + 1;
-                draw_box(render_buffer, box->base.position, box->dimension, box->base.color);
+                BoxCommand *command = (BoxCommand*)base_command;
+                draw_box(render_buffer, command->base.position, command->dimension, command->base.color);
+                at = command + 1;
             } break;
             case RenderCommand_Quad:{
-                QuadCommand *quad = (QuadCommand*)command;
-                at = quad + 1;
-                draw_quad(render_buffer, quad->p0, quad->p1, quad->p2, quad->p3, quad->base.color, quad->base.fill);
+                QuadCommand *command = (QuadCommand*)base_command;
+                draw_quad(render_buffer, command->p0, command->p1, command->p2, command->p3, command->base.color, command->base.fill);
+                at = command + 1;
             } break;
             case RenderCommand_Triangle:{
-                TriangleCommand *triangle = (TriangleCommand*)command;
-                draw_triangle(render_buffer, triangle->p0, triangle->p1, triangle->p2, command->color, command->fill);
-                at = triangle + 1;
+                TriangleCommand *command = (TriangleCommand*)base_command;
+                draw_triangle(render_buffer, command->p0, command->p1, command->p2, base_command->color, base_command->fill);
+                at = command + 1;
             } break;
             case RenderCommand_Circle:{
-                CircleCommand *circle = (CircleCommand*)command;
-                draw_circle(render_buffer, circle->base.position.x, circle->base.position.y, circle->rad, circle->base.color, circle->base.fill);
-                at = circle + 1;
+                CircleCommand *command = (CircleCommand*)base_command;
+                draw_circle(render_buffer, command->base.position.x, command->base.position.y, command->rad, command->base.color, command->base.fill);
+                at = command + 1;
             } break;
             case RenderCommand_Bitmap:{
-                BitmapCommand *bitmap = (BitmapCommand*)command;
-                at = bitmap + 1;
-                draw_bitmap(render_buffer, bitmap->base.position, bitmap->image);
+                BitmapCommand *command = (BitmapCommand*)base_command;
+                draw_bitmap(render_buffer, command->base.position, command->image);
+                at = command + 1;
             } break;
         }
     }
@@ -558,25 +604,30 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->circle = load_bitmap(memory, "circle.bmp");
         game_state->image = load_bitmap(memory, "image.bmp");
 
-        add_pixel(game_state, 1, 1, red);
         
-        game_state->player_index = add_player(game_state, vec2(150, 100), vec2(50, 50), red, game_state->circle)->index;
-        add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
-        add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
-        add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
-        add_ray(game_state, vec2(20, 100), vec2(1, 1), teal);
-        add_line(game_state, vec2(40, 120), vec2(21, 21), pink);
-        add_quad(game_state, vec2(0, 400), vec2(20, 400), vec2(20, 500), vec2(0, 500), green, false);
-        add_quad(game_state, vec2(40, 400), vec2(60, 400), vec2(60, 500), vec2(40, 500), green, true);
-        add_rect(game_state, vec2(100, 100), vec2(50, 50), orange);
-        add_box(game_state, vec2(100, 300), vec2(100, 100), blue);
+        //add_pixel(game_state, 1, 1, red);
+        game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
+        Entity* player = game_state->entities + game_state->player_index;
+        player->draw_bounding_box = true;
+        //add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
+        //add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
+        //add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
+        //add_ray(game_state, vec2(20, 100), vec2(1, 1), teal);
+        //add_line(game_state, vec2(40, 120), vec2(21, 21), pink);
+        //add_quad(game_state, vec2(0, 400), vec2(20, 400), vec2(20, 500), vec2(0, 500), green, false);
+        //add_quad(game_state, vec2(40, 400), vec2(60, 400), vec2(60, 500), vec2(40, 500), green, true);
+        //add_rect(game_state, vec2(100, 100), vec2(50, 50), orange);
+        game_state->clip_region_index = add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
+        add_child(game_state, game_state->clip_region_index, game_state->player_index);
 
-        add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
-        add_circle(game_state, vec2(400, 400), 50, green, true);
-        add_circle(game_state, vec2(450, 400), 50, dgray, false);
-        add_bitmap(game_state, vec2(20, 20), game_state->circle);
-        add_bitmap(game_state, vec2(500, 50), game_state->image);
+        //add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
+        //add_circle(game_state, vec2(400, 400), 50, green, true);
+        //add_circle(game_state, vec2(450, 400), 50, dgray, false);
 
+        //ui32 c1_index = add_bitmap(game_state, vec2(20, 20), game_state->circle);
+        //game_state->c2_index = add_bitmap(game_state, vec2(500, 50), game_state->image);
+        //add_child(game_state, game_state->player_index, c1_index);
+        //add_child(game_state, game_state->player_index, game_state->c2_index);
 
         initialize_arena(&game_state->permanent_arena, 
                          (ui8*)memory->permanent_storage + sizeof(GameState), 
@@ -624,7 +675,7 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    f32 speed = 150.0f;
+    f32 speed = 250.0f;
 
     if(game_state->player_index != 0){
         Entity *player = game_state->entities + game_state->player_index;
@@ -640,6 +691,47 @@ MAIN_GAME_LOOP(main_game_loop){
         if(game_state->controller.right){
             player->position.x += speed * clock->dt;
         }
+        for (Entity *child = player->first_child; child; child = child->next_child){
+            if(game_state->controller.up){
+                child->position.y += speed * clock->dt;
+            }
+            if(game_state->controller.down){
+                child->position.y -= speed * clock->dt;
+            }
+            if(game_state->controller.left){
+                child->position.x -= speed * clock->dt;
+            }
+            if(game_state->controller.right){
+                child->position.x += speed * clock->dt;
+            }
+        }
+    }
+
+    Entity *clip_region = game_state->entities + game_state->clip_region_index;
+    for (Entity *child = clip_region->first_child; child; child = child->next_child){
+        v2 r1_pos = vec2(clip_region->position.x, clip_region->position.y);
+        v2 r1_dim = vec2(clip_region->dimension.w,clip_region->dimension.h);
+        v2 r2_pos = vec2(child->position.x, child->position.y);
+        v2 r2_dim = vec2(child->dimension.w, child->dimension.h);
+        Rect r1 = rect(r1_pos, r1_dim);
+        Rect r2 = rect(r2_pos, r2_dim);
+
+        bool collides = false;
+        bool contains = false;
+
+        if(rect_collides_rect(r1, r2)){
+            collides = true;
+        }
+        else{
+            collides = false;
+        }
+        if(rect_contains_rect(r1, r2)){
+            contains = true;
+        }
+        else{
+            contains = false;
+        }
+        print("collides: %i - contains: %i\n", collides, contains);
     }
 
     transient_state->render_commands->used_bytes = 0;
@@ -649,6 +741,9 @@ MAIN_GAME_LOOP(main_game_loop){
         switch(entity->type){
             case EntityType_Player:{
                 push_bitmap(transient_state->render_commands, entity->position, entity->image);
+                if(entity->draw_bounding_box){
+                    push_box(transient_state->render_commands, entity->position, entity->dimension, entity->color);
+                }
                 //push_rect(transient_state->render_commands, entity->position, entity->dimension, entity->color);
             }break;
             case EntityType_Pixel:{
@@ -689,5 +784,7 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
+    //print("MSPF: %.02fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
+    //print("DT: %.05f - X: %.02f - Y: %.02f\n", clock->dt, game_state->c2->position.x, game_state->c2->position.y);
     draw_commands(render_buffer, transient_state->render_commands);
 }

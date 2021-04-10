@@ -17,7 +17,7 @@ rect(v2 pos, v2 dim){
 }
 
 static bool
-rect_collide_rect(Rect r1, Rect r2){
+rect_collides_rect(Rect r1, Rect r2){
     if((r1.x < r2.x + r2.w) &&
        (r1.x + r1.w > r2.x) &&
        (r1.y < r2.y + r2.h) &&

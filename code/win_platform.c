@@ -17,14 +17,12 @@ TODO: WIN PLATFORM CODE
 NOT DONE:
     layers
     add clipping
-    simd
-    add texturing
+    rotate/scale/shear images
 
     transformation:
         shearing
 
     anti aliasing
-
 
     overlap/intersection
         narrow
@@ -47,6 +45,7 @@ DONE:
 
     overlap/intersection
         broad
+    texture/sprite
 */
 
 /*
@@ -114,6 +113,7 @@ FUTURE STUDY: Things to study
 /*
 FUTURE TODO: Game dev stuff to accomplish
     write very simple rasterizer (drawing squares/triangles all over the screen)
+    ant simiulation
     astroids
     space invaders
     tiny kaboom
@@ -787,7 +787,10 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
             if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
                 while(global_running){
-                    clock.dt = win_clock.target_seconds_per_frame;
+                    win_clock.end = WIN_get_clock();
+                    clock.dt = WIN_get_seconds_elapsed(win_clock.start, win_clock.end);
+
+                    //clock.dt = win_clock.target_seconds_per_frame;
                     FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                     if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
                         WIN_unload_gamecode(&gamecode);
@@ -855,7 +858,6 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                         WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
 
                         win_clock.cpu_end = __rdtsc();
-                        win_clock.end = WIN_get_clock();
                         win_clock.start = win_clock.end;
                         win_clock.cpu_start = win_clock.cpu_end;
                     }

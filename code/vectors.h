@@ -30,6 +30,9 @@ typedef union v4{
     struct{
         f32 r, g, b, a;
     };
+    struct{
+        f32 top, bottom, right, left;
+    };
 } v4;
 
 static v2
@@ -188,6 +191,14 @@ reflection2(v2 vec, v2 normal){
     result.y = vec.y - normal.y * (d * 2.0f);
     
     return(result);
+}
+
+static bool
+equal4(v4 a, v4 b){
+    if(a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w){
+        return true;
+    }
+    return false;
 }
 
 #define VECTORS_H
