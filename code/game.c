@@ -97,8 +97,8 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
         f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
         f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
-        //ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+        //ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
+        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
         *pixel = new_color;
     }
 }
@@ -337,26 +337,27 @@ draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
         result_dim.h = result_dim.h - ((result_pos.y + result_dim.h) - (test_pos.y + test_dim.h));
     }
 
-    f32 rounded_x = round_ff(result_pos.x);
-    f32 rounded_y = round_ff(result_pos.y);
+    ui32 rounded_x = round_fui32(result_pos.x);
+    ui32 rounded_y = round_fui32(result_pos.y);
+    
+    f32 x_shift = (test_pos.x - position.x);
+    if(x_shift < 0) { x_shift = 0; }
+    f32 y_shift = (test_pos.y - position.y);
+    if(y_shift < 0) { y_shift = 0; }
+    ui32 x_shiftui32 = (ui32)x_shift;
+    ui32 y_shiftui32 = (ui32)y_shift;
+
     ui32 iy = 0;
-    ui32 ix = 0;
     for(ui32 y = rounded_y; y < rounded_y + result_dim.h; ++y){
+        ui32 ix = 0;
         for(ui32 x = rounded_x; x < rounded_x + result_dim.w; ++x){
-            //ui8 *row = (ui8 *)buffer->memory +
-            //           ((buffer->height - y - 1) * buffer->pitch) +
-            //           (x * buffer->bytes_per_pixel);
-            //buffer->pitch = buffer->width * buffer->bytes_per_pixel;
-            //ui8 *byte = (ui8 *)image.pixels + ((image.width * 4) * ABS(round_fui32(test_pos.y - position.y))) + (ABS(round_fui32(test_pos.x - position.x)) * 4);
-            ui32 x_diff = (ui32)ceil(-50);
-            //ui8 *byte = (ui8 *)image.pixels + (((image.width * 4) * 50) + (iy * 4)) + ((50 * 4) + (ix * 4));
-            ui8 *byte = (ui8 *)image.pixels;
+            ui8 *byte = (ui8 *)image.pixels + ((y_shiftui32 + iy) * image.width * 4) + ((x_shiftui32 + ix) * 4);
             ui32 *c = (ui32 *)byte;
             v4 color = convert_ui32_v4_normalized(*c);
             draw_pixel(buffer, x, y, color);
+            ix++;
         }
         iy++;
-        ix++;
     }
     //f32 rounded_x = round_ff(position.x);
     //f32 rounded_y = round_ff(position.y);
@@ -731,7 +732,7 @@ MAIN_GAME_LOOP(main_game_loop){
         else{
             contains = false;
         }
-        print("collides: %i - contains: %i\n", collides, contains);
+        //print("collides: %i - contains: %i\n", collides, contains);
     }
 
     transient_state->render_commands->used_bytes = 0;
