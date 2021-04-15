@@ -174,12 +174,13 @@ global ui32 eventpad_mapping[0x5838] = {
     [VK_PAD_BACK]=PAD_BACK,
 };
 
-global ui32 eventmouse_mapping[0x0041] = {
-    [MK_LBUTTON]=MOUSE_LBUTTON,
-    [MK_MBUTTON]=MOUSE_MBUTTON,
-    [MK_RBUTTON]=MOUSE_RBUTTON,
-    [MK_XBUTTON1]=MOUSE_XBUTTON1,
-    [MK_XBUTTON2]=MOUSE_XBUTTON2,
+global ui32 eventmouse_mapping[0x0209] = {
+    [WM_LBUTTONUP]=MOUSE_LBUTTON,
+    [WM_MBUTTONUP]=MOUSE_MBUTTON,
+    [WM_RBUTTONUP]=MOUSE_RBUTTON,
+    [WM_LBUTTONDOWN]=MOUSE_LBUTTON,
+    [WM_MBUTTONDOWN]=MOUSE_MBUTTON,
+    [WM_RBUTTONDOWN]=MOUSE_RBUTTON,
 };
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -570,7 +571,6 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             bool was_down = ((lParam & (1 << 30)) != 0);
             bool is_down = ((lParam & (1 << 31)) == 0);
 
-
             if(was_down != is_down){
                 Event e = {0};
                 e.type = is_down ? EVENT_KEYDOWN : EVENT_KEYUP;
@@ -592,8 +592,6 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         {
             POINT mouse_pos;
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            //mouse_pos.x = (i32)(lParam & 0xFFFF);
-            //mouse_pos.y = (i32)(lParam >> 16);
             mouse_pos.x = (i32)(lParam & 0xFFFF);
             mouse_pos.y = (i32)(lParam >> 16);
             HWND window_handle = GetActiveWindow();
@@ -612,31 +610,54 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             }
             events.event[events.index++] = e;
         } break;
-        case WM_LBUTTONDOWN:
-        case WM_MBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_XBUTTONDOWN:
-		{
-            Event e = {0};
-            e.type = EVENT_MOUSEDOWN;
-            e.mouse = eventmouse_mapping[wParam];
-            //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            e.mouse_x = (i32)(lParam & 0xFFFF);
-            e.mouse_y = (i32)(lParam >> 16);
-            events.event[events.index++] = e;
-		} break;
         case WM_LBUTTONUP:
         case WM_MBUTTONUP:
         case WM_RBUTTONUP:
-        case WM_XBUTTONUP:
-        {
+		{
             Event e = {0};
-            e.type = EVENT_MOUSEUP;
-            e.mouse = eventmouse_mapping[wParam];
-            e.mouse_x = (i32)lParam & 0xFFFF;
-            e.mouse_y = (i32)lParam >> 16;
+            e.type = wParam ? EVENT_MOUSEDOWN : EVENT_MOUSEUP;
+            e.mouse = eventmouse_mapping[message];
+            e.mouse_x = (i32)(lParam & 0xFFFF);
+            e.mouse_y = (i32)(lParam >> 16);
             events.event[events.index++] = e;
-        } break;
+            //Event e = {0};
+            //e.type = EVENT_MOUSEDOWN;
+            //e.mouse = eventmouse_mapping[wParam];
+            ////QUESTION: ask about this being 8bytes but behaving like 4bytes
+            //e.mouse_x = (i32)(lParam & 0xFFFF);
+            //e.mouse_y = (i32)(lParam >> 16);
+            //events.event[events.index++] = e;
+		} break;
+        case WM_LBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+		{
+            Event e = {0};
+            e.type = wParam ? EVENT_MOUSEDOWN : EVENT_MOUSEUP;
+            e.mouse = eventmouse_mapping[message];
+            e.mouse_x = (i32)(lParam & 0xFFFF);
+            e.mouse_y = (i32)(lParam >> 16);
+            events.event[events.index++] = e;
+            //Event e = {0};
+            //e.type = EVENT_MOUSEDOWN;
+            //e.mouse = eventmouse_mapping[wParam];
+            ////QUESTION: ask about this being 8bytes but behaving like 4bytes
+            //e.mouse_x = (i32)(lParam & 0xFFFF);
+            //e.mouse_y = (i32)(lParam >> 16);
+            //events.event[events.index++] = e;
+		} break;
+        //case WM_LBUTTONUP:
+        //case WM_MBUTTONUP:
+        //case WM_RBUTTONUP:
+        //case WM_XBUTTONUP:
+        //{
+        //    Event e = {0};
+        //    e.type = EVENT_MOUSEUP;
+        //    e.mouse = eventmouse_mapping[wParam];
+        //    e.mouse_x = (i32)lParam & 0xFFFF;
+        //    e.mouse_y = (i32)lParam >> 16;
+        //    events.event[events.index++] = e;
+        //} break;
         case WM_CLOSE:
         {
             // TODO: Maybe use a message box here

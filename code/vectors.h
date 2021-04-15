@@ -25,7 +25,7 @@ typedef union v3{
 typedef union v4{
     f32 e[4];
     struct{
-        f32 x, y, z, w;
+        f32 x, y, w, h;
     };
     struct{
         f32 r, g, b, a;
@@ -48,8 +48,8 @@ vec3(f32 x, f32 y, f32 z){
 }
 
 static v4
-vec4(f32 x, f32 y, f32 z, f32 w){
-    v4 result = {x, y, z, w};
+vec4(f32 x, f32 y, f32 w, f32 h){
+    v4 result = {x, y, w, h};
     return(result);
 }
 
@@ -195,7 +195,7 @@ reflection2(v2 vec, v2 normal){
 
 static bool
 equal4(v4 a, v4 b){
-    if(a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w){
+    if(a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h){
         return true;
     }
     return false;

@@ -79,5 +79,16 @@ Atan(f32 y, f32 x){
     return(result);
 }
 
+static f32
+clamp_f32(f32 left, f32 value, f32 right){
+    if(value < left){
+        value = left;
+    }
+    if(value > right){
+        value = right;
+    }
+    return(value);
+}
+
 #define MATH_H
 #endif

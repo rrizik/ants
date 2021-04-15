@@ -1,7 +1,7 @@
 #if !defined(GAME_PLATFORM_H)
 
 #include <stdint.h>
-//#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
+#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
 
 //typedef float __attribute__((ext_vector_type(2))) v2;
 typedef size_t size;
@@ -18,8 +18,8 @@ typedef uint64_t ui64;
 typedef float f32;
 typedef double f64;
 
-typedef int32_t bool;
-enum{false, true};
+//typedef int32_t bool;
+//enum{false, true};
 
 
 #define assert(expresion) if(!(expresion)) __debugbreak();
@@ -40,7 +40,7 @@ enum{false, true};
 #define global static
 
 
-typedef enum EventMouse{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2,MOUSE_WHEEL} EventMouse;
+typedef enum EventMouse{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2, MOUSE_WHEEL} EventMouse;
 typedef enum EventPad{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
 typedef enum EventKey{KEY_NONE, KEY_W, KEY_A, KEY_S, KEY_D, KEY_L, KEY_P, KEY_ESCAPE, KEY_1, KEY_2, KEY_3} EventKey;
 typedef enum EventType{EVENT_NONE, EVENT_KEYDOWN, EVENT_KEYUP, EVENT_MOUSEWHEEL, EVENT_MOUSEDOWN, EVENT_MOUSEUP, EVENT_MOUSEMOTION, EVENT_TEXT, EVENT_PADDOWN, EVENT_PADUP} EventType;
@@ -80,11 +80,15 @@ typedef struct FileData{
     void* content;
 } FileData;
 
+#include "vectors.h"
 typedef struct Controller{
     bool up;
     bool down;
     bool left;
     bool right;
+    bool m1;
+    bool m2;
+    v2 m1_down_pos;
 } Controller;
 
 typedef struct Clock{

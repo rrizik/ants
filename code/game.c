@@ -309,64 +309,62 @@ clear(RenderBuffer *buffer, v4 c){
     }
 }
 
-//static vec4
-//get_clipped_region(v2 pos, v2 dim){
-//}
+static void
+draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region){
+    v4 cr = {100, 300, 200, 200};
+    if(!equal4(clip_region, vec4(0,0,0,0))){
+        f32 rounded_x = round_ff(position.x);
+        f32 rounded_y = round_ff(position.y);
+        for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
+            for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
+                v4 color = convert_ui32_v4_normalized(*image.pixels++);
+                draw_pixel(buffer, x, y, color);
+            }
+        }
+    }
+    else{
+        v4 result = {position.x, position.y, image.width, image.height};
+
+        if(position.x < cr.x){
+            result.x = cr.x;
+            result.w = image.width - (cr.x - position.x);
+        }
+        if((result.x + result.w) > (cr.x + cr.w)){
+            result.w = result.w - ((result.x + result.w) - (cr.x + cr.w));
+        }
+
+        if(position.y < cr.y){
+            result.y = cr.y;
+            result.h = image.height - (cr.y - position.y);
+        }
+        if((result.y + result.h) > (cr.y + cr.h)){
+            result.h = result.h - ((result.y + result.h) - (cr.y + cr.h));
+        }
+
+        ui32 rounded_x = round_fui32(result.x);
+        ui32 rounded_y = round_fui32(result.y);
+        
+        ui32 x_shift = (ui32)clamp_f32(0, (cr.x - position.x), 100000);
+        ui32 y_shift = (ui32)clamp_f32(0, (cr.y - position.y), 100000);
+
+        ui32 iy = 0;
+        for(ui32 y = rounded_y; y < rounded_y + result.h; ++y){
+            ui32 ix = 0;
+            for(ui32 x = rounded_x; x < rounded_x + result.w; ++x){
+                ui8 *byte = (ui8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
+                ui32 *c = (ui32 *)byte;
+                v4 color = convert_ui32_v4_normalized(*c);
+                draw_pixel(buffer, x, y, color);
+                ix++;
+            }
+            iy++;
+        }
+    }
+}
 
 static void
 draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
-    //add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
-    v2 test_pos = vec2(100, 300);
-    v2 test_dim = vec2(200, 200);
-    v2 result_pos = vec2(position.x, position.y);
-    v2 result_dim = vec2(image.width, image.height);
-
-    if(position.x < test_pos.x){
-        result_pos.x = test_pos.x;
-        result_dim.w = image.width - (test_pos.x - position.x);
-    }
-    if((result_pos.x + result_dim.w) > (test_pos.x + test_dim.w)){
-        result_dim.w = result_dim.w - ((result_pos.x + result_dim.w) - (test_pos.x + test_dim.w));
-    }
-
-    if(position.y < test_pos.y){
-        result_pos.y = test_pos.y;
-        result_dim.h = image.height - (test_pos.h - position.h);
-    }
-    if((result_pos.y + result_dim.h) > (test_pos.y + test_dim.h)){
-        result_dim.h = result_dim.h - ((result_pos.y + result_dim.h) - (test_pos.y + test_dim.h));
-    }
-
-    ui32 rounded_x = round_fui32(result_pos.x);
-    ui32 rounded_y = round_fui32(result_pos.y);
-    
-    f32 x_shift = (test_pos.x - position.x);
-    if(x_shift < 0) { x_shift = 0; }
-    f32 y_shift = (test_pos.y - position.y);
-    if(y_shift < 0) { y_shift = 0; }
-    ui32 x_shiftui32 = (ui32)x_shift;
-    ui32 y_shiftui32 = (ui32)y_shift;
-
-    ui32 iy = 0;
-    for(ui32 y = rounded_y; y < rounded_y + result_dim.h; ++y){
-        ui32 ix = 0;
-        for(ui32 x = rounded_x; x < rounded_x + result_dim.w; ++x){
-            ui8 *byte = (ui8 *)image.pixels + ((y_shiftui32 + iy) * image.width * 4) + ((x_shiftui32 + ix) * 4);
-            ui32 *c = (ui32 *)byte;
-            v4 color = convert_ui32_v4_normalized(*c);
-            draw_pixel(buffer, x, y, color);
-            ix++;
-        }
-        iy++;
-    }
-    //f32 rounded_x = round_ff(position.x);
-    //f32 rounded_y = round_ff(position.y);
-    //for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
-    //    for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-    //        v4 color = convert_ui32_v4_normalized(*image.pixels++);
-    //        draw_pixel(buffer, x, y, color);
-    //    }
-    //}
+    draw_bitmap_clip(buffer, position, image, vec4(0,0,0,0));
 }
 
 static void
@@ -599,6 +597,7 @@ MAIN_GAME_LOOP(main_game_loop){
     TranState *transient_state = (TranState *)memory->transient_storage;
 
     if(!memory->initialized){
+        game_state->entity_max = 1024;
         add_entity(game_state, EntityType_None);
 
         game_state->test = load_bitmap(memory, "test.bmp");
@@ -610,6 +609,7 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
         Entity* player = game_state->entities + game_state->player_index;
         player->draw_bounding_box = true;
+        add_ant(game_state, vec2(400, 200), 4, lgray, true);
         //add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
@@ -622,7 +622,7 @@ MAIN_GAME_LOOP(main_game_loop){
         add_child(game_state, game_state->clip_region_index, game_state->player_index);
 
         //add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
-        //add_circle(game_state, vec2(400, 400), 50, green, true);
+        add_circle(game_state, vec2(400, 400), 2, green, true);
         //add_circle(game_state, vec2(450, 400), 50, dgray, false);
 
         //ui32 c1_index = add_bitmap(game_state, vec2(20, 20), game_state->circle);
@@ -637,12 +637,25 @@ MAIN_GAME_LOOP(main_game_loop){
                          (ui8*)memory->transient_storage + sizeof(TranState), 
                          memory->transient_storage_size - sizeof(TranState));
 
-        transient_state->render_commands = allocate_render_commands(&transient_state->transient_arena, 4096);
+        transient_state->render_commands = allocate_render_commands(&transient_state->transient_arena, Megabytes(1));
         memory->initialized = true;
     }
 
     for(ui32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
+        if(event->type == EVENT_MOUSEMOTION){
+            game_state->controller.m1_down_pos = vec2(event->mouse_x, render_buffer->height - event->mouse_y);
+        }
+        if(event->type == EVENT_MOUSEDOWN){
+            if(event->mouse == MOUSE_LBUTTON){
+                game_state->controller.m1 = true;
+            }
+        }
+        if(event->type == EVENT_MOUSEUP){
+            if(event->mouse == MOUSE_LBUTTON){
+                game_state->controller.m1 = false;
+            }
+        }
         if(event->type == EVENT_KEYDOWN){
             if(event->key == KEY_W){
                 game_state->controller.up = true;
@@ -678,6 +691,12 @@ MAIN_GAME_LOOP(main_game_loop){
 
     f32 speed = 250.0f;
 
+    if(game_state->controller.m1){
+        add_food(game_state, game_state->controller.m1_down_pos, 2, green, true);
+    }
+
+    print("max: %i, used: %i, entities: %i\n", transient_state->render_commands->max_bytes, transient_state->render_commands->used_bytes, game_state->entity_count);
+
     if(game_state->player_index != 0){
         Entity *player = game_state->entities + game_state->player_index;
         if(game_state->controller.up){
@@ -706,33 +725,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 child->position.x += speed * clock->dt;
             }
         }
-    }
-
-    Entity *clip_region = game_state->entities + game_state->clip_region_index;
-    for (Entity *child = clip_region->first_child; child; child = child->next_child){
-        v2 r1_pos = vec2(clip_region->position.x, clip_region->position.y);
-        v2 r1_dim = vec2(clip_region->dimension.w,clip_region->dimension.h);
-        v2 r2_pos = vec2(child->position.x, child->position.y);
-        v2 r2_dim = vec2(child->dimension.w, child->dimension.h);
-        Rect r1 = rect(r1_pos, r1_dim);
-        Rect r2 = rect(r2_pos, r2_dim);
-
-        bool collides = false;
-        bool contains = false;
-
-        if(rect_collides_rect(r1, r2)){
-            collides = true;
-        }
-        else{
-            collides = false;
-        }
-        if(rect_contains_rect(r1, r2)){
-            contains = true;
-        }
-        else{
-            contains = false;
-        }
-        //print("collides: %i - contains: %i\n", collides, contains);
     }
 
     transient_state->render_commands->used_bytes = 0;
@@ -781,7 +773,25 @@ MAIN_GAME_LOOP(main_game_loop){
             }break; 
             case EntityType_Object:{
             }break; 
-
+            case EntityType_Food:{
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
+                if(entity->draw_bounding_box){
+                    v2 dimension = {entity->rad*2, entity->rad*2};
+                    v2 position = {entity->position.x - entity->rad, entity->position.y - entity->rad};
+                    push_box(transient_state->render_commands, position, dimension, entity->color);
+                }
+            }break; 
+            case EntityType_Ant:{
+                entity->position.y += 100 * clock->dt;
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
+                if(entity->draw_bounding_box){
+                    v2 dimension = {entity->rad*2, entity->rad*2};
+                    v2 position = {entity->position.x - entity->rad, entity->position.y - entity->rad};
+                    push_box(transient_state->render_commands, position, dimension, entity->color);
+                }
+            }break; 
+            case EntityType_Colony:{
+            }break; 
         }
     }
 

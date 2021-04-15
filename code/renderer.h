@@ -67,6 +67,7 @@ typedef struct BaseCommand{
     RenderCommandType type;
     v2 position;
     v4 color;
+    v4 clip_region;
     bool fill;
 } BaseCommand;
 
@@ -141,7 +142,7 @@ static RenderCommands*
 allocate_render_commands(MemoryArena *arena, size_t max_bytes){
     RenderCommands* result = push_struct(arena, RenderCommands);
     result->max_bytes = max_bytes;
-    result->buffer = push_size(arena, 1024 * 1024);
+    result->buffer = push_size(arena, max_bytes);
     return(result);
 }
 
