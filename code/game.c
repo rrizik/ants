@@ -598,7 +598,8 @@ MAIN_GAME_LOOP(main_game_loop){
 
     if(!memory->initialized){
         i32 num = 1;
-        srandom(time(NULL) ^ (intptr_t)&printf, (intptr_t)&num);
+        seed_random(time(NULL) ^ (intptr_t)&printf, (intptr_t)&num);
+
         game_state->entity_max = 1024;
         add_entity(game_state, EntityType_None);
 
@@ -608,10 +609,16 @@ MAIN_GAME_LOOP(main_game_loop){
 
         
         //add_pixel(game_state, 1, 1, red);
-        game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
-        Entity* player = game_state->entities + game_state->player_index;
-        player->draw_bounding_box = true;
-        add_ant(game_state, vec2(400, 200), 4, lgray, true);
+        //game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
+        //Entity* player = game_state->entities + game_state->player_index;
+        //player->draw_bounding_box = true;
+        //game_state->clip_region_index = add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
+        //add_child(game_state, game_state->clip_region_index, game_state->player_index);
+        //add_circle(game_state, vec2(400, 400), 2, green, true);
+
+        for(int i=0; i < 1000; ++i){
+            add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 4, lgray, true);
+        }
         //add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
@@ -620,11 +627,8 @@ MAIN_GAME_LOOP(main_game_loop){
         //add_quad(game_state, vec2(0, 400), vec2(20, 400), vec2(20, 500), vec2(0, 500), green, false);
         //add_quad(game_state, vec2(40, 400), vec2(60, 400), vec2(60, 500), vec2(40, 500), green, true);
         //add_rect(game_state, vec2(100, 100), vec2(50, 50), orange);
-        game_state->clip_region_index = add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
-        add_child(game_state, game_state->clip_region_index, game_state->player_index);
 
         //add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
-        add_circle(game_state, vec2(400, 400), 2, green, true);
         //add_circle(game_state, vec2(450, 400), 50, dgray, false);
 
         //ui32 c1_index = add_bitmap(game_state, vec2(20, 20), game_state->circle);
@@ -784,18 +788,28 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }break; 
             case EntityType_Ant:{
-                v2 dir = direction2(game_state->controller.mouse_pos, entity->position);
-                v2 dir_normalized = get_normalized2(dir);
-                entity->position.x += (speed * dir_normalized.x) * clock->dt;
-                entity->position.y += (speed * dir_normalized.y) * clock->dt;
-                //print("nx: %.02f - ny: %.02f\n", dir_normalized.x, dir_normalized.y);
+                v2 random_vector = {(f32)((i32)random()/10000), (f32)((i32)random()/10000)};
+                //f32 wonder_strength = 0.1f;
+                //f32 wonder_strength = 0.5f;
+                f32 wonder_strength = 1.0f;
 
-                //print("%i\n", random());
-                i32 i = boundedrand(6)+1;
-                print("i32: %i, f32: %0.2f\n", i, (f32)i/6.0f);
+                
+                v2 addition = add2(entity->direction, random_vector);
+                entity->direction = scale2(addition, wonder_strength);
+                v2 normalized_direction = get_normalized2(entity->direction);
+            
+                //entity->direction = get_normalized2(direction2(game_state->controller.mouse_pos, entity->position));
+                entity->position.x += (speed/5 * normalized_direction.x) * clock->dt;
+                entity->position.y += (speed/5 * normalized_direction.y) * clock->dt;
+                //print("random_x: %.02f - random_y: %.02f\n", random_vector.x, random_vector.y);
+                //print("addition_x: %.02f - addition_y: %.02f\n", addition.x, addition.y);
+                //print("n_x: %.02f - n_y: %.02f\n", entity->direction.x, entity->direction.y);
+                //print("normalized_x: %.02f - normalized_y: %.02f\n", normalized_direction.x, normalized_direction.y);
 
-                //pcg32_random_t rng;
-                //pcg32_srandom_r(&rng, time(NULL) ^ (intptr_t)&printf, (intptr_t)&num);
+                //print("x: %0.2f, y: %0.2f\n", random_vector.x, random_vector.y);
+                //i32 i = boundedrand(6)+1;
+                //i32 i = random();
+                //print("i32: %i, f32: %0.2f\n", i, (f32)i/6.0f);
 
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
                 if(entity->draw_bounding_box){

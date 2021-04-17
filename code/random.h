@@ -37,7 +37,7 @@ random(){
 // Seed the rng.  Specified in two parts, state initializer and a
 // sequence selection constant (a.k.a. stream id)
 static void 
-srandom_r(pcg32_random_t* rng, ui64 initstate, ui64 initseq){
+seed_randomr(pcg32_random_t* rng, ui64 initstate, ui64 initseq){
     rng->state = 0U;
     rng->inc = (initseq << 1u) | 1u;
     random_r(rng);
@@ -45,13 +45,13 @@ srandom_r(pcg32_random_t* rng, ui64 initstate, ui64 initseq){
     random_r(rng);
 }
 static void 
-srandom(ui64 seed, ui64 seq){
-    srandom_r(&pcg32_global, seed, seq);
+seed_random(ui64 seed, ui64 seq){
+    seed_randomr(&pcg32_global, seed, seq);
 }
 
 // Generate a uniformly distributed number, r, where 0 <= r < bound
-static ui32 boundedrand_r(pcg32_random_t* rng, ui32 bound)
-{
+static ui32 
+range_random_r(pcg32_random_t* rng, ui32 bound){
     ui32 threshold = -bound % bound;
 
     for (;;) {
@@ -60,9 +60,9 @@ static ui32 boundedrand_r(pcg32_random_t* rng, ui32 bound)
             return r % bound;
     }
 }
-static ui32 boundedrand(ui32 bound)
-{
-    return boundedrand_r(&pcg32_global, bound);
+static ui32 
+range_random(ui32 bound){
+    return range_random_r(&pcg32_global, bound);
 }
 
 #if __cplusplus

@@ -388,10 +388,10 @@ WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
     int x_offset = 10;
     int y_offset = 10;
 
-    PatBlt(DC, 0, 0, width, y_offset, BLACKNESS);
-    PatBlt(DC, 0, 0, x_offset, height, BLACKNESS);
-    PatBlt(DC, x_offset + buffer.width, 0, width, height, BLACKNESS);
-    PatBlt(DC, 0, y_offset + buffer.height, width, height, BLACKNESS);
+    PatBlt(DC, 0, 0, width, y_offset, WHITENESS);
+    PatBlt(DC, 0, 0, x_offset, height, WHITENESS);
+    PatBlt(DC, x_offset + buffer.width, 0, width, height, WHITENESS);
+    PatBlt(DC, 0, y_offset + buffer.height, width, height, WHITENESS);
 
     StretchDIBits(DC,
                   //0, 0, width, height,
@@ -671,7 +671,7 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 int CALLBACK
 WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd){
     WIN_load_xinput();
-    WIN_init_render_buffer(&offscreen_render_buffer, 960, 540);
+    WIN_init_render_buffer(&offscreen_render_buffer, 1024, 768);
 
     WNDCLASSA window_class = {0};
     window_class.style = CS_VREDRAW|CS_HREDRAW|CS_OWNDC;
@@ -687,6 +687,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
         HWND window = CreateWindowExA(0, window_class.lpszClassName, "game", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
         if(window){
+            SetWindowPos(window, HWND_TOPMOST, 10, 10, 1054, 818, SWP_SHOWWINDOW);
             HDC DC = GetDC(window);
             // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
             //int refresh_rate = GetDeviceCaps(DC, VREFRESH);

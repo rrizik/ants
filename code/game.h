@@ -314,6 +314,7 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->color = color;
     e->fill = fill;
     e->rad = rad;
+    e->direction = vec2((f32)(range_random(100)+1), (f32)(range_random(100)+1));
     e->draw_bounding_box = true;
     return(e->index);
 }
