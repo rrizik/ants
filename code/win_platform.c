@@ -613,21 +613,6 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         case WM_LBUTTONUP:
         case WM_MBUTTONUP:
         case WM_RBUTTONUP:
-		{
-            Event e = {0};
-            e.type = wParam ? EVENT_MOUSEDOWN : EVENT_MOUSEUP;
-            e.mouse = eventmouse_mapping[message];
-            e.mouse_x = (i32)(lParam & 0xFFFF);
-            e.mouse_y = (i32)(lParam >> 16);
-            events.event[events.index++] = e;
-            //Event e = {0};
-            //e.type = EVENT_MOUSEDOWN;
-            //e.mouse = eventmouse_mapping[wParam];
-            ////QUESTION: ask about this being 8bytes but behaving like 4bytes
-            //e.mouse_x = (i32)(lParam & 0xFFFF);
-            //e.mouse_y = (i32)(lParam >> 16);
-            //events.event[events.index++] = e;
-		} break;
         case WM_LBUTTONDOWN:
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
@@ -638,13 +623,6 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
             e.mouse_x = (i32)(lParam & 0xFFFF);
             e.mouse_y = (i32)(lParam >> 16);
             events.event[events.index++] = e;
-            //Event e = {0};
-            //e.type = EVENT_MOUSEDOWN;
-            //e.mouse = eventmouse_mapping[wParam];
-            ////QUESTION: ask about this being 8bytes but behaving like 4bytes
-            //e.mouse_x = (i32)(lParam & 0xFFFF);
-            //e.mouse_y = (i32)(lParam >> 16);
-            //events.event[events.index++] = e;
 		} break;
         //case WM_LBUTTONUP:
         //case WM_MBUTTONUP:

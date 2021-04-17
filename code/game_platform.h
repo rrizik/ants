@@ -88,7 +88,7 @@ typedef struct Controller{
     bool right;
     bool m1;
     bool m2;
-    v2 m1_down_pos;
+    v2 mouse_pos;
 } Controller;
 
 typedef struct Clock{

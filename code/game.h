@@ -2,6 +2,8 @@
 
 
 #include "game_platform.h"
+#include "random.h"
+#include <time.h>
 #include "vectors.h"
 
 // get rid of this shit

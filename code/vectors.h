@@ -119,6 +119,14 @@ dot2(v2 a, v2 b){
     return((a.x * b.x) + (a.y * b.y));
 }
 
+static v2
+direction2(v2 a, v2 b){
+    v2 result = {0};
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    return(result);
+}
+
 static f32
 magnitude2(v2 a){
     return(sqrtf((a.x * a.x) + (a.y * a.y)));
@@ -143,7 +151,7 @@ normalize2(v2 *a){
 }
 
 static v2
-normalized2(v2 a){
+get_normalized2(v2 a){
     v2 result = {0};
 
     f32 mag = magnitude2(a);

@@ -597,6 +597,8 @@ MAIN_GAME_LOOP(main_game_loop){
     TranState *transient_state = (TranState *)memory->transient_storage;
 
     if(!memory->initialized){
+        i32 num = 1;
+        srandom(time(NULL) ^ (intptr_t)&printf, (intptr_t)&num);
         game_state->entity_max = 1024;
         add_entity(game_state, EntityType_None);
 
@@ -644,7 +646,7 @@ MAIN_GAME_LOOP(main_game_loop){
     for(ui32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
         if(event->type == EVENT_MOUSEMOTION){
-            game_state->controller.m1_down_pos = vec2(event->mouse_x, render_buffer->height - event->mouse_y);
+            game_state->controller.mouse_pos = vec2(event->mouse_x, render_buffer->height - event->mouse_y);
         }
         if(event->type == EVENT_MOUSEDOWN){
             if(event->mouse == MOUSE_LBUTTON){
@@ -692,10 +694,10 @@ MAIN_GAME_LOOP(main_game_loop){
     f32 speed = 250.0f;
 
     if(game_state->controller.m1){
-        add_food(game_state, game_state->controller.m1_down_pos, 2, green, true);
+        add_food(game_state, game_state->controller.mouse_pos, 2, green, true);
     }
 
-    print("max: %i, used: %i, entities: %i\n", transient_state->render_commands->max_bytes, transient_state->render_commands->used_bytes, game_state->entity_count);
+    //print("max: %i, used: %i, entities: %i\n", transient_state->render_commands->max_bytes, transient_state->render_commands->used_bytes, game_state->entity_count);
 
     if(game_state->player_index != 0){
         Entity *player = game_state->entities + game_state->player_index;
@@ -782,7 +784,19 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }break; 
             case EntityType_Ant:{
-                entity->position.y += 100 * clock->dt;
+                v2 dir = direction2(game_state->controller.mouse_pos, entity->position);
+                v2 dir_normalized = get_normalized2(dir);
+                entity->position.x += (speed * dir_normalized.x) * clock->dt;
+                entity->position.y += (speed * dir_normalized.y) * clock->dt;
+                //print("nx: %.02f - ny: %.02f\n", dir_normalized.x, dir_normalized.y);
+
+                //print("%i\n", random());
+                i32 i = boundedrand(6)+1;
+                print("i32: %i, f32: %0.2f\n", i, (f32)i/6.0f);
+
+                //pcg32_random_t rng;
+                //pcg32_srandom_r(&rng, time(NULL) ^ (intptr_t)&printf, (intptr_t)&num);
+
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
                 if(entity->draw_bounding_box){
                     v2 dimension = {entity->rad*2, entity->rad*2};
