@@ -678,6 +678,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
     window_class.lpfnWndProc = Win32WindowCallback;
     window_class.hInstance = instance;
     window_class.lpszClassName = "window class";
+    window_class.hCursor = LoadCursor(0, IDC_ARROW);
     //window_class.hIcon; // TODO: place an icon here
 
     UINT sleep_granularity = 1;
@@ -687,184 +688,185 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
         HWND window = CreateWindowExA(0, window_class.lpszClassName, "game", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
         if(window){
-            SetWindowPos(window, HWND_TOPMOST, 10, 10, 1054, 818, SWP_SHOWWINDOW);
-            HDC DC = GetDC(window);
-            // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
-            //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
-            int gpu_monitor_refresh_hz = 60;
-            f32 soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
-            win_clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
+            if(SetWindowPos(window, HWND_TOP, 10, 10, 1054, 818, SWP_SHOWWINDOW)){
+                HDC DC = GetDC(window);
+                // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
+                //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
+                int gpu_monitor_refresh_hz = 60;
+                f32 soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
+                win_clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
 
-            // NOTE: maybe move this outside RegisterClassA
-            win_clock.start = WIN_get_clock();
-            QueryPerformanceFrequency(&win_clock.frequency);
-            win_clock.cpu_start = __rdtsc();
+                // NOTE: maybe move this outside RegisterClassA
+                win_clock.start = WIN_get_clock();
+                QueryPerformanceFrequency(&win_clock.frequency);
+                win_clock.cpu_start = __rdtsc();
 
-            WIN_State state = {0};
+                WIN_State state = {0};
 
-            char exe_path[MAX_PATH];
-            GetModuleFileNameA(0, exe_path, sizeof(exe_path));
-            char *starting_point = string_point_at_last(exe_path, '\\', 2);
-            // QUESTION: I dont understand this
-            state.root_dir_length = starting_point - exe_path;
-            get_root_dir(state.root_dir, state.root_dir_length, exe_path);
+                char exe_path[MAX_PATH];
+                GetModuleFileNameA(0, exe_path, sizeof(exe_path));
+                char *starting_point = string_point_at_last(exe_path, '\\', 2);
+                // QUESTION: I dont understand this
+                state.root_dir_length = starting_point - exe_path;
+                get_root_dir(state.root_dir, state.root_dir_length, exe_path);
 
-            char gamecode_dll[] = "build\\game.dll";
-            char gamecode_dll_fullpath[256];
-            cat_strings(state.root_dir, gamecode_dll, gamecode_dll_fullpath);
+                char gamecode_dll[] = "build\\game.dll";
+                char gamecode_dll_fullpath[256];
+                cat_strings(state.root_dir, gamecode_dll, gamecode_dll_fullpath);
 
-            char copy_gamecode_dll[] = "build\\copy_game.dll";
-            char copy_gamecode_dll_fullpath[256];
-            cat_strings(state.root_dir, copy_gamecode_dll, copy_gamecode_dll_fullpath);
+                char copy_gamecode_dll[] = "build\\copy_game.dll";
+                char copy_gamecode_dll_fullpath[256];
+                cat_strings(state.root_dir, copy_gamecode_dll, copy_gamecode_dll_fullpath);
 
-            WIN_GameCode gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
+                WIN_GameCode gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
 
 #if DEBUG
-            LPVOID base_address = (LPVOID)Terabytes(2);
+                LPVOID base_address = (LPVOID)Terabytes(2);
 #else
-            LPVOID base_address = 0;
+                LPVOID base_address = 0;
 #endif
-            // FUTURE: have different allocation sizes based on what the machine has available
-            // this allows you to use higher/lower resolution sprites and so on to support
-            // what may or may not be available
-            GameMemory game_memory = {0};
-            game_memory.running = true;
-            game_memory.permanent_storage_size = Megabytes(64);
-            game_memory.transient_storage_size = Gigabytes(1);
+                // FUTURE: have different allocation sizes based on what the machine has available
+                // this allows you to use higher/lower resolution sprites and so on to support
+                // what may or may not be available
+                GameMemory game_memory = {0};
+                game_memory.running = true;
+                game_memory.permanent_storage_size = Megabytes(64);
+                game_memory.transient_storage_size = Gigabytes(1);
 
-            game_memory.read_entire_file = read_entire_file;
-            game_memory.write_entire_file = write_entire_file;
-            game_memory.free_file_memory = free_file_memory;
+                game_memory.read_entire_file = read_entire_file;
+                game_memory.write_entire_file = write_entire_file;
+                game_memory.free_file_memory = free_file_memory;
 
-            game_memory.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
-            game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-            game_memory.permanent_storage = game_memory.total_storage;
-            game_memory.transient_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+                game_memory.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
+                game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+                game_memory.permanent_storage = game_memory.total_storage;
+                game_memory.transient_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
-            copy_string(state.root_dir, game_memory.root_dir, state.root_dir_length);
-            char root_dir[100];
-            copy_string(state.root_dir, root_dir, state.root_dir_length);
-            char data[] = "data\\";
-            cat_strings(root_dir, data, game_memory.data_dir);
+                copy_string(state.root_dir, game_memory.root_dir, state.root_dir_length);
+                char root_dir[100];
+                copy_string(state.root_dir, root_dir, state.root_dir_length);
+                char data[] = "data\\";
+                cat_strings(root_dir, data, game_memory.data_dir);
 
-            for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
-                state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+                for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
+                    state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
-                // CONSIDER: maybe do this in the future if it ends up slowing down
-                //WIN_ReplayBuffer *replay_buffer = &state.replay_buffers[i];
-                //char recording_string[64];
-                //wsprintf(recording_string, "build\\recording_%d.hmi", i);
-                //cat_strings(state.root_dir, recording_string, replay_buffer->file_name);
-                //replay_buffer->file_handle = CreateFileA(replay_buffer->file_name, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+                    // CONSIDER: maybe do this in the future if it ends up slowing down
+                    //WIN_ReplayBuffer *replay_buffer = &state.replay_buffers[i];
+                    //char recording_string[64];
+                    //wsprintf(recording_string, "build\\recording_%d.hmi", i);
+                    //cat_strings(state.root_dir, recording_string, replay_buffer->file_name);
+                    //replay_buffer->file_handle = CreateFileA(replay_buffer->file_name, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
 
-                //DWORD highorder_size = game_memory.total_size >> 32;
-                //DWORD loworder_size = game_memory.total_size & 0xFFFFFFFF;
-                //replay_buffer->file_memory_mapping = CreateFileMapping(replay_buffer->file_handle, 0, PAGE_READWRITE, highorder_size, loworder_size, 0);
-                //replay_buffer->memory = MapViewOfFile(replay_buffer->file_memory_mapping, FILE_MAP_ALL_ACCESS, 0, 0, game_memory.total_size);
-                //if(replay_buffer->memory){
-                if(state.replay_buffers[i]){
-                }
-                else{
-                    //TODO: Logging
-                }
-            }
-
-            // INCOMPLETE: this might need to be moved inside the loop because some things might change such as width/height but im not sure yet
-            RenderBuffer render_buffer = {0};
-            render_buffer.memory = offscreen_render_buffer.memory;
-            render_buffer.memory_size = offscreen_render_buffer.memory_size;
-            render_buffer.bytes_per_pixel = offscreen_render_buffer.bytes_per_pixel;
-            render_buffer.width = offscreen_render_buffer.width;
-            render_buffer.height = offscreen_render_buffer.height;
-            render_buffer.pitch = offscreen_render_buffer.pitch;
-
-            events.size = 256;
-            events.index = 0;
-
-            Clock clock = {0};
-            global_running = true;
-            global_pause = false;
-
-            if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
-                while(global_running){
-                    win_clock.end = WIN_get_clock();
-                    clock.dt = WIN_get_seconds_elapsed(win_clock.start, win_clock.end);
-
-                    //clock.dt = win_clock.target_seconds_per_frame;
-                    FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
-                    if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
-                        WIN_unload_gamecode(&gamecode);
-                        gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
+                    //DWORD highorder_size = game_memory.total_size >> 32;
+                    //DWORD loworder_size = game_memory.total_size & 0xFFFFFFFF;
+                    //replay_buffer->file_memory_mapping = CreateFileMapping(replay_buffer->file_handle, 0, PAGE_READWRITE, highorder_size, loworder_size, 0);
+                    //replay_buffer->memory = MapViewOfFile(replay_buffer->file_memory_mapping, FILE_MAP_ALL_ACCESS, 0, 0, game_memory.total_size);
+                    //if(replay_buffer->memory){
+                    if(state.replay_buffers[i]){
                     }
+                    else{
+                        //TODO: Logging
+                    }
+                }
 
-                    MSG message;
-                    while(PeekMessageA(&message, 0, 0, 0, PM_REMOVE)){
-                        TranslateMessage(&message);
-                        DispatchMessageA(&message);
+                // INCOMPLETE: this might need to be moved inside the loop because some things might change such as width/height but im not sure yet
+                RenderBuffer render_buffer = {0};
+                render_buffer.memory = offscreen_render_buffer.memory;
+                render_buffer.memory_size = offscreen_render_buffer.memory_size;
+                render_buffer.bytes_per_pixel = offscreen_render_buffer.bytes_per_pixel;
+                render_buffer.width = offscreen_render_buffer.width;
+                render_buffer.height = offscreen_render_buffer.height;
+                render_buffer.pitch = offscreen_render_buffer.pitch;
 
-                        for(ui32 i=0; i < events.index; ++i){
-                            Event *event = &events.event[i];
-                            if(event->type == EVENT_KEYDOWN){
-                                if(event->key == KEY_ESCAPE){
-                                    global_running = false;
-                                }
-                                if(event->key == KEY_L){
-                                    if(state.playback_index == 0){
-                                        if(state.recording_index == 0){
-                                            WIN_init_recording_handle(&state, &game_memory, 1);
+                events.size = 256;
+                events.index = 0;
+
+                Clock clock = {0};
+                global_running = true;
+                global_pause = false;
+
+                if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
+                    while(global_running){
+                        win_clock.end = WIN_get_clock();
+                        clock.dt = WIN_get_seconds_elapsed(win_clock.start, win_clock.end);
+
+                        //clock.dt = win_clock.target_seconds_per_frame;
+                        FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
+                        if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
+                            WIN_unload_gamecode(&gamecode);
+                            gamecode = WIN_load_gamecode(gamecode_dll_fullpath, copy_gamecode_dll_fullpath);
+                        }
+
+                        MSG message;
+                        while(PeekMessageA(&message, 0, 0, 0, PM_REMOVE)){
+                            TranslateMessage(&message);
+                            DispatchMessageA(&message);
+
+                            for(ui32 i=0; i < events.index; ++i){
+                                Event *event = &events.event[i];
+                                if(event->type == EVENT_KEYDOWN){
+                                    if(event->key == KEY_ESCAPE){
+                                        global_running = false;
+                                    }
+                                    if(event->key == KEY_L){
+                                        if(state.playback_index == 0){
+                                            if(state.recording_index == 0){
+                                                WIN_init_recording_handle(&state, &game_memory, 1);
+                                            }
+                                            else{
+                                                WIN_release_recording_handle(&state);
+                                                WIN_init_playback_handle(&state, &game_memory, 1);
+                                            }
                                         }
                                         else{
-                                            WIN_release_recording_handle(&state);
-                                            WIN_init_playback_handle(&state, &game_memory, 1);
+                                            WIN_release_playback_handle(&state);
                                         }
+                                        event->key = KEY_NONE;
                                     }
-                                    else{
-                                        WIN_release_playback_handle(&state);
+                                    if(event->key == KEY_P){
+                                        global_pause = !global_pause;
+                                        event->key = KEY_NONE;
                                     }
-                                    event->key = KEY_NONE;
-                                }
-                                if(event->key == KEY_P){
-                                    global_pause = !global_pause;
-                                    event->key = KEY_NONE;
                                 }
                             }
                         }
-                    }
-                    WIN_process_controller_input();
+                        WIN_process_controller_input();
 
-                    if(!global_pause){
-                        if(state.recording_index){
-                            WIN_record_input(&state, &events);
-                        }
-                        if(state.playback_index){
-                            WIN_play_input(&state, &game_memory, &events);
-                        }
-                        if(gamecode.main_game_loop){
-                            gamecode.main_game_loop(&game_memory, &render_buffer, &events, &clock);
-                            if(!game_memory.running){
-                                global_running = game_memory.running;
+                        if(!global_pause){
+                            if(state.recording_index){
+                                WIN_record_input(&state, &events);
                             }
+                            if(state.playback_index){
+                                WIN_play_input(&state, &game_memory, &events);
+                            }
+                            if(gamecode.main_game_loop){
+                                gamecode.main_game_loop(&game_memory, &render_buffer, &events, &clock);
+                                if(!game_memory.running){
+                                    global_running = game_memory.running;
+                                }
+                            }
+                            events.index = 0;
+
+                            WIN_sync_framerate();
+
+                            f32 MSPF = 1 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+                            //f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
+                            //f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
+                            //print("MSPF: %.05fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
+
+                            WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
+                            WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
+
+                            win_clock.cpu_end = __rdtsc();
+                            win_clock.start = win_clock.end;
+                            win_clock.cpu_start = win_clock.cpu_end;
                         }
-                        events.index = 0;
-
-                        WIN_sync_framerate();
-
-                        //f32 MSPF = 1000 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
-                        //f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
-                        //f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
-                        //print("MSPF: %.02fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
-
-                        WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
-                        WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
-
-                        win_clock.cpu_end = __rdtsc();
-                        win_clock.start = win_clock.end;
-                        win_clock.cpu_start = win_clock.cpu_end;
                     }
                 }
-            }
-            else{
-                // TODO: Logging
+                else{
+                    // TODO: Logging
+                }
             }
         }
         else{

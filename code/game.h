@@ -82,6 +82,7 @@ push_size_(MemoryArena *arena, size_t size){
 
 typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
 typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony} EntityType;
+typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct Entity{
     int id;
@@ -107,6 +108,9 @@ typedef struct Entity{
     v2 p2;
     v2 p3;
     ui8 rad;
+    f32 speed;
+    AntState ant_state;
+    struct Entity *ant_food;
     Bitmap image;
 } Entity;
 
@@ -134,16 +138,27 @@ typedef struct TranState{
 
 typedef struct GameState{
     MemoryArena permanent_arena;
+
+    Entity* food[2048];
+    ui32 food_count;
+    Entity* ants[1024];
+    ui32 ants_count;
+
     Entity entities[1024];
     ui32 entity_max;
     ui32 entity_count;
     ui32 player_index;
+    ui32 colony_index;
     ui32 clip_region_index;
     ui32 c2_index;
     Controller controller;
     Bitmap test;
     Bitmap circle;
     Bitmap image;
+    f32 ant_speed;
+    f32 ant_speed_max;
+    f32 suck_speed;
+    f32 suck_speed_max;
 } GameState;
 
 static void
@@ -298,6 +313,7 @@ static ui32
 add_food(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Food);
     Entity *e = game_state->entities + e_index;
+    game_state->food[game_state->food_count++] = e;
     e->position = pos;
     e->color = color;
     e->fill = fill;
@@ -310,12 +326,29 @@ static ui32
 add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Ant);
     Entity *e = game_state->entities + e_index;
+    game_state->ants[game_state->ants_count++] = e;
+    e->ant_state = AntState_Wondering;
     e->position = pos;
     e->color = color;
     e->fill = fill;
     e->rad = rad;
     e->direction = vec2((f32)(range_random(100)+1), (f32)(range_random(100)+1));
+    print("x: %.02f, y: %.02f\n", e->direction.x, e->direction.y);
     e->draw_bounding_box = true;
+    e->speed = 250.0f;
+    return(e->index);
+}
+
+static ui32
+add_colony(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
+    ui32 e_index = add_entity(game_state, EntityType_Colony);
+    Entity *e = game_state->entities + e_index;
+    e->position = pos;
+    e->color = color;
+    e->fill = fill;
+    e->rad = rad;
+    e->draw_bounding_box = true;
+    e->speed = 250.0f;
     return(e->index);
 }
 
