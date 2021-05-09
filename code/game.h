@@ -139,26 +139,31 @@ typedef struct TranState{
 typedef struct GameState{
     MemoryArena permanent_arena;
 
-    Entity* food[2048];
-    ui32 food_count;
-    Entity* ants[1024];
-    ui32 ants_count;
+    ui32 colony_index;
+    Entity* food[2048];// fthis
+    ui32 food_count;// fthis
+    Entity* ants[1024];// fthis
+    ui32 ants_count;// fthis
 
     Entity entities[1024];
-    ui32 entity_max;
-    ui32 entity_count;
-    ui32 player_index;
-    ui32 colony_index;
+    ui32 entities_size;
+    ui32 entity_at;
+    ui32 entities_free;
+
+    f32 ant_speed;
+
     ui32 clip_region_index;
-    ui32 c2_index;
     Controller controller;
     Bitmap test;
     Bitmap circle;
     Bitmap image;
-    f32 ant_speed;
+
     f32 ant_speed_max;
     f32 suck_speed;
     f32 suck_speed_max;
+
+    ui32 c2_index;
+    ui32 player_index;
 } GameState;
 
 static void
@@ -171,12 +176,23 @@ add_child(GameState *game_state, ui32 parent_index, ui32 child_index){
 
 static ui32
 add_entity(GameState *game_state, EntityType type){
-    if(game_state->entity_count < game_state->entity_max){
-        Entity *result = game_state->entities + game_state->entity_count;
-        result->index = game_state->entity_count;
-        result->id = game_state->entity_count;
+    if(game_state->entities_free > 0){
+        for(ui32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
+            Entity *result = game_state->entities + entity_index;
+            if(result->type == EntityType_None){
+                result->index = entity_index;
+                result->id = entity_index;
+                result->type = type;
+                game_state->entities_free--;
+            }
+        }
+    }
+    if(game_state->entity_at < game_state->entities_size){
+        Entity *result = game_state->entities + game_state->entity_at;
+        result->index = game_state->entity_at;
+        result->id = game_state->entity_at;
         result->type = type;
-        game_state->entity_count++;
+        game_state->entity_at++;
 
         return(result->index);
     }
@@ -316,7 +332,7 @@ add_food(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     game_state->food[game_state->food_count++] = e;
     e->position = pos;
     e->color = color;
-    e->fill = fill;
+
     e->rad = rad;
     e->draw_bounding_box = true;
     return(e->index);
@@ -333,7 +349,6 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->fill = fill;
     e->rad = rad;
     e->direction = vec2((f32)(range_random(100)+1), (f32)(range_random(100)+1));
-    print("x: %.02f, y: %.02f\n", e->direction.x, e->direction.y);
     e->draw_bounding_box = true;
     e->speed = 250.0f;
     return(e->index);

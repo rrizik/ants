@@ -116,10 +116,10 @@ FUTURE TODO: Game dev stuff to accomplish
     ant simiulation
     astroids
     space invaders
-    tiny kaboom
     console
     ui
     scene manager
+    tiny kaboom
 */
 
 #include "game.h"
