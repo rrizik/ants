@@ -51,7 +51,7 @@ seed_random(ui64 seed, ui64 seq){
 
 // Generate a uniformly distributed number, r, where 0 <= r < bound
 static ui32 
-range_random_r(pcg32_random_t* rng, ui32 bound){
+random_range_r(pcg32_random_t* rng, ui32 bound){
     ui32 threshold = -bound % bound;
 
     for (;;) {
@@ -61,8 +61,8 @@ range_random_r(pcg32_random_t* rng, ui32 bound){
     }
 }
 static ui32 
-range_random(ui32 bound){
-    return range_random_r(&pcg32_global, bound);
+random_range(ui32 bound){
+    return random_range_r(&pcg32_global, bound);
 }
 
 #if __cplusplus

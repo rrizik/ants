@@ -109,15 +109,16 @@ typedef struct Entity{
     v2 p3;
     ui8 rad;
     f32 speed;
+
     AntState ant_state;
     struct Entity *ant_food;
-
     v2 random_vector;
     bool changing_state;
     bool change_direction;
     f32 timer;
     f32 max_timer;
 	f32 rot_percent;
+    bool targeted;
 
     Bitmap image;
 } Entity;
@@ -147,13 +148,7 @@ typedef struct TranState{
 typedef struct GameState{
     MemoryArena permanent_arena;
 
-    v2 random_vector;
-    bool changing_state;
-    bool change_direction;
-    f32 timer;
-    f32 max_timer;
-    f32 angle;
-	f32 rot_percent;
+    bool added;
 
     f32 screen_width;
     f32 screen_height;
@@ -199,14 +194,15 @@ add_entity(GameState *game_state, EntityType type){
         for(ui32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
             Entity *result = game_state->entities + entity_index;
             if(result->type == EntityType_None){
-                result->index = entity_index;
-                result->id = entity_index;
                 result->type = type;
+                result->id = entity_index;
+                result->index = entity_index;
                 game_state->entities_free--;
+                return(result->index);
             }
         }
     }
-    if(game_state->entity_at < game_state->entities_size){
+    else if(game_state->entity_at < game_state->entities_size){
         Entity *result = game_state->entities + game_state->entity_at;
         result->index = game_state->entity_at;
         result->id = game_state->entity_at;
@@ -338,10 +334,6 @@ add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap im
     e->color = color;
     e->image = image;
     return(e->index);
-    //e->w = dimension.w;
-    //e->h = dimension.h;
-    //e->x = position.x;
-    //e->y = position.y;
 }
 
 static ui32
@@ -351,6 +343,7 @@ add_food(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     game_state->food[game_state->food_count++] = e;
     e->position = pos;
     e->color = color;
+    e->targeted = false;
 
     e->rad = rad;
     e->draw_bounding_box = true;
@@ -361,19 +354,24 @@ static ui32
 add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Ant);
     Entity *e = game_state->entities + e_index;
-    game_state->ants[game_state->ants_count++] = e;
+    //game_state->ants[game_state->ants_count++] = e;
+
     e->ant_state = AntState_Wondering;
     e->position = pos;
     e->color = color;
     e->fill = fill;
     e->rad = rad;
-    v2 random_vector = {(((i32)range_random(2 * 100 + 1) - 100)/100.0f), (((i32)range_random(2 * 100 + 1) - 100)/100.0f)};
+    e->direction.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+    e->direction.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+    e->random_vector.x = e->direction.x;
+    e->random_vector.y = e->direction.y;
     e->timer = 0.0f;
     e->rot_percent = 0.0f;
-    e->change_direction = true;
+    e->change_direction = false;
     e->changing_state = false;
-    e->draw_bounding_box = true;
+    e->max_timer = (random_range(10) + 1);
     e->speed = 250.0f;
+    e->draw_bounding_box = true;
     return(e->index);
 }
 
@@ -389,17 +387,6 @@ add_colony(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->speed = 250.0f;
     return(e->index);
 }
-
-//static ui32
-//add_ant(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap image){
-//    ui32 e_index = add_entity(game_state, EntityType_Player);
-//    Entity *e = game_state->entities + e_index;
-//    e->position = position;
-//    e->dimension = dimension;
-//    e->color = color;
-//    e->image = image;
-//    return(e->index);
-//}
 
 static v4
 convert_ui32_v4_normalized(ui32 value){

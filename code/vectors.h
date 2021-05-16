@@ -172,13 +172,9 @@ angle2(v2 a, v2 b){
     return(result);
 }
 
-//f32 one = atan2(ant->direction.y, ant->direction.x);
-//f32 two = atan2(mouse_dir.y, mouse_dir.x);
-//game_state->angle = RAD2DEG((two - one));
-
 static f32
-full_angle2(v2 normalized_direction){
-	return(atan2(normalized_direction.y, normalized_direction.x));
+full_angle2(v2 dir){
+    return(atan2(dir.y, dir.x));
 }
 
 static v2
