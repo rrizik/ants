@@ -119,14 +119,6 @@ dot2(v2 a, v2 b){
     return((a.x * b.x) + (a.y * b.y));
 }
 
-static v2
-direction2(v2 a, v2 b){
-    v2 result = {0};
-    result.x = a.x - b.x;
-    result.y = a.y - b.y;
-    return(result);
-}
-
 static f32
 magnitude2(v2 a){
     return(sqrtf((a.x * a.x) + (a.y * a.y)));
@@ -135,12 +127,6 @@ magnitude2(v2 a){
 static f32
 magnitude_sq2(v2 a){
     return((a.x * a.x) + (a.y * a.y));
-}
-
-static f32
-distance2(v2 a, v2 b){
-    v2 result = sub2(a, b);
-    return(magnitude2(result));
 }
 
 static void
@@ -161,6 +147,21 @@ get_normalized2(v2 a){
     return(result);
 }
 
+static v2
+direction2(v2 a, v2 b){
+    v2 result = {0};
+    result.x = b.x - a.x;
+    result.y = b.y - a.y;
+    normalize2(&result);
+    return(result);
+}
+
+static f32
+distance2(v2 a, v2 b){
+    v2 result = sub2(a, b);
+    return(magnitude2(result));
+}
+
 static f32
 angle2(v2 a, v2 b){
     f32 result = 0;
@@ -169,6 +170,15 @@ angle2(v2 a, v2 b){
     result = (f32)acos(dot2(a, b) / mag);
 
     return(result);
+}
+
+//f32 one = atan2(ant->direction.y, ant->direction.x);
+//f32 two = atan2(mouse_dir.y, mouse_dir.x);
+//game_state->angle = RAD2DEG((two - one));
+
+static f32
+full_angle2(v2 normalized_direction){
+	return(atan2(normalized_direction.y, normalized_direction.x));
 }
 
 static v2

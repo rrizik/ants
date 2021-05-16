@@ -2,6 +2,11 @@
 
 #include <math.h>
 
+//lerp(0, 100, .5) 50
+//0 + .5(100 - 0)
+//a + t(2 * (b - a))
+//a + t(b - a)
+
 static void
 swapf(f32 *a, f32 *b){
     f32 t = *a;
@@ -88,6 +93,23 @@ clamp_f32(f32 left, f32 value, f32 right){
         value = right;
     }
     return(value);
+}
+
+static v2
+angle_direction(f32 angle){
+    return vec2(cosf(angle), sinf(angle));
+}
+
+static f32
+direction_angle(v2 direction){
+    return atan2f(direction.y, direction.x);
+}
+
+static f32 
+lerp_rad(f32 a, f32 b, f32 t) {
+    float difference = fmodf(b - a, 2*PI),
+        distance = fmodf(2.0f * difference, 2*PI) - difference;
+    return a + distance * t;
 }
 
 #define MATH_H

@@ -111,6 +111,14 @@ typedef struct Entity{
     f32 speed;
     AntState ant_state;
     struct Entity *ant_food;
+
+    v2 random_vector;
+    bool changing_state;
+    bool change_direction;
+    f32 timer;
+    f32 max_timer;
+	f32 rot_percent;
+
     Bitmap image;
 } Entity;
 
@@ -139,6 +147,16 @@ typedef struct TranState{
 typedef struct GameState{
     MemoryArena permanent_arena;
 
+    v2 random_vector;
+    bool changing_state;
+    bool change_direction;
+    f32 timer;
+    f32 max_timer;
+    f32 angle;
+	f32 rot_percent;
+
+    f32 screen_width;
+    f32 screen_height;
     ui32 colony_index;
     Entity* food[2048];// fthis
     ui32 food_count;// fthis
@@ -164,6 +182,7 @@ typedef struct GameState{
 
     ui32 c2_index;
     ui32 player_index;
+    ui32 ant_index;
 } GameState;
 
 static void
@@ -348,7 +367,11 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->color = color;
     e->fill = fill;
     e->rad = rad;
-    e->direction = vec2((f32)(range_random(100)+1), (f32)(range_random(100)+1));
+    v2 random_vector = {(((i32)range_random(2 * 100 + 1) - 100)/100.0f), (((i32)range_random(2 * 100 + 1) - 100)/100.0f)};
+    e->timer = 0.0f;
+    e->rot_percent = 0.0f;
+    e->change_direction = true;
+    e->changing_state = false;
     e->draw_bounding_box = true;
     e->speed = 250.0f;
     return(e->index);
