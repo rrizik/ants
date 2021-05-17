@@ -81,7 +81,7 @@ push_size_(MemoryArena *arena, size_t size){
 #include "renderer.h"
 
 typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
-typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony} EntityType;
+typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_Pheromone} EntityType;
 typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct Entity{
@@ -119,6 +119,15 @@ typedef struct Entity{
     f32 max_timer;
 	f32 rot_percent;
     bool targeted;
+    v2 right_sensor;
+    v2 left_sensor;
+    v2 mid_sensor;
+    ui8 sensor_radius;
+    f32 sensor_angle;
+    f32 sensor_distance;
+	f32 pheromone_timer;
+	f32 pheromone_timer_max;
+	f32 pheromone_alpha;
 
     Bitmap image;
 } Entity;
@@ -158,7 +167,7 @@ typedef struct GameState{
     Entity* ants[1024];// fthis
     ui32 ants_count;// fthis
 
-    Entity entities[1024];
+    Entity entities[32768];
     ui32 entities_size;
     ui32 entity_at;
     ui32 entities_free;
@@ -340,11 +349,10 @@ static ui32
 add_food(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Food);
     Entity *e = game_state->entities + e_index;
-    game_state->food[game_state->food_count++] = e;
+
     e->position = pos;
     e->color = color;
     e->targeted = false;
-
     e->rad = rad;
     e->draw_bounding_box = true;
     return(e->index);
@@ -354,7 +362,6 @@ static ui32
 add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Ant);
     Entity *e = game_state->entities + e_index;
-    //game_state->ants[game_state->ants_count++] = e;
 
     e->ant_state = AntState_Wondering;
     e->position = pos;
@@ -372,6 +379,12 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->max_timer = (random_range(10) + 1);
     e->speed = 250.0f;
     e->draw_bounding_box = true;
+    e->sensor_radius = 10;
+    e->sensor_angle = 60;
+    e->sensor_distance = 20;
+    e->pheromone_timer = 0;
+    e->pheromone_timer_max = 1;
+    
     return(e->index);
 }
 
@@ -385,6 +398,17 @@ add_colony(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->rad = rad;
     e->draw_bounding_box = true;
     e->speed = 250.0f;
+    return(e->index);
+}
+
+static ui32
+add_pheromone(GameState *game_state, v2 pos, ui8 rad, v4 color){
+    ui32 e_index = add_entity(game_state, EntityType_Pheromone);
+    Entity *e = game_state->entities + e_index;
+    e->position = pos;
+    e->color = color;
+    e->color.w = 1;
+    e->rad = rad;
     return(e->index);
 }
 

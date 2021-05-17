@@ -619,21 +619,8 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, 50), 25, DGRAY, true);
 
         //game_state->ant_index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 4, LGRAY, true);
-        //Entity *ant = game_state->entities + game_state->ant_index;
+        Entity *ant = game_state->entities + game_state->ant_index;
 
-        //ui32 c1_index = add_circle(game_state, vec2(ant->position.x - 16, ant->position.y + 8), 8, GREEN, false);
-        //Entity *c1 = game_state->entities + c1_index;
-        //c1->draw_bounding_box = true;
-        //ui32 c2_index = add_circle(game_state, vec2(ant->position.x, ant->position.y + 15), 8, GREEN, false);
-        //Entity *c2 = game_state->entities + c2_index;
-        //c2->draw_bounding_box = true;
-        //ui32 c3_index = add_circle(game_state, vec2(ant->position.x + 16, ant->position.y + 8), 8, GREEN, false);
-        //Entity *c3 = game_state->entities + c3_index;
-        //c3->draw_bounding_box = true;
-
-        //add_child(game_state, game_state->ant_index, c1_index);
-        //add_child(game_state, game_state->ant_index, c2_index);
-        //add_child(game_state, game_state->ant_index, c3_index);
         for(int i=0; i < 500; ++i){
             // BUT
             //add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 4, LGRAY, true);
@@ -785,11 +772,11 @@ MAIN_GAME_LOOP(main_game_loop){
 	//f32 da_ang = (angle2(mouse_dir, ant->direction));
     //ant->position = rotate_pt(ant->position, 1, vec2(render_buffer->width/2, render_buffer->height/2));
 	
-    //v2 ant_direction = angle_direction(ant_angle);
-	//f32 ant_angle = direction_angle(ant->direction);
-	//f32 mouse_angle = direction_angle(mouse_dir);
+    //v2 ant_direction = rad_dir(ant_angle);
+	//f32 ant_angle = dir_rad(ant->direction);
+	//f32 mouse_angle = dir_rad(mouse_dir);
 	//f32 new_ant_angle = lerp_rad(ant_angle, mouse_angle, game_state->rot_percent);
-    //v2 new_ant_direction = angle_direction(new_ant_angle);
+    //v2 new_ant_direction = rad_dir(new_ant_angle);
     //ant->direction = new_ant_direction;
     //game_state->rot_percent+= 0.0001f;
     //if(game_state->rot_percent > 1.0f){
@@ -808,6 +795,13 @@ MAIN_GAME_LOOP(main_game_loop){
         Entity *entity = game_state->entities + entity_index;
 
         switch(entity->type){
+            case EntityType_Pheromone:{
+                entity->color.a -= 0.001;
+                if(entity->color.a <= 0){
+                    entity->type = EntityType_None;
+                    game_state->entities_free++;
+                }
+            } break;
             case EntityType_Ant:{
                 Entity *ant = entity;
 
@@ -832,14 +826,19 @@ MAIN_GAME_LOOP(main_game_loop){
                     v2 target_direction = add2(ant->direction, ant->random_vector);
                     normalize2(&target_direction);
 
-                    f32 ant_angle = direction_angle(ant->direction);
-                    f32 target_angle = direction_angle(target_direction);
+                    f32 ant_angle = dir_rad(ant->direction);
+                    f32 target_angle = dir_rad(target_direction);
                     f32 new_target_angle = lerp_rad(ant_angle, target_angle, ant->rot_percent);
-                    v2 new_target_direction = angle_direction(new_target_angle);
+                    v2 new_target_direction = rad_dir(new_target_angle);
                     ant->direction = new_target_direction;
                     ant->rot_percent += 0.01f;
                     if(ant->rot_percent > 1.0f){
                         ant->rot_percent = 1.0f;
+                    }
+                    ant->pheromone_timer += 0.1f;
+                    if(ant->pheromone_timer >= ant->pheromone_timer_max){
+                        ant->pheromone_timer = 0;
+                        add_pheromone(game_state, ant->position, 2, MAGENTA);
                     }
                         
                     if((ant->position.x + (game_state->ant_speed/damp * ant->direction.x) * clock->dt) < 0.0f ||
@@ -864,7 +863,10 @@ MAIN_GAME_LOOP(main_game_loop){
                                 Entity *food = entity;
                                 if(!food->targeted){
                                     f32 distance = distance2(ant->position, food->position);
-                                    if(distance < 100){
+                                    Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    if(rect_collide_point(right_rect, food->position) || rect_collide_point(mid_rect, food->position) || rect_collide_point(left_rect, food->position)){
                                         ant->ant_state = AntState_Collecting;
                                         ant->ant_food = food;
                                         food->targeted = true;
@@ -884,11 +886,11 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->changing_state = false;
                         }
 
-                        f32 ant_angle = direction_angle(ant->direction);
+                        f32 ant_angle = dir_rad(ant->direction);
                         v2 target_direction = direction2(ant->position, ant->ant_food->position);
-                        f32 target_angle = direction_angle(target_direction);
+                        f32 target_angle = dir_rad(target_direction);
                         f32 new_ant_angle = lerp_rad(ant_angle, target_angle, ant->rot_percent);
-                        v2 new_ant_direction = angle_direction(new_ant_angle);
+                        v2 new_ant_direction = rad_dir(new_ant_angle);
                         ant->direction = new_ant_direction;
                         ant->rot_percent += 0.01f;
                         if(ant->rot_percent > 1.0f){
@@ -922,11 +924,11 @@ MAIN_GAME_LOOP(main_game_loop){
 
                     Entity* colony = game_state->entities + game_state->colony_index;
 
-                    f32 ant_angle = direction_angle(ant->direction);
+                    f32 ant_angle = dir_rad(ant->direction);
                     v2 colony_direction = direction2(ant->position, colony->position);
-                    f32 colony_angle = direction_angle(colony_direction);
+                    f32 colony_angle = dir_rad(colony_direction);
                     f32 new_ant_angle = lerp_rad(ant_angle, colony_angle, ant->rot_percent);
-                    v2 new_ant_direction = angle_direction(new_ant_angle);
+                    v2 new_ant_direction = rad_dir(new_ant_angle);
                     ant->direction = new_ant_direction;
                     ant->rot_percent += 0.01f;
                     if(ant->rot_percent > 1.0f){
@@ -1010,13 +1012,44 @@ MAIN_GAME_LOOP(main_game_loop){
             }break; 
             case EntityType_Ant:{
                 //HERE
-                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
                 //push_ray(transient_state->render_commands, entity->position, entity->direction, entity->color);
                 // TODO: segments seem to crash the game, figure out why
                 //push_segment(transient_state->render_commands, entity->position, game_state->controller.mouse_pos, RED);
+                
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
+
+                f32 mid_rad = dir_rad(entity->direction);
+                f32 right_rad = mid_rad + (DEGREE * entity->sensor_angle);
+                f32 left_rad = mid_rad - (DEGREE * entity->sensor_angle);
+
+                v2 right_direction = rad_dir(right_rad);
+                v2 left_direction = rad_dir(left_rad);
+
+                entity->right_sensor = vec2(entity->position.x + (entity->sensor_distance * right_direction.x), entity->position.y + (entity->sensor_distance * right_direction.y));
+                entity->mid_sensor = vec2(entity->position.x + (entity->sensor_distance * entity->direction.x), entity->position.y + (entity->sensor_distance * entity->direction.y));
+                entity->left_sensor = vec2(entity->position.x + (entity->sensor_distance * left_direction.x), entity->position.y + (entity->sensor_distance * left_direction.y));
+
+                Rect right_rect = rect(vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
+                Rect mid_rect = rect(vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
+                Rect left_rect = rect(vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
+
+                //push_box(transient_state->render_commands, vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), YELLOW);
+                //push_box(transient_state->render_commands, vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), GREEN);
+                //push_box(transient_state->render_commands, vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), ORANGE);
+
+                //push_circle(transient_state->render_commands, entity->right_sensor, entity->sensor_radius, YELLOW, false);
+                //push_circle(transient_state->render_commands, entity->mid_sensor, entity->sensor_radius, GREEN, false);
+                //push_circle(transient_state->render_commands, entity->left_sensor, entity->sensor_radius, ORANGE, false);
+
+                //push_segment(transient_state->render_commands, entity->position, entity->right_sensor, YELLOW);
+                //push_segment(transient_state->render_commands, entity->position, entity->mid_sensor, GREEN);
+                //push_segment(transient_state->render_commands, entity->position, entity->left_sensor, ORANGE);
             }break; 
             case EntityType_Colony:{
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
+            }break; 
+            case EntityType_Pheromone:{
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
             }break; 
         }
     }
