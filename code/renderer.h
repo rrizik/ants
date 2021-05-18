@@ -162,10 +162,10 @@ push_clear_color(RenderCommands *commands, v4 color){
 }
 
 static void
-push_pixel(RenderCommands *commands, f32 x, f32 y, v4 color){
+push_pixel(RenderCommands *commands, v2 position, v4 color){
     PixelCommand* command = push_command(commands, PixelCommand);
     command->base.type = RenderCommand_Pixel;
-    command->base.position = vec2(x, y);
+    command->base.position = position;
     command->base.color = color;
 }
 

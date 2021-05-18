@@ -730,7 +730,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 // what may or may not be available
                 GameMemory game_memory = {0};
                 game_memory.running = true;
-                game_memory.permanent_storage_size = Megabytes(64);
+                game_memory.permanent_storage_size = Megabytes(32);
                 game_memory.transient_storage_size = Gigabytes(1);
 
                 game_memory.read_entire_file = read_entire_file;
@@ -850,9 +850,9 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
                             WIN_sync_framerate();
 
-                            //f32 MSPF = 1 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
-                            //f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
-                            //f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
+                            f32 MSPF = 1 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+                            f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
+                            f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
                             //print("MSPF: %.05fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
 
                             WIN_WindowDimensions wd = WIN_get_window_dimensions(window);

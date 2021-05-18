@@ -112,6 +112,7 @@ typedef struct Entity{
 
     AntState ant_state;
     struct Entity *ant_food;
+    struct Entity *food_ant;
     v2 random_vector;
     bool changing_state;
     bool change_direction;
@@ -158,6 +159,12 @@ typedef struct GameState{
     MemoryArena permanent_arena;
 
     bool added;
+    ui32 fc;
+    ui32 wc;
+    ui32 cc;
+    ui32 dc;
+    ui32 tc;
+    ui32 ntc;
 
     f32 screen_width;
     f32 screen_height;
@@ -167,7 +174,7 @@ typedef struct GameState{
     Entity* ants[1024];// fthis
     ui32 ants_count;// fthis
 
-    Entity entities[32768];
+    Entity entities[100000];
     ui32 entities_size;
     ui32 entity_at;
     ui32 entities_free;
@@ -346,14 +353,14 @@ add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap im
 }
 
 static ui32
-add_food(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
+add_food(GameState *game_state, v2 pos, v2 dimension, v4 color, bool fill){
     ui32 e_index = add_entity(game_state, EntityType_Food);
     Entity *e = game_state->entities + e_index;
 
     e->position = pos;
     e->color = color;
     e->targeted = false;
-    e->rad = rad;
+    e->dimension = dimension;
     e->draw_bounding_box = true;
     return(e->index);
 }
@@ -383,7 +390,7 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->sensor_angle = 60;
     e->sensor_distance = 20;
     e->pheromone_timer = 0;
-    e->pheromone_timer_max = 1;
+    e->pheromone_timer_max = 0.5f;
     
     return(e->index);
 }
