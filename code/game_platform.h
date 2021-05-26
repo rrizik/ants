@@ -1,7 +1,7 @@
 #if !defined(GAME_PLATFORM_H)
 
 #include <stdint.h>
-#include <stdbool.h> //FUTURE: Use this later once your more comfortable with bool
+#include <stdbool.h>
 
 //typedef float __attribute__((ext_vector_type(2))) v2;
 typedef size_t size;
@@ -18,9 +18,6 @@ typedef uint64_t ui64;
 typedef float f32;
 typedef double f64;
 
-//typedef int32_t bool;
-//enum{false, true};
-
 
 #define assert(expresion) if(!(expresion)) __debugbreak();
 #define array_count(value) (sizeof(value)/sizeof(value[0]))
@@ -30,7 +27,7 @@ typedef double f64;
 #define PI 3.14159265f
 #define RAD2DEG(n) ((180.0f/PI) * (n))
 #define DEG2RAD(n) ((PI/180.0f) * (n))
-#define DEGREE 0.0174533f
+#define RAD 0.0174533f
 
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)

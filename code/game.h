@@ -81,7 +81,7 @@ push_size_(MemoryArena *arena, size_t size){
 #include "renderer.h"
 
 typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
-typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_Pheromone} EntityType;
+typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
 typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct Entity{
@@ -112,7 +112,6 @@ typedef struct Entity{
 
     AntState ant_state;
     struct Entity *ant_food;
-    struct Entity *food_ant;
     v2 random_vector;
     bool changing_state;
     bool change_direction;
@@ -128,7 +127,19 @@ typedef struct Entity{
     f32 sensor_distance;
 	f32 pheromone_timer;
 	f32 pheromone_timer_max;
-	f32 pheromone_alpha;
+    struct Entity *pher_target;
+    bool pher_targeted;
+    f32 right_sensor_density;
+    f32 middle_sensor_density;
+    f32 left_sensor_density;
+    bool right;
+    bool middle;
+    bool left;
+    v2 target_direction;
+
+    f32 pheromone_home_decay_rate;
+    f32 pheromone_food_decay_rate;
+    f32 rotate_speed;
 
     Bitmap image;
 } Entity;
@@ -159,12 +170,13 @@ typedef struct GameState{
     MemoryArena permanent_arena;
 
     bool added;
-    ui32 fc;
-    ui32 wc;
-    ui32 cc;
-    ui32 dc;
-    ui32 tc;
+    ui32 fc; 
+    ui32 wc; 
+    ui32 cc; 
+    ui32 dc; 
+    ui32 tc; 
     ui32 ntc;
+    ui32 ptc;
 
     f32 screen_width;
     f32 screen_height;
@@ -362,6 +374,8 @@ add_food(GameState *game_state, v2 pos, v2 dimension, v4 color, bool fill){
     e->targeted = false;
     e->dimension = dimension;
     e->draw_bounding_box = true;
+    e->rad = 10;
+    e->fill = true;
     return(e->index);
 }
 
@@ -379,6 +393,8 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->direction.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
     e->random_vector.x = e->direction.x;
     e->random_vector.y = e->direction.y;
+    e->target_direction.x = e->direction.x;
+    e->target_direction.y = e->direction.y;
     e->timer = 0.0f;
     e->rot_percent = 0.0f;
     e->change_direction = false;
@@ -390,7 +406,13 @@ add_ant(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
     e->sensor_angle = 60;
     e->sensor_distance = 20;
     e->pheromone_timer = 0;
-    e->pheromone_timer_max = 0.5f;
+    e->pheromone_timer_max = 1.0f;
+    e->pher_target = NULL;
+    e->pher_targeted = false;
+    e->right_sensor_density = 0.0f;
+    e->middle_sensor_density = 0.0f;
+    e->left_sensor_density = 0.0f;
+    e->rotate_speed = 0.05f;
     
     return(e->index);
 }
@@ -409,13 +431,26 @@ add_colony(GameState *game_state, v2 pos, ui8 rad, v4 color, bool fill){
 }
 
 static ui32
-add_pheromone(GameState *game_state, v2 pos, ui8 rad, v4 color){
-    ui32 e_index = add_entity(game_state, EntityType_Pheromone);
+add_to_home_pheromone(GameState *game_state, v2 pos, ui8 rad, v4 color){
+    ui32 e_index = add_entity(game_state, EntityType_ToHomePheromone);
     Entity *e = game_state->entities + e_index;
     e->position = pos;
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
+    e->pheromone_home_decay_rate = 0.005;
+    return(e->index);
+}
+
+static ui32
+add_to_food_pheromone(GameState *game_state, v2 pos, ui8 rad, v4 color){
+    ui32 e_index = add_entity(game_state, EntityType_ToFoodPheromone);
+    Entity *e = game_state->entities + e_index;
+    e->position = pos;
+    e->color = color;
+    e->color.w = 1;
+    e->rad = rad;
+    e->pheromone_food_decay_rate = 0.005;
     return(e->index);
 }
 

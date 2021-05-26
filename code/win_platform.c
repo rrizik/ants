@@ -791,7 +791,6 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                         win_clock.end = WIN_get_clock();
                         clock.dt = WIN_get_seconds_elapsed(win_clock.start, win_clock.end);
 
-                        //clock.dt = win_clock.target_seconds_per_frame;
                         FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                         if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
                             WIN_unload_gamecode(&gamecode);
@@ -858,8 +857,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                             WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
                             WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
 
-                            win_clock.cpu_end = __rdtsc();
                             win_clock.start = win_clock.end;
+                            win_clock.cpu_end = __rdtsc();
                             win_clock.cpu_start = win_clock.cpu_end;
                         }
                     }

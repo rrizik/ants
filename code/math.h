@@ -7,6 +7,14 @@
 //a + t(2 * (b - a))
 //a + t(b - a)
 
+static f32
+MAXf32(f32 a, f32 b){
+    if(a > b){
+        return(a);
+    }
+    return(b);
+}
+
 static void
 swapf(f32 *a, f32 *b){
     f32 t = *a;
