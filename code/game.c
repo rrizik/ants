@@ -610,9 +610,10 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->ntc = 0;
         game_state->ptc = 0;
 
-        //game_state->ants_count = 5000;
+        //game_state->ants_count = 3000;
         //game_state->ants_count = 1000;
-        game_state->ants_count = 1;
+        game_state->ants_count = 300;
+        //game_state->ants_count = 1;
         game_state->screen_width = render_buffer->width;
         game_state->screen_height = render_buffer->height;
         game_state->ant_speed = 400.0f;
@@ -638,9 +639,6 @@ MAIN_GAME_LOOP(main_game_loop){
             Entity *ant = game_state->entities + index;
             ant->t = clock->get_ticks();
             ant->tp = clock->get_ticks();
-            if(ant->index == 2){
-                ant->render = true;
-            }
             //add_ant(game_state, vec2(render_buffer->width/2, 50), 2, LGRAY, true);
         }
 
@@ -682,12 +680,9 @@ MAIN_GAME_LOOP(main_game_loop){
 
     f32 seconds_elapsed = clock->get_seconds_elapsed(game_state->start, clock->get_ticks());
     f32 t = seconds_elapsed / 4.0f;
+    t = clamp_f32(1.0f, t, 0.0f);
     f32 result = lerp(100, 0, t);
-    result = clamp_f32(100, result, 0);
     //print("Result: %.05f - seconds_elapsed: %.05f - t: %.05f\n", result, seconds_elapsed, t);
-
-    //print("seconds_elapsed: %.05f\n", s);
-
 
     for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
@@ -778,19 +773,20 @@ MAIN_GAME_LOOP(main_game_loop){
 
     if(game_state->controller.m1){
         game_state->fc++;
-        add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
+        add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
         //add_to_food_pheromone(game_state, game_state->controller.mouse_pos, 1, TEAL);
     }
     if(game_state->controller.m2){
-        if(!game_state->added){
-            for(u32 i=0; i < 10000; ++i){
-                add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
-                game_state->fc += 1000;
-            }
-            //add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
-            //game_state->fc++;
-            game_state->added = true;
-        }
+        u32 index = add_to_home_pheromone(game_state, game_state->controller.mouse_pos, 1, MAGENTA);
+        //if(!game_state->added){
+        //    for(u32 i=0; i < 10000; ++i){
+        //        add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
+        //    }
+        //    game_state->fc += 10000;
+        //    //add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
+        //    //game_state->fc++;
+        //    game_state->added = true;
+        //}
     }
     else{
         game_state->added = false;
@@ -804,6 +800,7 @@ MAIN_GAME_LOOP(main_game_loop){
     game_state->tc = 0;
     game_state->ntc = 0;
     game_state->ptc = 0;
+    game_state->c = 0;
     for(u32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
 
@@ -812,24 +809,23 @@ MAIN_GAME_LOOP(main_game_loop){
                 u64 now = clock->get_ticks();
                 f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
                 f32 t = seconds_elapsed / entity->pher_food_decay_rate;
-                f32 result = lerp(1.0f, 0.0f, t);
-                entity->color.a = clamp_f32(1.0f, result, 0.0f);
-                //entity->color.a -= entity->pheromone_food_decay_rate;
+                t = clamp_f32(1.0f, t, 0.0f);
+                entity->color.a = lerp(1.0f, 0.0f, t);
                 if(entity->color.a <= 0){
+                    entity->color.a = 1.0f;
                     entity->type = EntityType_None;
                     game_state->entities_free++;
                 }
             } break;
             case EntityType_ToHomePheromone:{
-                // TODO: decay must be on clock
                 u64 now = clock->get_ticks();
                 f32 seconds_elapsed = clock->get_seconds_elapsed(entity->home_decay_timer, now);
                 f32 t = seconds_elapsed / entity->pher_home_decay_rate;
-                f32 result = lerp(1.0f, 0.0f, t);
-                entity->color.a = clamp_f32(1.0f, result, 0.0f);
-                //entity->color.a -= entity->pheromone_home_decay_rate;
-            //print("Result: %.05f - seconds_elapsed: %.05f - t: %.05f\n", result, seconds_elapsed, t);
-                if(entity->color.a <= 0){
+                t = clamp_f32(1.0f, t, 0.0f);
+                entity->color.a = lerp(1.0f, 0.0f, t);
+
+                if(entity->color.a <= 0.0f){
+                    entity->color.a = 1.0f;
                     entity->type = EntityType_None;
                     game_state->entities_free++;
                 }
@@ -962,22 +958,13 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->rot_percent = 1.0f;
                         }
 
-                        //ant->pheromone_timer += 0.1f;
-                        //if(ant->pheromone_timer >= ant->pheromone_timer_max){
-                        //    ant->pheromone_timer = 0;
-                        //    add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
-                        //}
                         u64 now = clock->get_ticks();
                         f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
-                        print("seconds_elapsed: %.05f - t: %.05f\n", seconds_elapsed, ant->tp_max);
                         if(seconds_elapsed >= ant->tp_max){
                             ant->tp = clock->get_ticks();
                             u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
                             Entity *pher = game_state->entities + index;
                             pher->home_decay_timer = clock->get_ticks();
-                            if(ant->render == true){
-                                pher->render = true;
-                            }
                         }
                             
                         if((ant->position.x + (game_state->ant_speed/damp * ant->direction.x) * clock->dt) < 0.0f ||
@@ -999,7 +986,6 @@ MAIN_GAME_LOOP(main_game_loop){
                     }
                 }
                 if(ant->ant_state == AntState_Collecting){
-                    game_state->cc++;
                     if(ant->changing_state){
                         ant->rot_percent = 0.0f;
                         ant->changing_state = false;
@@ -1122,18 +1108,13 @@ MAIN_GAME_LOOP(main_game_loop){
                         ant->rot_percent = 1.0f;
                     }
 
-                    //ant->pheromone_timer += 0.1f;
-                    //if(ant->pheromone_timer >= ant->pheromone_timer_max){
-                    //    ant->pheromone_timer = 0;
-                    //    add_to_food_pheromone(game_state, ant->position, 1, TEAL);
-                    //}
-
                     u64 now = clock->get_ticks();
                     f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
                     if(seconds_elapsed >= ant->tp_max){
                         ant->tp = clock->get_ticks();
-                        add_to_food_pheromone(game_state, ant->position, 1, MAGENTA);
-                        //pher->food_decay_timer = clock->get_ticks();
+                        u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
+                        Entity *pher = game_state->entities + index;
+                        pher->food_decay_timer = clock->get_ticks();
                     }
 
                     ant->position.x += (game_state->ant_speed/damp * ant->direction.x) * clock->dt;
@@ -1214,7 +1195,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 // TODO: segments seem to crash the game, figure out why
                 //push_segment(transient_state->render_commands, entity->position, game_state->controller.mouse_pos, RED);
 
-                if(entity->render == true){
                 
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
 
@@ -1246,20 +1226,15 @@ MAIN_GAME_LOOP(main_game_loop){
                 //push_segment(transient_state->render_commands, entity->position, entity->mid_sensor, GREEN);
                 //push_segment(transient_state->render_commands, entity->position, entity->left_sensor, ORANGE);
                 //push_ray(transient_state->render_commands, entity->position, entity->target_direction, BLUE);
-                }
             }break; 
             case EntityType_Colony:{
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
             }break; 
             case EntityType_ToHomePheromone:{
-                if(entity->render == true){
-                    push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
-                }
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
             }break; 
             case EntityType_ToFoodPheromone:{
-                if(entity->render == true){
-                    push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
-                }
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
             }break; 
         }
     }

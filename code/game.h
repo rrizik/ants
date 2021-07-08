@@ -144,10 +144,8 @@ typedef struct Entity{
 
     f32 pher_home_decay_rate;
     f32 pher_food_decay_rate;
-    f32 food_decay_timer;
-    f32 home_decay_timer;
-
-
+    u64 food_decay_timer;
+    u64 home_decay_timer;
 
     f32 rotate_speed;
 
@@ -179,6 +177,7 @@ typedef struct TranState{
 typedef struct GameState{
     MemoryArena permanent_arena;
 
+    u32 c;
     u64 start;
     bool added;
     u32 fc; 
@@ -376,16 +375,16 @@ add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap im
 }
 
 static u32
-add_food(GameState *game_state, v2 pos, v2 dimension, v4 color, bool fill){
+add_food(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     u32 e_index = add_entity(game_state, EntityType_Food);
     Entity *e = game_state->entities + e_index;
 
     e->position = pos;
     e->color = color;
     e->targeted = false;
-    e->dimension = dimension;
+    //e->dimension = dimension;
     e->draw_bounding_box = true;
-    e->rad = 10;
+    e->rad = rad;
     e->fill = true;
     return(e->index);
 }

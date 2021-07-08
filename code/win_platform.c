@@ -516,7 +516,7 @@ WIN_GET_CLOCK(get_ticks){
 
 WIN_GET_SECONDS_ELAPSED(get_seconds_elapsed){
     f32 result;
-    result = ((f32)(end- start) / ((f32)win_clock.frequency));
+    result = ((f32)(end - start) / ((f32)win_clock.frequency));
 
     return(result);
 }
