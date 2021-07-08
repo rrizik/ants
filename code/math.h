@@ -50,9 +50,9 @@ round_fi32(f32 value){
     return(result);
 }
 
-static ui32
-round_fui32(f32 value){
-    ui32 result = (ui32)(value + 0.5);
+static u32
+round_fu32(f32 value){
+    u32 result = (u32)(value + 0.5);
     return(result);
 }
 

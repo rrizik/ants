@@ -124,7 +124,7 @@ typedef struct TriangleCommand{
 
 typedef struct CircleCommand{
     BaseCommand base; 
-    ui8 rad;
+    u8 rad;
 } CircleCommand;
 
 typedef struct BitmapCommand{
@@ -238,7 +238,7 @@ push_triangle(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v4 color, bool fill
 }
 
 static void
-push_circle(RenderCommands *commands, v2 pos, ui8 rad, v4 color, bool fill){
+push_circle(RenderCommands *commands, v2 pos, u8 rad, v4 color, bool fill){
     CircleCommand* command = push_command(commands, CircleCommand);
     command->base.type = RenderCommand_Circle;
     command->base.position = pos;

@@ -19,11 +19,11 @@ typedef struct WIN_WindowDimensions{
 } WIN_WindowDimensions;
 
 typedef struct WIN_Clock{
-    LARGE_INTEGER start;
-    LARGE_INTEGER end;
-    LARGE_INTEGER frequency;
-    ui64 cpu_start;
-    ui64 cpu_end;
+    u64 start;
+    u64 end;
+    u64 frequency;
+    u64 cpu_start;
+    u64 cpu_end;
 
     f32 target_seconds_per_frame;
     bool sleep_granularity_set;
@@ -48,7 +48,7 @@ typedef struct WIN_ReplayBuffer{
 
 typedef struct WIN_State{
     char root_dir[256];
-    ui64 root_dir_length;
+    u64 root_dir_length;
 
     void *replay_buffers[4];
     // CONSIDER: maybe do this in the future if it ends up slowing down WIN_ReplayBuffer replay_buffers[4];

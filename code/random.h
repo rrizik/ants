@@ -8,8 +8,8 @@ extern "C" {
 #endif
 
 typedef struct pcg_state_setseq_64{  // Internals are *Private*.
-    ui64 state;                  // RNG state.  All values are possible.
-    ui64 inc;                    // Controls which RNG sequence (stream) is
+    u64 state;                  // RNG state.  All values are possible.
+    u64 inc;                    // Controls which RNG sequence (stream) is
                                      // selected. Must *always* be odd.
 } pcg_state_setseq_64;
 typedef struct pcg_state_setseq_64 pcg32_random_t;
@@ -21,15 +21,15 @@ typedef struct pcg_state_setseq_64 pcg32_random_t;
 static pcg32_random_t pcg32_global = PCG32_INITIALIZER;
 
 // Generate a uniformly distributed 32-bit random number
-static ui32 
+static u32 
 random_r(pcg32_random_t* rng){
-    ui64 oldstate = rng->state;
+    u64 oldstate = rng->state;
     rng->state = oldstate * 6364136223846793005ULL + rng->inc;
-    ui32 xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
-    ui32 rot = oldstate >> 59u;
+    u32 xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+    u32 rot = oldstate >> 59u;
     return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
-static ui32 
+static u32 
 random(){
     return random_r(&pcg32_global);
 }
@@ -37,7 +37,7 @@ random(){
 // Seed the rng.  Specified in two parts, state initializer and a
 // sequence selection constant (a.k.a. stream id)
 static void 
-seed_randomr(pcg32_random_t* rng, ui64 initstate, ui64 initseq){
+seed_randomr(pcg32_random_t* rng, u64 initstate, u64 initseq){
     rng->state = 0U;
     rng->inc = (initseq << 1u) | 1u;
     random_r(rng);
@@ -45,23 +45,23 @@ seed_randomr(pcg32_random_t* rng, ui64 initstate, ui64 initseq){
     random_r(rng);
 }
 static void 
-seed_random(ui64 seed, ui64 seq){
+seed_random(u64 seed, u64 seq){
     seed_randomr(&pcg32_global, seed, seq);
 }
 
 // Generate a uniformly distributed number, r, where 0 <= r < bound
-static ui32 
-random_range_r(pcg32_random_t* rng, ui32 bound){
-    ui32 threshold = -bound % bound;
+static u32 
+random_range_r(pcg32_random_t* rng, u32 bound){
+    u32 threshold = -bound % bound;
 
     for (;;) {
-        ui32 r = random_r(rng);
+        u32 r = random_r(rng);
         if (r >= threshold)
             return r % bound;
     }
 }
-static ui32 
-random_range(ui32 bound){
+static u32 
+random_range(u32 bound){
     return random_range_r(&pcg32_global, bound);
 }
 

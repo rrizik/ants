@@ -3,10 +3,10 @@
 
 
 static v2
-calc_center(v2 *p, ui32 count){
+calc_center(v2 *p, u32 count){
     v2 result = {0};
 
-    for(ui32 i=0; i<count; ++i){
+    for(u32 i=0; i<count; ++i){
         result.x += p->x;
         result.y += p->y;
         p++;
@@ -20,8 +20,8 @@ calc_center(v2 *p, ui32 count){
 }
 
 static void
-translate(v2 *p, ui32 count, v2 translation){
-    for(ui32 i=0; i<count; ++i){
+translate(v2 *p, u32 count, v2 translation){
+    for(u32 i=0; i<count; ++i){
         *p = add2(*p, translation);
         p++;
     }
@@ -29,8 +29,8 @@ translate(v2 *p, ui32 count, v2 translation){
 }
 
 static void
-scale(v2 *p, ui32 count, f32 scalar, v2 origin){
-    for(ui32 i=0; i<count; ++i){
+scale(v2 *p, u32 count, f32 scalar, v2 origin){
+    for(u32 i=0; i<count; ++i){
         *p = add2(scale2(sub2(*p, origin), scalar), origin);
         p++;
     }
@@ -46,8 +46,8 @@ rotate_pt(v2 p, f32 angle, v2 origin){
 }
 
 static void
-rotate_pts(v2 *p, ui32 count, f32 angle, v2 origin){
-    for(ui32 i=0; i<count; ++i){
+rotate_pts(v2 *p, u32 count, f32 angle, v2 origin){
+    for(u32 i=0; i<count; ++i){
         v2 result = {0};
         result = rotate_pt(*p, angle, origin);
         p->x = result.x;
@@ -61,10 +61,10 @@ static v4
 get_color_at(RenderBuffer *buffer, f32 x, f32 y){
     v4 result = {0};
 
-    ui8 *location = (ui8 *)buffer->memory +
+    u8 *location = (u8 *)buffer->memory +
                     ((buffer->height - (i32)y - 1) * buffer->pitch) +
                     ((i32)x * buffer->bytes_per_pixel);
-    ui32 *pixel = (ui32 *)location;
+    u32 *pixel = (u32 *)location;
     result.a = (f32)((*pixel >> 24) & 0xFF) / 255.0f;
     result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
     result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
@@ -79,11 +79,11 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
     i32 y = round_fi32(float_y);
 
     if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
-        ui8 *row = (ui8 *)buffer->memory +
+        u8 *row = (u8 *)buffer->memory +
                    ((buffer->height - y - 1) * buffer->pitch) +
                    (x * buffer->bytes_per_pixel);
 
-        ui32 *pixel = (ui32 *)row;
+        u32 *pixel = (u32 *)row;
 
         f32 current_a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
         f32 current_r = (f32)((*pixel >> 16) & 0xFF);
@@ -98,8 +98,8 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
         f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
         f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-        //ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
-        ui32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+        //u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
+        u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
         *pixel = new_color;
     }
 }
@@ -320,7 +320,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
         f32 rounded_y = round_ff(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
             for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-                v4 color = convert_ui32_v4_normalized(*image.pixels++);
+                v4 color = convert_u32_v4_normalized(*image.pixels++);
                 draw_pixel(buffer, x, y, color);
             }
         }
@@ -344,19 +344,19 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
             result.h = result.h - ((result.y + result.h) - (cr.y + cr.h));
         }
 
-        ui32 rounded_x = round_fui32(result.x);
-        ui32 rounded_y = round_fui32(result.y);
+        u32 rounded_x = round_fu32(result.x);
+        u32 rounded_y = round_fu32(result.y);
         
-        ui32 x_shift = (ui32)clamp_f32(0, (cr.x - position.x), 100000);
-        ui32 y_shift = (ui32)clamp_f32(0, (cr.y - position.y), 100000);
+        u32 x_shift = (u32)clamp_f32(0, (cr.x - position.x), 100000);
+        u32 y_shift = (u32)clamp_f32(0, (cr.y - position.y), 100000);
 
-        ui32 iy = 0;
-        for(ui32 y = rounded_y; y < rounded_y + result.h; ++y){
-            ui32 ix = 0;
-            for(ui32 x = rounded_x; x < rounded_x + result.w; ++x){
-                ui8 *byte = (ui8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
-                ui32 *c = (ui32 *)byte;
-                v4 color = convert_ui32_v4_normalized(*c);
+        u32 iy = 0;
+        for(u32 y = rounded_y; y < rounded_y + result.h; ++y){
+            u32 ix = 0;
+            for(u32 x = rounded_x; x < rounded_x + result.w; ++x){
+                u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
+                u32 *c = (u32 *)byte;
+                v4 color = convert_u32_v4_normalized(*c);
                 draw_pixel(buffer, x, y, color);
                 ix++;
             }
@@ -444,10 +444,10 @@ draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill)
 }
 
 static void
-draw_polygon(RenderBuffer *buffer, v2 *points, ui32 count, v4 c){
+draw_polygon(RenderBuffer *buffer, v2 *points, u32 count, v4 c){
     v2 first = *points++;
     v2 prev = first;
-    for(ui32 i=1; i<count; ++i){
+    for(u32 i=1; i<count; ++i){
         draw_segment(buffer, prev, *points, c);
         prev = *points++;
     }
@@ -502,7 +502,7 @@ load_bitmap(GameMemory *memory, char *filename){
     FileData bitmap_file = memory->read_entire_file(full_path);
     if(bitmap_file.size > 0){
         BitmapHeader *header = (BitmapHeader *)bitmap_file.content;
-        result.pixels = (ui32 *)((ui8 *)bitmap_file.content + header->bitmap_offset);
+        result.pixels = (u32 *)((u8 *)bitmap_file.content + header->bitmap_offset);
         result.width = header->width;
         result.height = header->height;
         // IMPORTANT: depending on compression type you might have to re order the bytes to make it AA RR GG BB
@@ -599,7 +599,9 @@ MAIN_GAME_LOOP(main_game_loop){
     GameState *game_state = (GameState *)memory->permanent_storage;
     TranState *transient_state = (TranState *)memory->transient_storage;
 
+
     if(!memory->initialized){
+        game_state->start = clock->get_ticks();
         game_state->fc = 0;
         game_state->wc = 0;
         game_state->cc = 0;
@@ -629,9 +631,12 @@ MAIN_GAME_LOOP(main_game_loop){
 
         game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 25, DGRAY, true);
 
-        for(ui32 i=0; i < game_state->ants_count; ++i){
+        for(u32 i=0; i < game_state->ants_count; ++i){
             // BUT
-            add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
+            u32 ant_index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
+            Entity *ant = game_state->entities + ant_index;
+            //ant->tp = clock->get_ticks();
+            //ant->t = clock->get_ticks();
             //add_ant(game_state, vec2(render_buffer->width/2, 50), 2, LGRAY, true);
         }
 
@@ -655,24 +660,27 @@ MAIN_GAME_LOOP(main_game_loop){
         //add_triangle(game_state, vec2(400, 100), vec2(500, 100), vec2(450, 200), lgray, true);
         //add_circle(game_state, vec2(450, 400), 50, dgray, false);
 
-        //ui32 c1_index = add_bitmap(game_state, vec2(20, 20), game_state->circle);
+        //u32 c1_index = add_bitmap(game_state, vec2(20, 20), game_state->circle);
         //game_state->c2_index = add_bitmap(game_state, vec2(500, 50), game_state->image);
         //add_child(game_state, game_state->player_index, c1_index);
         //add_child(game_state, game_state->player_index, game_state->c2_index);
 
         initialize_arena(&game_state->permanent_arena, 
-                         (ui8*)memory->permanent_storage + sizeof(GameState), 
+                         (u8*)memory->permanent_storage + sizeof(GameState), 
                          memory->permanent_storage_size - sizeof(GameState));
         initialize_arena(&transient_state->transient_arena, 
-                         (ui8*)memory->transient_storage + sizeof(TranState), 
+                         (u8*)memory->transient_storage + sizeof(TranState), 
                          memory->transient_storage_size - sizeof(TranState));
 
         transient_state->render_commands = allocate_render_commands(&transient_state->transient_arena, Megabytes(16));
         memory->initialized = true;
     }
 
+    f32 s = clock->get_seconds_elapsed(game_state->start, clock->get_ticks());
+    print("seconds_elapsed: %.05f\n", s);
 
-    for(ui32 i=0; i < events->index; ++i){
+
+    for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
         if(event->type == EVENT_MOUSEMOTION){
             game_state->controller.mouse_pos = vec2(event->mouse_x, render_buffer->height - event->mouse_y);
@@ -766,7 +774,7 @@ MAIN_GAME_LOOP(main_game_loop){
     }
     if(game_state->controller.m2){
         if(!game_state->added){
-            for(ui32 i=0; i < 10000; ++i){
+            for(u32 i=0; i < 10000; ++i){
                 add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
                 game_state->fc += 1000;
             }
@@ -787,7 +795,7 @@ MAIN_GAME_LOOP(main_game_loop){
     game_state->tc = 0;
     game_state->ntc = 0;
     game_state->ptc = 0;
-    for(ui32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
+    for(u32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
 
         switch(entity->type){
@@ -817,7 +825,7 @@ MAIN_GAME_LOOP(main_game_loop){
                     //ant->right = false;
                     //ant->middle = false;
                     //ant->left = false;
-                    for(ui32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
+                    for(u32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
                         Entity *entity = game_state->entities + entity_index;
                         switch(entity->type){
                             case EntityType_ToFoodPheromone:{
@@ -892,8 +900,13 @@ MAIN_GAME_LOOP(main_game_loop){
                             }
                         }
                         else{
-                            if(ant->timer >= ant->max_timer){
-                                ant->timer = 0.0f;
+                            //if(ant->timer >= ant->max_timer){
+                            //    ant->timer = 0.0f;
+                            //    ant->change_direction = true;
+                            //}
+                            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->t, clock->get_ticks());
+                            if(seconds_elapsed >= ant->t_max){
+                                ant->t = clock->get_ticks();
                                 ant->change_direction = true;
                             }
                             if(ant->change_direction){
@@ -985,7 +998,7 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->right_sensor_density = 0.0f;
                     ant->middle_sensor_density = 0.0f;
                     ant->left_sensor_density = 0.0f;
-                    for(ui32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
+                    for(u32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
                         Entity *entity = game_state->entities + entity_index;
                         switch(entity->type){
                             case EntityType_ToHomePheromone:{
@@ -1097,7 +1110,7 @@ MAIN_GAME_LOOP(main_game_loop){
 
     transient_state->render_commands->used_bytes = 0;
     push_clear_color(transient_state->render_commands, BLACK);
-    for(ui32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
+    for(u32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
             case EntityType_Player:{

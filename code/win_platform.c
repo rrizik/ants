@@ -153,7 +153,7 @@ global WIN_Clock win_clock;
 global WIN_RenderBuffer offscreen_render_buffer;
 global Events events;
 
-global ui32 eventkey_mapping[0xFF] = {
+global u32 eventkey_mapping[0xFF] = {
     [VK_ESCAPE]=KEY_ESCAPE,
     ['W']=KEY_W,
     ['A']=KEY_A,
@@ -166,7 +166,7 @@ global ui32 eventkey_mapping[0xFF] = {
     ['3']=KEY_3,
 };
 
-global ui32 eventpad_mapping[0x5838] = {
+global u32 eventpad_mapping[0x5838] = {
     [VK_PAD_DPAD_UP]=PAD_UP,
     [VK_PAD_DPAD_DOWN]=PAD_DOWN,
     [VK_PAD_DPAD_LEFT]=PAD_LEFT,
@@ -174,7 +174,7 @@ global ui32 eventpad_mapping[0x5838] = {
     [VK_PAD_BACK]=PAD_BACK,
 };
 
-global ui32 eventmouse_mapping[0x0209] = {
+global u32 eventmouse_mapping[0x0209] = {
     [WM_LBUTTONUP]=MOUSE_LBUTTON,
     [WM_MBUTTONUP]=MOUSE_MBUTTON,
     [WM_RBUTTONUP]=MOUSE_RBUTTON,
@@ -293,11 +293,11 @@ READ_ENTIRE_FILE(read_entire_file){
         LARGE_INTEGER filesize;
         if(GetFileSizeEx(filehandle, &filesize)){
             //assert(filesize.QuadPart <= 0xFFFFFFFF); // NOTE: temporary for now, this isnt the final file I/O
-            result.content = VirtualAlloc(0, (ui32)filesize.QuadPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // FUTURE: Dont use VirtualAlloc when this is more robust, use something like HeapAlloc
+            result.content = VirtualAlloc(0, (u32)filesize.QuadPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // FUTURE: Dont use VirtualAlloc when this is more robust, use something like HeapAlloc
             if(result.content){
                 DWORD bytes_read;
-                if(ReadFile(filehandle, result.content, (ui32)filesize.QuadPart, &bytes_read, 0)){
-                    result.size = (ui32)filesize.QuadPart;
+                if(ReadFile(filehandle, result.content, (u32)filesize.QuadPart, &bytes_read, 0)){
+                    result.size = (u32)filesize.QuadPart;
                 }
                 else{
                     free_file_memory(result.content);
@@ -402,7 +402,7 @@ WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
 
 static void
 WIN_process_controller_input(void){
-    for(ui32 i=0; i < XUSER_MAX_COUNT; ++i){
+    for(u32 i=0; i < XUSER_MAX_COUNT; ++i){
         XINPUT_KEYSTROKE controller_state;
         if((XInputGetKeystroke(i, 0, &controller_state)) == ERROR_SUCCESS){
             Event e = {0};
@@ -434,7 +434,7 @@ WIN_process_controller_input(void){
 
 static void
 WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
-    //assert((ui64)recording_index < array_count(state->replay_buffers));
+    //assert((u64)recording_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
     //if(replay_buffer->memory){
@@ -507,26 +507,24 @@ WIN_play_input(WIN_State *state, GameMemory *game_memory, Events *events){
     }
 }
 
-static LARGE_INTEGER
-WIN_get_clock(void){
+WIN_GET_CLOCK(get_ticks){
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
 
-    return(result);
+    return(result.QuadPart);
 }
 
-static f32
-WIN_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end){
+WIN_GET_SECONDS_ELAPSED(get_seconds_elapsed){
     f32 result;
-    result = ((f32)(end.QuadPart - start.QuadPart) / ((f32)win_clock.frequency.QuadPart));
+    result = ((f32)(end- start) / ((f32)win_clock.frequency));
 
     return(result);
 }
 
 static void
 WIN_sync_framerate(void){
-    LARGE_INTEGER time_stamp = WIN_get_clock();
-    f32 seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, time_stamp);
+    u64 time_stamp = get_ticks();
+    f32 seconds_elapsed = get_seconds_elapsed(win_clock.start, time_stamp);
     if(seconds_elapsed < win_clock.target_seconds_per_frame){
         if(win_clock.sleep_granularity_set){
             DWORD sleep_ms = (DWORD)(1000.0f * (win_clock.target_seconds_per_frame - seconds_elapsed));
@@ -535,14 +533,14 @@ WIN_sync_framerate(void){
             }
         }
 
-        f32 seconds_elapsed_remaining = WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+        f32 seconds_elapsed_remaining = get_seconds_elapsed(win_clock.start, get_ticks());
         if(seconds_elapsed_remaining < win_clock.target_seconds_per_frame){
             // TODO: LOG MISSED SLEEP HERE
         }
 
-        seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, time_stamp);
+        seconds_elapsed = get_seconds_elapsed(win_clock.start, time_stamp);
         while(seconds_elapsed < win_clock.target_seconds_per_frame){
-            seconds_elapsed = WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
+            seconds_elapsed = get_seconds_elapsed(win_clock.start, get_ticks());
         }
     }
     else{
@@ -559,7 +557,7 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         case WM_CHAR:{
             Event e = {0};
             e.type = EVENT_TEXT;
-            e.text = (ui16)wParam;
+            e.text = (u16)wParam;
             events.event[events.index++] = e;
         }break;
         case WM_SYSKEYDOWN:
@@ -697,8 +695,16 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 win_clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
 
                 // NOTE: maybe move this outside RegisterClassA
-                win_clock.start = WIN_get_clock();
-                QueryPerformanceFrequency(&win_clock.frequency);
+                win_clock.start = get_ticks();
+                LARGE_INTEGER frequency;
+                QueryPerformanceFrequency(&frequency);
+                win_clock.frequency = frequency.QuadPart;
+
+                Clock clock = {0};
+                clock.get_ticks = get_ticks;
+                clock.get_seconds_elapsed = get_seconds_elapsed;
+                clock.frequency = frequency.QuadPart;
+
                 win_clock.cpu_start = __rdtsc();
 
                 WIN_State state = {0};
@@ -740,7 +746,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 game_memory.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
                 game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
                 game_memory.permanent_storage = game_memory.total_storage;
-                game_memory.transient_storage = (ui8 *)game_memory.total_storage + game_memory.permanent_storage_size;
+                game_memory.transient_storage = (u8 *)game_memory.total_storage + game_memory.permanent_storage_size;
 
                 copy_string(state.root_dir, game_memory.root_dir, state.root_dir_length);
                 char root_dir[100];
@@ -748,7 +754,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 char data[] = "data\\";
                 cat_strings(root_dir, data, game_memory.data_dir);
 
-                for(ui64 i=0; i<array_count(state.replay_buffers); ++i){
+                for(u64 i=0; i<array_count(state.replay_buffers); ++i){
                     state.replay_buffers[i] = VirtualAlloc(0, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
                     // CONSIDER: maybe do this in the future if it ends up slowing down
@@ -782,14 +788,13 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 events.size = 256;
                 events.index = 0;
 
-                Clock clock = {0};
                 global_running = true;
                 global_pause = false;
 
                 if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
                     while(global_running){
-                        win_clock.end = WIN_get_clock();
-                        clock.dt = WIN_get_seconds_elapsed(win_clock.start, win_clock.end);
+                        win_clock.end = get_ticks();
+                        clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
 
                         FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                         if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
@@ -802,7 +807,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                             TranslateMessage(&message);
                             DispatchMessageA(&message);
 
-                            for(ui32 i=0; i < events.index; ++i){
+                            for(u32 i=0; i < events.index; ++i){
                                 Event *event = &events.event[i];
                                 if(event->type == EVENT_KEYDOWN){
                                     if(event->key == KEY_ESCAPE){
@@ -849,8 +854,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
                             WIN_sync_framerate();
 
-                            f32 MSPF = 1 * WIN_get_seconds_elapsed(win_clock.start, WIN_get_clock());
-                            f32 FPS = ((f32)win_clock.frequency.QuadPart / (f32)(WIN_get_clock().QuadPart - win_clock.start.QuadPart));
+                            f32 MSPF = 1000 * get_seconds_elapsed(win_clock.start, get_ticks());
+                            f32 FPS = ((f32)win_clock.frequency / (f32)(get_ticks() - win_clock.start));
                             f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
                             //print("MSPF: %.05fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
 

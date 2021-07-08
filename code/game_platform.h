@@ -10,10 +10,10 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
-typedef uint8_t ui8;
-typedef uint16_t ui16;
-typedef uint32_t ui32;
-typedef uint64_t ui64;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
 typedef float f32;
 typedef double f64;
@@ -53,14 +53,14 @@ typedef struct Event{
     i32 mouse_y;
     i8 wheel_y;
     i8 wheel_x;
-    // QUESTION: ask about ui16 vs WCHAR
-    ui16 text;
+    // QUESTION: ask about u16 vs WCHAR
+    u16 text;
 } Event;
 
 typedef struct Events{
     Event event[256];
-    ui32 size;
-    ui32 index;
+    u32 size;
+    u32 index;
 } Events;
 
 typedef struct RenderBuffer{
@@ -74,7 +74,7 @@ typedef struct RenderBuffer{
 } RenderBuffer;
 
 typedef struct FileData{
-    ui32 size;
+    u32 size;
     void* content;
 } FileData;
 
@@ -89,9 +89,33 @@ typedef struct Controller{
     v2 mouse_pos;
 } Controller;
 
+#define WIN_GET_CLOCK(name) u64 name(void)
+typedef WIN_GET_CLOCK(GetTicks);
+
+//WIN_get_seconds_elapsed(u64 start, u64 end){
+#define WIN_GET_SECONDS_ELAPSED(name) f32 name(u64 start, u64 end)
+typedef WIN_GET_SECONDS_ELAPSED(GetSecondsElapsed);
+
 typedef struct Clock{
+    GetTicks *get_ticks;
+    GetSecondsElapsed *get_seconds_elapsed;
+    u64 frequency;
     f32 dt;
+
+    u64 start;
+    u64 end;
+
+    u64 cpu_start;
+    u64 cpu_end;
 } Clock;
+
+//static f32
+//get_seconds_elapsed(u64 start, u64 end, u64 frequency){
+//    f32 result;
+//    result = ((f32)(end- start) / ((f32)frequency));
+//
+//    return(result);
+//}
 
 static int
 string_length(char* s){
@@ -107,7 +131,7 @@ static char *
 string_point_at_last(char s[], char t, int count){
     char *result = NULL;
     char *found[10];
-    ui32 i = 0;
+    u32 i = 0;
 
     while(*s++){
         if(*s == t){
@@ -153,7 +177,7 @@ get_root_dir(char *left, i64 length, char *full_path){
 
 static void
 copy_string(char *src, char *dst, size_t size){
-    for(ui32 i=0; i < size; ++i){
+    for(u32 i=0; i < size; ++i){
         *dst++ = *src++;
     }
 }
@@ -177,7 +201,7 @@ f32_min(f32 a, f32 b){
 #define READ_ENTIRE_FILE(name) FileData name(char *filename)
 typedef READ_ENTIRE_FILE(ReadEntireFile);
 
-#define WRITE_ENTIRE_FILE(name) bool name(char *filename, void *memory, ui32 memory_size)
+#define WRITE_ENTIRE_FILE(name) bool name(char *filename, void *memory, u32 memory_size)
 typedef WRITE_ENTIRE_FILE(WriteEntireFile);
 
 #define FREE_FILE_MEMORY(name) void name(void *memory)
@@ -192,9 +216,9 @@ typedef struct GameMemory{
     void *permanent_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
     void *transient_storage; // IMPORTANT: REQUIRED to be cleared to zero at startup
 
-    ui64 total_size;
-    ui64 permanent_storage_size;
-    ui64 transient_storage_size;
+    u64 total_size;
+    u64 permanent_storage_size;
+    u64 transient_storage_size;
 
     char root_dir[256];
     char data_dir[256];
