@@ -94,10 +94,10 @@ Atan(f32 y, f32 x){
 
 static f32
 clamp_f32(f32 left, f32 value, f32 right){
-    if(value < left){
+    if(value > left){
         value = left;
     }
-    if(value > right){
+    if(value < right){
         value = right;
     }
     return(value);
@@ -118,6 +118,11 @@ lerp_rad(f32 a, f32 b, f32 t) {
     float difference = fmodf(b - a, 2*PI),
         distance = fmodf(2.0f * difference, 2*PI) - difference;
     return a + distance * t;
+}
+
+static f32 lerp(f32 a, f32 b, f32 t){
+    f32 result = a + (t * (b - a));
+    return(result);
 }
 
 #define MATH_H

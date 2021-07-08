@@ -85,8 +85,9 @@ typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, 
 typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct Entity{
-    u32 id;
-    u32 index;
+    bool render;
+    int id;
+    int index;
     struct Entity* first_child;
     struct Entity* next_child;
     int children_count;
@@ -116,7 +117,7 @@ typedef struct Entity{
     bool changing_state;
     bool change_direction;
     u64 t;
-    u64 t_max;
+    f32 t_max;
     f32 timer;
     f32 max_timer;
 	f32 rot_percent;
@@ -127,10 +128,10 @@ typedef struct Entity{
     u8 sensor_radius;
     f32 sensor_angle;
     f32 sensor_distance;
-    u64 tp;
-    u64 tp_max;
 	f32 pheromone_timer;
 	f32 pheromone_timer_max;
+    u64 tp;
+    f32 tp_max;
     struct Entity *pher_target;
     bool pher_targeted;
     f32 right_sensor_density;
@@ -141,8 +142,13 @@ typedef struct Entity{
     bool left;
     v2 target_direction;
 
-    f32 pheromone_home_decay_rate;
-    f32 pheromone_food_decay_rate;
+    f32 pher_home_decay_rate;
+    f32 pher_food_decay_rate;
+    f32 food_decay_timer;
+    f32 home_decay_timer;
+
+
+
     f32 rotate_speed;
 
     Bitmap image;
@@ -405,8 +411,8 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->change_direction = false;
     e->changing_state = false;
     e->max_timer = (random_range(10) + 1);
-    e->t_max = (random_range(10) + 1);
-    e->t = 0;
+    e->t_max = (random_range(3) + 1);
+    e->tp_max = 0.25;
     e->speed = 250.0f;
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
@@ -414,8 +420,6 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->sensor_distance = 20;
     e->pheromone_timer = 0;
     e->pheromone_timer_max = 1.0f;
-    e->tp = 0;
-    e->tp_max = (random_range(10) + 1);
     e->pher_target = NULL;
     e->pher_targeted = false;
     e->right_sensor_density = 0.0f;
@@ -447,7 +451,7 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pheromone_home_decay_rate = 0.005;
+    e->pher_home_decay_rate = 8.0f;
     return(e->index);
 }
 
@@ -459,7 +463,7 @@ add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pheromone_food_decay_rate = 0.005;
+    e->pher_food_decay_rate = 4.0f;
     return(e->index);
 }
 

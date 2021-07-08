@@ -584,7 +584,7 @@ MAIN_GAME_LOOP(main_game_loop){
     v4 RED =     {1.0f, 0.0f, 0.0f,  0.5f};
     v4 GREEN =   {0.0f, 1.0f, 0.0f,  0.5f};
     v4 BLUE =    {0.0f, 0.0f, 1.0f,  0.5f};
-    v4 MAGENTA = {1.0f, 0.0f, 1.0f,  0.5f};
+    v4 MAGENTA = {1.0f, 0.0f, 1.0f,  1.0f};
     v4 PINK =    {0.92f, 0.62f, 0.96f, 0.5f};
     v4 YELLOW =  {0.9f, 0.9f, 0.0f,  0.5f};
     v4 TEAL =    {0.0f, 1.0f, 1.0f,  0.5f};
@@ -610,6 +610,7 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->ntc = 0;
         game_state->ptc = 0;
 
+        //game_state->ants_count = 5000;
         //game_state->ants_count = 1000;
         game_state->ants_count = 1;
         game_state->screen_width = render_buffer->width;
@@ -633,10 +634,13 @@ MAIN_GAME_LOOP(main_game_loop){
 
         for(u32 i=0; i < game_state->ants_count; ++i){
             // BUT
-            u32 ant_index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
-            Entity *ant = game_state->entities + ant_index;
-            //ant->tp = clock->get_ticks();
-            //ant->t = clock->get_ticks();
+            u32 index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
+            Entity *ant = game_state->entities + index;
+            ant->t = clock->get_ticks();
+            ant->tp = clock->get_ticks();
+            if(ant->index == 2){
+                ant->render = true;
+            }
             //add_ant(game_state, vec2(render_buffer->width/2, 50), 2, LGRAY, true);
         }
 
@@ -676,8 +680,13 @@ MAIN_GAME_LOOP(main_game_loop){
         memory->initialized = true;
     }
 
-    f32 s = clock->get_seconds_elapsed(game_state->start, clock->get_ticks());
-    print("seconds_elapsed: %.05f\n", s);
+    f32 seconds_elapsed = clock->get_seconds_elapsed(game_state->start, clock->get_ticks());
+    f32 t = seconds_elapsed / 4.0f;
+    f32 result = lerp(100, 0, t);
+    result = clamp_f32(100, result, 0);
+    //print("Result: %.05f - seconds_elapsed: %.05f - t: %.05f\n", result, seconds_elapsed, t);
+
+    //print("seconds_elapsed: %.05f\n", s);
 
 
     for(u32 i=0; i < events->index; ++i){
@@ -800,14 +809,26 @@ MAIN_GAME_LOOP(main_game_loop){
 
         switch(entity->type){
             case EntityType_ToFoodPheromone:{
-                entity->color.a -= entity->pheromone_food_decay_rate;
+                u64 now = clock->get_ticks();
+                f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
+                f32 t = seconds_elapsed / entity->pher_food_decay_rate;
+                f32 result = lerp(1.0f, 0.0f, t);
+                entity->color.a = clamp_f32(1.0f, result, 0.0f);
+                //entity->color.a -= entity->pheromone_food_decay_rate;
                 if(entity->color.a <= 0){
                     entity->type = EntityType_None;
                     game_state->entities_free++;
                 }
             } break;
             case EntityType_ToHomePheromone:{
-                entity->color.a -= entity->pheromone_home_decay_rate;
+                // TODO: decay must be on clock
+                u64 now = clock->get_ticks();
+                f32 seconds_elapsed = clock->get_seconds_elapsed(entity->home_decay_timer, now);
+                f32 t = seconds_elapsed / entity->pher_home_decay_rate;
+                f32 result = lerp(1.0f, 0.0f, t);
+                entity->color.a = clamp_f32(1.0f, result, 0.0f);
+                //entity->color.a -= entity->pheromone_home_decay_rate;
+            //print("Result: %.05f - seconds_elapsed: %.05f - t: %.05f\n", result, seconds_elapsed, t);
                 if(entity->color.a <= 0){
                     entity->type = EntityType_None;
                     game_state->entities_free++;
@@ -900,20 +921,23 @@ MAIN_GAME_LOOP(main_game_loop){
                             }
                         }
                         else{
-                            //if(ant->timer >= ant->max_timer){
-                            //    ant->timer = 0.0f;
-                            //    ant->change_direction = true;
-                            //}
-                            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->t, clock->get_ticks());
-                            if(seconds_elapsed >= ant->t_max){
-                                ant->t = clock->get_ticks();
+                            if(ant->timer >= ant->max_timer){
+                                ant->timer = 0.0f;
                                 ant->change_direction = true;
                             }
+                            //print("seconds_elapsed: %.05f - max_timer: %i - timer: %i\n", seconds_elapsed, ant->t_max, ant->t);
+                            //u64 now = clock->get_ticks();
+                            //f32 seconds_elapsed = clock->get_seconds_elapsed(ant->t, now);
+                            //if(seconds_elapsed >= ant->t_max){
+                            //    ant->t = clock->get_ticks();
+                            //    ant->change_direction = true;
+                            //}
                             if(ant->change_direction){
                                 ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                                 ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                                 ant->rot_percent = 0.0f;
                                 ant->max_timer = (random_range(10) + 1);
+                                ant->t_max = (random_range(3) + 1);
                                 ant->change_direction = false;
                                 //ant->target_direction = get_normalized2(add2(ant->direction, ant->random_vector));
                                 ant->target_direction = ant->random_vector;
@@ -925,6 +949,7 @@ MAIN_GAME_LOOP(main_game_loop){
                         ant->timer += 0.1f;
                         if(ant->changing_state){
                             ant->timer = 0.0f;
+                            ant->t = clock->get_ticks();
                             ant->rot_percent = 0.0f;
                             ant->changing_state = false;
                         }
@@ -937,10 +962,22 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->rot_percent = 1.0f;
                         }
 
-                        ant->pheromone_timer += 0.1f;
-                        if(ant->pheromone_timer >= ant->pheromone_timer_max){
-                            ant->pheromone_timer = 0;
-                            add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
+                        //ant->pheromone_timer += 0.1f;
+                        //if(ant->pheromone_timer >= ant->pheromone_timer_max){
+                        //    ant->pheromone_timer = 0;
+                        //    add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
+                        //}
+                        u64 now = clock->get_ticks();
+                        f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
+                        print("seconds_elapsed: %.05f - t: %.05f\n", seconds_elapsed, ant->tp_max);
+                        if(seconds_elapsed >= ant->tp_max){
+                            ant->tp = clock->get_ticks();
+                            u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
+                            Entity *pher = game_state->entities + index;
+                            pher->home_decay_timer = clock->get_ticks();
+                            if(ant->render == true){
+                                pher->render = true;
+                            }
                         }
                             
                         if((ant->position.x + (game_state->ant_speed/damp * ant->direction.x) * clock->dt) < 0.0f ||
@@ -1053,8 +1090,8 @@ MAIN_GAME_LOOP(main_game_loop){
                         }
                     }
                     else{
-                        if(ant->timer >= ant->max_timer){
-                            ant->timer = 0.0f;
+                        if(ant->t >= ant->t_max){
+                            ant->t = clock->get_ticks();
                             ant->change_direction = true;
                         }
                         if(ant->change_direction){
@@ -1062,6 +1099,7 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                             ant->rot_percent = 0.0f;
                             ant->max_timer = (random_range(10) + 1);
+                            ant->t_max = (random_range(3) + 1);
                             ant->change_direction = false;
                             ant->target_direction = get_normalized2(add2(ant->direction, ant->random_vector));
                         }
@@ -1069,6 +1107,7 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->timer += 0.1f;
                     if(ant->changing_state){
                         ant->timer = 0.0f;
+                        ant->t = clock->get_ticks();
                         ant->rot_percent = 0.0f;
                         ant->changing_state = false;
                     }
@@ -1083,10 +1122,18 @@ MAIN_GAME_LOOP(main_game_loop){
                         ant->rot_percent = 1.0f;
                     }
 
-                    ant->pheromone_timer += 0.1f;
-                    if(ant->pheromone_timer >= ant->pheromone_timer_max){
-                        ant->pheromone_timer = 0;
-                        add_to_food_pheromone(game_state, ant->position, 1, TEAL);
+                    //ant->pheromone_timer += 0.1f;
+                    //if(ant->pheromone_timer >= ant->pheromone_timer_max){
+                    //    ant->pheromone_timer = 0;
+                    //    add_to_food_pheromone(game_state, ant->position, 1, TEAL);
+                    //}
+
+                    u64 now = clock->get_ticks();
+                    f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
+                    if(seconds_elapsed >= ant->tp_max){
+                        ant->tp = clock->get_ticks();
+                        add_to_food_pheromone(game_state, ant->position, 1, MAGENTA);
+                        //pher->food_decay_timer = clock->get_ticks();
                     }
 
                     ant->position.x += (game_state->ant_speed/damp * ant->direction.x) * clock->dt;
@@ -1166,6 +1213,8 @@ MAIN_GAME_LOOP(main_game_loop){
                 //HERE
                 // TODO: segments seem to crash the game, figure out why
                 //push_segment(transient_state->render_commands, entity->position, game_state->controller.mouse_pos, RED);
+
+                if(entity->render == true){
                 
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
 
@@ -1197,15 +1246,20 @@ MAIN_GAME_LOOP(main_game_loop){
                 //push_segment(transient_state->render_commands, entity->position, entity->mid_sensor, GREEN);
                 //push_segment(transient_state->render_commands, entity->position, entity->left_sensor, ORANGE);
                 //push_ray(transient_state->render_commands, entity->position, entity->target_direction, BLUE);
+                }
             }break; 
             case EntityType_Colony:{
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
             }break; 
             case EntityType_ToHomePheromone:{
-                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+                if(entity->render == true){
+                    push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+                }
             }break; 
             case EntityType_ToFoodPheromone:{
-                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+                if(entity->render == true){
+                    push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+                }
             }break; 
         }
     }
