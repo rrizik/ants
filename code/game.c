@@ -601,29 +601,16 @@ MAIN_GAME_LOOP(main_game_loop){
 
 
     if(!memory->initialized){
-        game_state->start = clock->get_ticks();
-        game_state->fc = 0;
-        game_state->wc = 0;
-        game_state->cc = 0;
-        game_state->dc = 0;
-        game_state->tc = 0;
-        game_state->ntc = 0;
-        game_state->ptc = 0;
-
         //game_state->ants_count = 3000;
-        //game_state->ants_count = 1000;
-        game_state->ants_count = 300;
+        game_state->ants_count = 1000;
+        //game_state->ants_count = 300;
         //game_state->ants_count = 1;
         game_state->screen_width = render_buffer->width;
         game_state->screen_height = render_buffer->height;
         game_state->ant_speed = 400.0f;
-        game_state->ant_speed_max = 400.0f;
-        game_state->suck_speed = 0.0f;
-        game_state->suck_speed_max = 2400.0f;
 
         seed_random(time(NULL), 0);
 
-        game_state->added = false;
         game_state->entities_size = 100000;
         add_entity(game_state, EntityType_None);
 
@@ -677,12 +664,6 @@ MAIN_GAME_LOOP(main_game_loop){
         transient_state->render_commands = allocate_render_commands(&transient_state->transient_arena, Megabytes(16));
         memory->initialized = true;
     }
-
-    f32 seconds_elapsed = clock->get_seconds_elapsed(game_state->start, clock->get_ticks());
-    f32 t = seconds_elapsed / 4.0f;
-    t = clamp_f32(1.0f, t, 0.0f);
-    f32 result = lerp(100, 0, t);
-    //print("Result: %.05f - seconds_elapsed: %.05f - t: %.05f\n", result, seconds_elapsed, t);
 
     for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
@@ -738,8 +719,8 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
-    f32 speed = 250.0f;
 
+    f32 speed = 250.0f;
     if(game_state->player_index != 0){
         Entity *player = game_state->entities + game_state->player_index;
         if(game_state->controller.up){
@@ -774,33 +755,8 @@ MAIN_GAME_LOOP(main_game_loop){
     if(game_state->controller.m1){
         game_state->fc++;
         add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
-        //add_to_food_pheromone(game_state, game_state->controller.mouse_pos, 1, TEAL);
-    }
-    if(game_state->controller.m2){
-        u32 index = add_to_home_pheromone(game_state, game_state->controller.mouse_pos, 1, MAGENTA);
-        //if(!game_state->added){
-        //    for(u32 i=0; i < 10000; ++i){
-        //        add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
-        //    }
-        //    game_state->fc += 10000;
-        //    //add_food(game_state, game_state->controller.mouse_pos, vec2(2,2), GREEN, true);
-        //    //game_state->fc++;
-        //    game_state->added = true;
-        //}
-    }
-    else{
-        game_state->added = false;
     }
 
-    f32 damp = 10;
-    game_state->fc = 0;
-    game_state->wc = 0;
-    game_state->cc = 0;
-    game_state->dc = 0;
-    game_state->tc = 0;
-    game_state->ntc = 0;
-    game_state->ptc = 0;
-    game_state->c = 0;
     for(u32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
 
@@ -809,7 +765,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 u64 now = clock->get_ticks();
                 f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
                 f32 t = seconds_elapsed / entity->pher_food_decay_rate;
-                t = clamp_f32(1.0f, t, 0.0f);
                 entity->color.a = lerp(1.0f, 0.0f, t);
                 if(entity->color.a <= 0){
                     entity->color.a = 1.0f;
@@ -821,7 +776,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 u64 now = clock->get_ticks();
                 f32 seconds_elapsed = clock->get_seconds_elapsed(entity->home_decay_timer, now);
                 f32 t = seconds_elapsed / entity->pher_home_decay_rate;
-                t = clamp_f32(1.0f, t, 0.0f);
                 entity->color.a = lerp(1.0f, 0.0f, t);
 
                 if(entity->color.a <= 0.0f){
@@ -839,9 +793,6 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->right_sensor_density = 0.0f;
                     ant->middle_sensor_density = 0.0f;
                     ant->left_sensor_density = 0.0f;
-                    //ant->right = false;
-                    //ant->middle = false;
-                    //ant->left = false;
                     for(u32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
                         Entity *entity = game_state->entities + entity_index;
                         switch(entity->type){
@@ -881,7 +832,6 @@ MAIN_GAME_LOOP(main_game_loop){
 
                     if(ant->ant_state != AntState_Collecting){
                         if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-                            //ant->color = YELLOW;
                             f32 mid_rad = dir_rad(ant->direction);
                             f32 right_rad = mid_rad + (RAD * ant->sensor_angle);
                             f32 left_rad = mid_rad - (RAD * ant->sensor_angle);
@@ -921,13 +871,6 @@ MAIN_GAME_LOOP(main_game_loop){
                                 ant->timer = 0.0f;
                                 ant->change_direction = true;
                             }
-                            //print("seconds_elapsed: %.05f - max_timer: %i - timer: %i\n", seconds_elapsed, ant->t_max, ant->t);
-                            //u64 now = clock->get_ticks();
-                            //f32 seconds_elapsed = clock->get_seconds_elapsed(ant->t, now);
-                            //if(seconds_elapsed >= ant->t_max){
-                            //    ant->t = clock->get_ticks();
-                            //    ant->change_direction = true;
-                            //}
                             if(ant->change_direction){
                                 ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                                 ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
@@ -935,12 +878,9 @@ MAIN_GAME_LOOP(main_game_loop){
                                 ant->max_timer = (random_range(10) + 1);
                                 ant->t_max = (random_range(3) + 1);
                                 ant->change_direction = false;
-                                //ant->target_direction = get_normalized2(add2(ant->direction, ant->random_vector));
                                 ant->target_direction = ant->random_vector;
                             }
                         }
-                        //print("rd: %.05f - md: %.05f - ld: %.05f - R: %i - M: %i - L: %i\n", ant->right_sensor_density, ant->middle_sensor_density, ant->left_sensor_density, ant->right, ant->middle, ant->left);
-                        //print("rd: %.05f - md: %.05f - ld: %.05f - R: %i - M: %i - L: %i - RP: %.05f\n", ant->right_sensor_density, ant->middle_sensor_density, ant->left_sensor_density, ant->right, ant->middle, ant->left, ant->rot_percent);
 
                         ant->timer += 0.1f;
                         if(ant->changing_state){

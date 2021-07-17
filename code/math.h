@@ -121,7 +121,8 @@ lerp_rad(f32 a, f32 b, f32 t) {
 }
 
 static f32 lerp(f32 a, f32 b, f32 t){
-    f32 result = a + (t * (b - a));
+    f32 clamped_t = clamp_f32(1.0f, t, 0.0f); 
+    f32 result = a + (clamped_t * (b - a));
     return(result);
 }
 
