@@ -513,7 +513,6 @@ load_bitmap(GameMemory *memory, char *filename){
 
 static void
 draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
-    size_t bytes_to_move_forward = 0;
     void* at = commands->buffer;
     void* end = (char*)commands->buffer + commands->used_bytes;
     while(at != end){
@@ -580,6 +579,10 @@ draw_commands(RenderBuffer *render_buffer, RenderCommands *commands){
 }
 
 MAIN_GAME_LOOP(main_game_loop){
+    clock->cpu_now = __rdtsc();
+    f32 cpu_cycles = (f32)(clock->cpu_now - clock->cpu_prev) / (1000 * 1000);
+    clock->cpu_prev = clock->cpu_now;
+    //print("CPU: %.02f\n", cpu_cycles);
 
     v4 RED =     {1.0f, 0.0f, 0.0f,  0.5f};
     v4 GREEN =   {0.0f, 1.0f, 0.0f,  0.5f};
@@ -607,12 +610,14 @@ MAIN_GAME_LOOP(main_game_loop){
         //game_state->ants_count = 1;
         game_state->screen_width = render_buffer->width;
         game_state->screen_height = render_buffer->height;
-        game_state->ant_speed = 400.0f;
+        game_state->ant_speed = 40.0f;
 
         seed_random(time(NULL), 0);
 
-        game_state->entities_size = 100000;
+        game_state->entities_size = 11000;
+        game_state->pher_size = 50000;
         add_entity(game_state, EntityType_None);
+        add_entity_pher(game_state, EntityType_None);
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
@@ -628,6 +633,15 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->tp = clock->get_ticks();
             //add_ant(game_state, vec2(render_buffer->width/2, 50), 2, LGRAY, true);
         }
+
+        //for(u32 i=0; i < 10000; ++i){
+        //    // BUT
+        //    u32 index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
+        //    Entity *ant = game_state->entities + index;
+        //    ant->t = clock->get_ticks();
+        //    ant->tp = clock->get_ticks();
+        //    //add_ant(game_state, vec2(render_buffer->width/2, 50), 2, LGRAY, true);
+        //}
 
         //add_pixel(game_state, 1, 1, red);
         //game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
@@ -757,21 +771,9 @@ MAIN_GAME_LOOP(main_game_loop){
         add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
     }
 
-    for(u32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
-        Entity *entity = game_state->entities + entity_index;
-
+    for(u32 entity_index = 1; entity_index <= game_state->pher_size; ++entity_index){
+        Entity *entity = game_state->pheromones + entity_index;
         switch(entity->type){
-            case EntityType_ToFoodPheromone:{
-                u64 now = clock->get_ticks();
-                f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
-                f32 t = seconds_elapsed / entity->pher_food_decay_rate;
-                entity->color.a = lerp(1.0f, 0.0f, t);
-                if(entity->color.a <= 0){
-                    entity->color.a = 1.0f;
-                    entity->type = EntityType_None;
-                    game_state->entities_free++;
-                }
-            } break;
             case EntityType_ToHomePheromone:{
                 u64 now = clock->get_ticks();
                 f32 seconds_elapsed = clock->get_seconds_elapsed(entity->home_decay_timer, now);
@@ -781,9 +783,24 @@ MAIN_GAME_LOOP(main_game_loop){
                 if(entity->color.a <= 0.0f){
                     entity->color.a = 1.0f;
                     entity->type = EntityType_None;
-                    game_state->entities_free++;
                 }
-            } break;
+            }break; 
+            case EntityType_ToFoodPheromone:{
+                u64 now = clock->get_ticks();
+                f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
+                f32 t = seconds_elapsed / entity->pher_food_decay_rate;
+                entity->color.a = lerp(1.0f, 0.0f, t);
+                if(entity->color.a <= 0){
+                    entity->color.a = 1.0f;
+                    entity->type = EntityType_None;
+                }
+            }break; 
+        }
+    }
+    for(u32 entity_index = 1; entity_index <= game_state->ants_count + 1; ++entity_index){
+        Entity *entity = game_state->entities + entity_index;
+
+        switch(entity->type){
             case EntityType_Ant:{
                 Entity *ant = entity;
 
@@ -793,23 +810,9 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->right_sensor_density = 0.0f;
                     ant->middle_sensor_density = 0.0f;
                     ant->left_sensor_density = 0.0f;
-                    for(u32 entity_index = game_state->ants_count; entity_index <= game_state->entity_at; ++entity_index){
+                    for(u32 entity_index = game_state->ants_count + 2; entity_index <= game_state->entity_at; ++entity_index){
                         Entity *entity = game_state->entities + entity_index;
                         switch(entity->type){
-                            case EntityType_ToFoodPheromone:{
-                                Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                if(rect_collide_point(right_rect, entity->position)){
-                                    ant->right_sensor_density += entity->color.a;
-                                }
-                                if(rect_collide_point(mid_rect, entity->position)){
-                                    ant->middle_sensor_density += entity->color.a;
-                                }
-                                if(rect_collide_point(left_rect, entity->position)){
-                                    ant->left_sensor_density += entity->color.a;
-                                }
-                            } break;
                             case EntityType_Food:{
                                 Entity *food = entity;
                                 if(!food->targeted){
@@ -827,7 +830,24 @@ MAIN_GAME_LOOP(main_game_loop){
                                     }
                                 }
                             }break;
+                            //case EntityType_ToFoodPheromone:{
+                            //    Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            //    Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            //    Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            //    if(rect_collide_point(right_rect, entity->position)){
+                            //        ant->right_sensor_density += entity->color.a;
+                            //    }
+                            //    if(rect_collide_point(mid_rect, entity->position)){
+                            //        ant->middle_sensor_density += entity->color.a;
+                            //    }
+                            //    if(rect_collide_point(left_rect, entity->position)){
+                            //        ant->left_sensor_density += entity->color.a;
+                            //    }
+                            //} break;
                         }
+                    }
+                    for(u32 entity_index = 1; entity_index <= game_state->pher_size; ++entity_index){
+                        Entity *entity = game_state->pheromones + entity_index;
                     }
 
                     if(ant->ant_state != AntState_Collecting){
@@ -902,26 +922,27 @@ MAIN_GAME_LOOP(main_game_loop){
                         f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
                         if(seconds_elapsed >= ant->tp_max){
                             ant->tp = clock->get_ticks();
-                            u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
-                            Entity *pher = game_state->entities + index;
-                            pher->home_decay_timer = clock->get_ticks();
+                            //print("adding\n");
+                            //u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
+                            //Entity *pher = game_state->pheromones + index;
+                            //pher->home_decay_timer = clock->get_ticks();
                         }
                             
-                        if((ant->position.x + (game_state->ant_speed/damp * ant->direction.x) * clock->dt) < 0.0f ||
-                           (ant->position.x + (game_state->ant_speed/damp * ant->direction.x) * clock->dt) > render_buffer->width){ 
+                        if((ant->position.x + (game_state->ant_speed * ant->direction.x) * clock->dt) < 0.0f ||
+                           (ant->position.x + (game_state->ant_speed * ant->direction.x) * clock->dt) > render_buffer->width){ 
                             ant->direction.x = -ant->direction.x;
                             ant->random_vector.x = -ant->random_vector.x;
                             ant->target_direction.x = -ant->target_direction.x;
                         }
-                        else if((ant->position.y + (game_state->ant_speed/damp * ant->direction.y) * clock->dt) < 0 ||
-                                (ant->position.y + (game_state->ant_speed/damp * ant->direction.y) * clock->dt) > render_buffer->height){
+                        else if((ant->position.y + (game_state->ant_speed * ant->direction.y) * clock->dt) < 0 ||
+                                (ant->position.y + (game_state->ant_speed * ant->direction.y) * clock->dt) > render_buffer->height){
                             ant->direction.y = -ant->direction.y;
                             ant->random_vector.y = -ant->random_vector.y;
                             ant->target_direction.y = -ant->target_direction.y;
                         }
                         else{
-                            ant->position.x += (game_state->ant_speed/damp * ant->direction.x) * clock->dt;
-                            ant->position.y += (game_state->ant_speed/damp * ant->direction.y) * clock->dt;
+                            ant->position.x += (game_state->ant_speed * ant->direction.x) * clock->dt;
+                            ant->position.y += (game_state->ant_speed * ant->direction.y) * clock->dt;
                         }
                     }
                 }
@@ -940,8 +961,8 @@ MAIN_GAME_LOOP(main_game_loop){
                         ant->rot_percent = 1.0f;
                     }
 
-                    ant->position.x += (game_state->ant_speed/damp * ant->direction.x) * clock->dt;
-                    ant->position.y += (game_state->ant_speed/damp * ant->direction.y) * clock->dt;
+                    ant->position.x += (game_state->ant_speed * ant->direction.x) * clock->dt;
+                    ant->position.y += (game_state->ant_speed * ant->direction.y) * clock->dt;
 
                     f32 distance = distance2(ant->position, ant->ant_food->position);
                     if(distance < 10){
@@ -1053,12 +1074,12 @@ MAIN_GAME_LOOP(main_game_loop){
                     if(seconds_elapsed >= ant->tp_max){
                         ant->tp = clock->get_ticks();
                         u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
-                        Entity *pher = game_state->entities + index;
+                        Entity *pher = game_state->pheromones + index;
                         pher->food_decay_timer = clock->get_ticks();
                     }
 
-                    ant->position.x += (game_state->ant_speed/damp * ant->direction.x) * clock->dt;
-                    ant->position.y += (game_state->ant_speed/damp * ant->direction.y) * clock->dt;
+                    ant->position.x += (game_state->ant_speed * ant->direction.x) * clock->dt;
+                    ant->position.y += (game_state->ant_speed * ant->direction.y) * clock->dt;
 
                     Entity* colony = game_state->entities + game_state->colony_index;
                     f32 colony_distance = distance2(ant->position, colony->position);
@@ -1078,6 +1099,17 @@ MAIN_GAME_LOOP(main_game_loop){
 
     transient_state->render_commands->used_bytes = 0;
     push_clear_color(transient_state->render_commands, BLACK);
+    for(u32 entity_index = 1; entity_index <= game_state->pher_size; ++entity_index){
+        Entity *entity = game_state->pheromones + entity_index;
+        switch(entity->type){
+            case EntityType_ToHomePheromone:{
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+            }break; 
+            case EntityType_ToFoodPheromone:{
+                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
+            }break; 
+        }
+    }
     for(u32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
@@ -1170,15 +1202,10 @@ MAIN_GAME_LOOP(main_game_loop){
             case EntityType_Colony:{
                 push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, entity->fill);
             }break; 
-            case EntityType_ToHomePheromone:{
-                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
-            }break; 
-            case EntityType_ToFoodPheromone:{
-                push_circle(transient_state->render_commands, entity->position, entity->rad, entity->color, true);
-            }break; 
         }
     }
     //print("DT: %.05f - X: %.02f - Y: %.02f\n", clock->dt, game_state->c2->position.x, game_state->c2->position.y);
     //print("fc: %i - wc: %i - cc: %i - dc: %i - tc: %i - ntc: %i - ptc: %i\n", game_state->fc, game_state->wc, game_state->cc, game_state->dc, game_state->tc, game_state->ntc, game_state->ptc);
+    u64 s = __rdtsc();
     draw_commands(render_buffer, transient_state->render_commands);
 }

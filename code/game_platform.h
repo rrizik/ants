@@ -92,7 +92,6 @@ typedef struct Controller{
 #define WIN_GET_CLOCK(name) u64 name(void)
 typedef WIN_GET_CLOCK(GetTicks);
 
-//WIN_get_seconds_elapsed(u64 start, u64 end){
 #define WIN_GET_SECONDS_ELAPSED(name) f32 name(u64 start, u64 end)
 typedef WIN_GET_SECONDS_ELAPSED(GetSecondsElapsed);
 
@@ -102,11 +101,8 @@ typedef struct Clock{
     u64 frequency;
     f32 dt;
 
-    u64 start;
-    u64 end;
-
-    u64 cpu_start;
-    u64 cpu_end;
+    u64 cpu_prev;
+    u64 cpu_now;
 } Clock;
 
 //static f32

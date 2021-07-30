@@ -196,10 +196,13 @@ typedef struct GameState{
     Entity* ants[1024];// fthis
     u32 ants_count;// fthis
 
-    Entity entities[100000];
+    Entity entities[11000];
     u32 entities_size;
     u32 entity_at;
     u32 entities_free;
+    Entity pheromones[50000];
+    u32 pher_size;
+    u32 pher_at;
 
     f32 ant_speed;
 
@@ -246,6 +249,23 @@ add_entity(GameState *game_state, EntityType type){
         result->id = game_state->entity_at;
         result->type = type;
         game_state->entity_at++;
+
+        return(result->index);
+    }
+    return(0);
+}
+
+static u32
+add_entity_pher(GameState *game_state, EntityType type){
+    if(game_state->pher_at >= game_state->pher_size){
+        game_state->pher_at = 0;
+    }
+    if(game_state->pher_at < game_state->pher_size){
+        Entity *result = game_state->pheromones + game_state->pher_at;
+        result->index = game_state->pher_at;
+        result->id = game_state->pher_at;
+        result->type = type;
+        game_state->pher_at++;
 
         return(result->index);
     }
@@ -444,8 +464,8 @@ add_colony(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 
 static u32
 add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
-    u32 e_index = add_entity(game_state, EntityType_ToHomePheromone);
-    Entity *e = game_state->entities + e_index;
+    u32 e_index = add_entity_pher(game_state, EntityType_ToHomePheromone);
+    Entity *e = game_state->pheromones + e_index;
     e->position = pos;
     e->color = color;
     e->color.w = 1;
@@ -456,8 +476,8 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
 
 static u32
 add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
-    u32 e_index = add_entity(game_state, EntityType_ToFoodPheromone);
-    Entity *e = game_state->entities + e_index;
+    u32 e_index = add_entity_pher(game_state, EntityType_ToFoodPheromone);
+    Entity *e = game_state->pheromones + e_index;
     e->position = pos;
     e->color = color;
     e->color.w = 1;

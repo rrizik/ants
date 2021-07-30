@@ -78,7 +78,6 @@ NOTE: Take notes of these in your dope ass notebook
 	designated initalizers
 
     QUESTION:
-        - whats the point of inlining, when, why, where
         - how to know when to create i8, i16, i32, i64, int
         - how to declspec the print from win_platform to game
 
@@ -792,6 +791,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 global_pause = false;
 
                 if(game_memory.permanent_storage && game_memory.transient_storage && render_buffer.memory){
+                    clock.cpu_prev = __rdtsc();
                     while(global_running){
                         win_clock.end = get_ticks();
                         clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
