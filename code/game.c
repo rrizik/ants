@@ -604,6 +604,10 @@ MAIN_GAME_LOOP(main_game_loop){
 
 
     if(!memory->initialized){
+        game_state->quad_row_count = 4;
+        game_state->quad_pixel_width = render_buffer->width / game_state->quad_row_count;
+        game_state->quad_pixel_height = render_buffer->height / game_state->quad_row_count;
+
         //game_state->ants_count = 3000;
         game_state->ants_count = 1000;
         //game_state->ants_count = 300;
@@ -617,7 +621,7 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->entities_size = 11000;
         game_state->pher_size = 50000;
         add_entity(game_state, EntityType_None);
-        add_entity_pher(game_state, EntityType_None);
+        //add_entity_pher(game_state, vec2(0,0), EntityType_None);
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
@@ -651,6 +655,17 @@ MAIN_GAME_LOOP(main_game_loop){
         //add_child(game_state, game_state->clip_region_index, game_state->player_index);
         //add_circle(game_state, vec2(400, 400), 2, green, true);
 
+        add_segment(game_state, vec2(0, render_buffer->height - game_state->quad_pixel_height), vec2(1024, render_buffer->height - game_state->quad_pixel_height), RED);
+        add_segment(game_state, vec2(0, render_buffer->height - game_state->quad_pixel_height*2), vec2(1024, render_buffer->height - game_state->quad_pixel_height*2), RED);
+        add_segment(game_state, vec2(0, render_buffer->height - game_state->quad_pixel_height*3), vec2(1024, render_buffer->height - game_state->quad_pixel_height*3), RED);
+
+        add_segment(game_state, vec2(render_buffer->width - game_state->quad_pixel_width, 0), vec2(render_buffer->width - game_state->quad_pixel_width, 768), RED);
+        add_segment(game_state, vec2(render_buffer->width - game_state->quad_pixel_width*2, 0), vec2(render_buffer->width - game_state->quad_pixel_width*2, 768), RED);
+        add_segment(game_state, vec2(render_buffer->width - game_state->quad_pixel_width*3, 0), vec2(render_buffer->width - game_state->quad_pixel_width*3, 768), RED);
+
+        //add_segment(game_state, vec2(300, 0), vec2(400, 768), magenta);
+        //add_segment(game_state, vec2(300, 0), vec2(400, 768), magenta);
+        //add_segment(game_state, vec2(300, 0), vec2(400, 768), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(400, 300), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(400, 400), magenta);
         //add_segment(game_state, vec2(300, 300), vec2(200, 350), magenta);
@@ -677,6 +692,10 @@ MAIN_GAME_LOOP(main_game_loop){
 
         transient_state->render_commands = allocate_render_commands(&transient_state->transient_arena, Megabytes(16));
         memory->initialized = true;
+    }
+
+    if(game_state->pher_size == 0){
+        int a = 1;
     }
 
     for(u32 i=0; i < events->index; ++i){
@@ -765,7 +784,12 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
 
+    //int x_quadrant = ceil(game_state->ant->position.x / width_segment_size);
+    //int y_quadrant = ceil(game_state->ant->position.y / height_segment_size);
 
+    if(game_state->pher_size == 0){
+        int a = 1;
+    }
     if(game_state->controller.m1){
         game_state->fc++;
         add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
@@ -846,7 +870,7 @@ MAIN_GAME_LOOP(main_game_loop){
                             //} break;
                         }
                     }
-                    for(u32 entity_index = 1; entity_index <= game_state->pher_size; ++entity_index){
+                    for(u32 entity_index = 1; entity_index <= 3000; ++entity_index){
                         Entity *entity = game_state->pheromones + entity_index;
                     }
 
@@ -921,11 +945,15 @@ MAIN_GAME_LOOP(main_game_loop){
                         u64 now = clock->get_ticks();
                         f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
                         if(seconds_elapsed >= ant->tp_max){
+                            v2 quad_coord = vec2(ceil(ant->position.x / game_state->quad_pixel_width), ceil(ant->position.y / game_state->quad_pixel_height));
+                            if(quad_coord.x == 0){ quad_coord.x = 1; };
+                            if(quad_coord.y == 0){ quad_coord.y = 1; };
+
                             ant->tp = clock->get_ticks();
-                            //print("adding\n");
-                            //u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
-                            //Entity *pher = game_state->pheromones + index;
-                            //pher->home_decay_timer = clock->get_ticks();
+                            //print("x: %.02f - y: %.02f\n", quad_coord.x, quad_coord.y);
+                            u32 index = add_to_home_pheromone(game_state, quad_coord, ant->position, 1, MAGENTA);
+                            Entity *pher = game_state->pheromones + index;
+                            pher->home_decay_timer = clock->get_ticks();
                         }
                             
                         if((ant->position.x + (game_state->ant_speed * ant->direction.x) * clock->dt) < 0.0f ||
@@ -1095,6 +1123,9 @@ MAIN_GAME_LOOP(main_game_loop){
             } break;
         }
     }
+    if(game_state->pher_size == 0){
+        int a = 1;
+    }
 
 
     transient_state->render_commands->used_bytes = 0;
@@ -1208,4 +1239,7 @@ MAIN_GAME_LOOP(main_game_loop){
     //print("fc: %i - wc: %i - cc: %i - dc: %i - tc: %i - ntc: %i - ptc: %i\n", game_state->fc, game_state->wc, game_state->cc, game_state->dc, game_state->tc, game_state->ntc, game_state->ptc);
     u64 s = __rdtsc();
     draw_commands(render_buffer, transient_state->render_commands);
+    if(game_state->pher_size == 0){
+        int a = 1;
+    }
 }
