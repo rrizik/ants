@@ -52,12 +52,12 @@ rect_contains_rect(Rect r1, Rect r2){
 typedef enum RenderCommandType{
     RenderCommand_ClearColor,
     RenderCommand_Pixel,
-    RenderCommand_Segment, 
-    RenderCommand_Line, 
+    RenderCommand_Segment,
+    RenderCommand_Line,
     RenderCommand_Ray,
-    RenderCommand_Rect, 
-    RenderCommand_Box, 
-    RenderCommand_Quad, 
+    RenderCommand_Rect,
+    RenderCommand_Box,
+    RenderCommand_Quad,
     RenderCommand_Triangle,
     RenderCommand_Circle,
     RenderCommand_Bitmap,
@@ -76,39 +76,39 @@ typedef struct ClearColorCommand{
 } ClearColorCommand;
 
 typedef struct PixelCommand{
-    BaseCommand base; 
+    BaseCommand base;
     f32 x;
     f32 y;
 } PixelCommand;
 
 typedef struct SegmentCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 p0;
     v2 p1;
 } SegmentCommand;
 
 typedef struct RayCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 direction;
 } RayCommand;
 
 typedef struct LineCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 direction;
 } LineCommand;
 
 typedef struct RectCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 dimension;
 } RectCommand;
 
 typedef struct BoxCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 dimension;
 } BoxCommand;
 
 typedef struct QuadCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 p0;
     v2 p1;
     v2 p2;
@@ -116,62 +116,88 @@ typedef struct QuadCommand{
 } QuadCommand;
 
 typedef struct TriangleCommand{
-    BaseCommand base; 
+    BaseCommand base;
     v2 p0;
     v2 p1;
     v2 p2;
 } TriangleCommand;
 
 typedef struct CircleCommand{
-    BaseCommand base; 
+    BaseCommand base;
     u8 rad;
 } CircleCommand;
 
 typedef struct BitmapCommand{
-    BaseCommand base; 
+    BaseCommand base;
     Bitmap image;
 } BitmapCommand;
 
-typedef struct RenderCommands{
+typedef struct RenderCommandBuffer{
     size_t max_bytes;
     size_t used_bytes;
-    void* buffer;
-} RenderCommands;
+    void* base;
+} RenderCommandBuffer;
 
-static RenderCommands* 
-allocate_render_commands(MemoryArena *arena, size_t max_bytes){
-    RenderCommands* result = push_struct(arena, RenderCommands);
+typedef struct LinkedListBuffer{
+    size_t max_bytes;
+    size_t used_bytes;
+    void* base;
+} LinkedListBuffer;
+
+static RenderCommandBuffer*
+allocate_render_commands_buffer(MemoryArena *arena, size_t max_bytes){
+    RenderCommandBuffer* result = allocate_struct(arena, RenderCommandBuffer);
+    result->base = allocate_size(arena, max_bytes);
     result->max_bytes = max_bytes;
-    result->buffer = push_size(arena, max_bytes);
     return(result);
 }
 
-#define push_command(commands, type) (type*)push_command_(commands, sizeof(type))
+static LinkedListBuffer*
+allocate_LL_buffer(MemoryArena *arena, size_t max_bytes){
+    LinkedListBuffer* result = allocate_struct(arena, LinkedListBuffer);
+    result->base = allocate_size(arena, max_bytes);
+    result->max_bytes = max_bytes;
+    return(result);
+}
+
 static void*
-push_command_(RenderCommands* commands, size_t size){
-    void* command = (char*)commands->buffer + commands->used_bytes;
+allocate_LL_node(LinkedListBuffer* buffer){
+    void* result = (char*)buffer->base + buffer->used_bytes;
+    buffer->used_bytes += sizeof(LinkedList);
+    assert(buffer->used_bytes < buffer->max_bytes);
+    return(result);
+}
+
+#define allocate_command(commands, type) (type*)allocate_command_(commands, sizeof(type))
+static void*
+allocate_command_(RenderCommandBuffer* commands, size_t size){
+    void* command = (char*)commands->base + commands->used_bytes;
     commands->used_bytes += size;
     assert(commands->used_bytes < commands->max_bytes);
     return(command);
 }
 
 static void
-push_clear_color(RenderCommands *commands, v4 color){
-    ClearColorCommand* command = push_command(commands, ClearColorCommand);
-    command->base.color = color;
+allocate_clear_color(RenderCommandBuffer *commands, v4 color){
+    void* command = (char*)commands->base + commands->used_bytes;
+    commands->used_bytes += sizeof(ClearColorCommand);
+    assert(commands->used_bytes < commands->max_bytes);
+
+    ClearColorCommand* new_command = command;
+    new_command->base.color = color;
 }
 
 static void
-push_pixel(RenderCommands *commands, v2 position, v4 color){
-    PixelCommand* command = push_command(commands, PixelCommand);
+allocate_pixel(RenderCommandBuffer *commands, v2 position, v4 color){
+    PixelCommand* command = allocate_command(commands, PixelCommand);
     command->base.type = RenderCommand_Pixel;
     command->base.position = position;
     command->base.color = color;
 }
 
 static void
-push_segment(RenderCommands *commands, v2 p0, v2 p1, v4 color){
-    SegmentCommand* command = push_command(commands, SegmentCommand);
+allocate_segment(RenderCommandBuffer *commands, v2 p0, v2 p1, v4 color){
+    SegmentCommand* command = allocate_command(commands, SegmentCommand);
     command->base.type = RenderCommand_Segment;
     command->base.color = color;
     command->p0 = p0;
@@ -179,8 +205,8 @@ push_segment(RenderCommands *commands, v2 p0, v2 p1, v4 color){
 }
 
 static void
-push_ray(RenderCommands *commands, v2 position, v2 direction, v4 color){
-    RayCommand* command = push_command(commands, RayCommand);
+allocate_ray(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color){
+    RayCommand* command = allocate_command(commands, RayCommand);
     command->base.type = RenderCommand_Ray;
     command->base.position = position;
     command->base.color = color;
@@ -188,8 +214,8 @@ push_ray(RenderCommands *commands, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_line(RenderCommands *commands, v2 position, v2 direction, v4 color){
-    LineCommand* command = push_command(commands, LineCommand);
+allocate_line(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color){
+    LineCommand* command = allocate_command(commands, LineCommand);
     command->base.type = RenderCommand_Line;
     command->base.position = position;
     command->base.color = color;
@@ -197,8 +223,8 @@ push_line(RenderCommands *commands, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_rect(RenderCommands *commands, v2 position, v2 dimension, v4 color){
-    RectCommand* command = push_command(commands, RectCommand);
+allocate_rect(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color){
+    RectCommand* command = allocate_command(commands, RectCommand);
     command->base.type = RenderCommand_Rect;
     command->base.color = color;
     command->base.position = position;
@@ -206,8 +232,8 @@ push_rect(RenderCommands *commands, v2 position, v2 dimension, v4 color){
 }
 
 static void
-push_box(RenderCommands *commands, v2 position, v2 dimension, v4 color){
-    BoxCommand* command = push_command(commands, BoxCommand);
+allocate_box(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color){
+    BoxCommand* command = allocate_command(commands, BoxCommand);
     command->base.type = RenderCommand_Box;
     command->base.color = color;
     command->base.position = position;
@@ -215,8 +241,8 @@ push_box(RenderCommands *commands, v2 position, v2 dimension, v4 color){
 }
 
 static void
-push_quad(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
-    QuadCommand* command = push_command(commands, QuadCommand);
+allocate_quad(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
+    QuadCommand* command = allocate_command(commands, QuadCommand);
     command->base.type = RenderCommand_Quad;
     command->base.color = color;
     command->base.fill = fill;
@@ -227,8 +253,8 @@ push_quad(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool f
 }
 
 static void
-push_triangle(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
-    TriangleCommand* command = push_command(commands, TriangleCommand);
+allocate_triangle(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
+    TriangleCommand* command = allocate_command(commands, TriangleCommand);
     command->base.type = RenderCommand_Triangle;
     command->base.color = color;
     command->base.fill = fill;
@@ -238,8 +264,8 @@ push_triangle(RenderCommands *commands, v2 p0, v2 p1, v2 p2, v4 color, bool fill
 }
 
 static void
-push_circle(RenderCommands *commands, v2 pos, u8 rad, v4 color, bool fill){
-    CircleCommand* command = push_command(commands, CircleCommand);
+allocate_circle(RenderCommandBuffer *commands, v2 pos, u8 rad, v4 color, bool fill){
+    CircleCommand* command = allocate_command(commands, CircleCommand);
     command->base.type = RenderCommand_Circle;
     command->base.position = pos;
     command->base.color = color;
@@ -248,8 +274,8 @@ push_circle(RenderCommands *commands, v2 pos, u8 rad, v4 color, bool fill){
 }
 
 static void
-push_bitmap(RenderCommands *commands, v2 position, Bitmap image){
-    BitmapCommand* command = push_command(commands, BitmapCommand);
+allocate_bitmap(RenderCommandBuffer *commands, v2 position, Bitmap image){
+    BitmapCommand* command = allocate_command(commands, BitmapCommand);
     command->base.type = RenderCommand_Bitmap;
     command->base.position = position;
     command->image = image;

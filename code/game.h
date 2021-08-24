@@ -5,6 +5,7 @@
 #include "random.h"
 #include <time.h>
 #include "vectors.h"
+#include "linked_list.h"
 
 // get rid of this shit
 #include <stdio.h>
@@ -61,16 +62,16 @@ typedef struct MemoryArena {
 
 static void
 initialize_arena(MemoryArena *arena, u8 *base, size_t size){
-    arena->size = size;
     arena->base = base;
+    arena->size = size;
     arena->used = 0;
 }
 
-#define push_array(arena, count, type) (type *)push_size_(arena, count * sizeof(type));
-#define push_struct(arena, type) (type *)push_size_(arena, sizeof(type));
-#define push_size(arena, size) push_size_(arena, size);
+#define allocate_array(arena, count, type) (type *)allocate_size_(arena, count * sizeof(type));
+#define allocate_struct(arena, type) (type *)allocate_size_(arena, sizeof(type));
+#define allocate_size(arena, size) allocate_size_(arena, size);
 static void*
-push_size_(MemoryArena *arena, size_t size){
+allocate_size_(MemoryArena *arena, size_t size){
     assert((arena->used + size) < arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
@@ -78,21 +79,18 @@ push_size_(MemoryArena *arena, size_t size){
     return(result);
 }
 
-#include "renderer.h"
-
 typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
 typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
 typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct Entity{
-    bool render;
-    int id;
-    int index;
+    u32 index;
+    u32 id;
+    EntityType type;
     struct Entity* first_child;
     struct Entity* next_child;
     int children_count;
     u32 flags;
-    EntityType type;
     v2 position;
     v2 dimension;
     v2 direction;
@@ -150,9 +148,8 @@ typedef struct Entity{
     f32 rotate_speed;
 
     Bitmap image;
+    bool render;
 } Entity;
-
-
 
 static bool
 has_flags(Entity *e, u32 flags){
@@ -169,9 +166,22 @@ clear_flags(Entity *e, u32 flags){
     e->flags &= ~flags; 
 }
 
+
+static void
+reset_LL_sentinel(LinkedList *sentinel){
+    sentinel->count = 0;
+    sentinel->next = sentinel;
+    sentinel->prev = sentinel;
+    sentinel->data = NULL;
+}
+
+
+#include "renderer.h"
+
 typedef struct TranState{
     MemoryArena transient_arena;
-    RenderCommands *render_commands;
+    RenderCommandBuffer *render_commands_buffer;
+    LinkedListBuffer *LL_buffer;
 } TranState;
 
 typedef struct GameState{
@@ -188,26 +198,29 @@ typedef struct GameState{
     u32 ntc;
     u32 ptc;
 
-    u32 quad_row_count;
-    u32 quad_pixel_width;
-    u32 quad_pixel_height;
+    LinkedList regions[4][4];
+    LinkedList ants;
+    LinkedList foods;
+    LinkedList phers;
+    LinkedList misc;
+
+    u32 region_row_count;
+    u32 region_width;
+    u32 region_height;
 
     f32 screen_width;
     f32 screen_height;
     u32 colony_index;
-    Entity* food[2048];// fthis
-    u32 food_count;// fthis
-    Entity* ants[1024];// fthis
-    u32 ants_count;// fthis
+    
+    u32 ants_count;
 
-    Entity entities[11000];
+    u32 free_entities[110];
+    u32 free_entities_size;
+    u32 free_entities_at;
+
+    Entity entities[110];
     u32 entities_size;
     u32 entity_at;
-    u32 entities_free;
-    Entity pheromones[50000];
-    u32 pher_ats[16];
-    u32 pher_size;
-    u32 pher_at;
 
     f32 ant_speed;
 
@@ -217,8 +230,6 @@ typedef struct GameState{
     Bitmap circle;
     Bitmap image;
 
-    u32 c2_index;
-    u32 player_index;
 } GameState;
 
 static void
@@ -231,20 +242,9 @@ add_child(GameState *game_state, u32 parent_index, u32 child_index){
 
 static u32
 add_entity(GameState *game_state, EntityType type){
-    if(game_state->entities_free > 0){
-        for(u32 entity_index = 1; entity_index <= game_state->entity_at; ++entity_index){
-            Entity *result = game_state->entities + entity_index;
-            if(result->type == EntityType_None){
-                result->type = type;
-                result->id = entity_index;
-                result->index = entity_index;
-                game_state->entities_free--;
-                return(result->index);
-            }
-        }
-    }
-    else if(game_state->entity_at < game_state->entities_size){
-        Entity *result = game_state->entities + game_state->entity_at;
+    if(game_state->free_entities_at >= 0){
+        i32 entity_index = game_state->free_entities[game_state->free_entities_at--];
+        Entity *result = game_state->entities + entity_index;
         result->index = game_state->entity_at;
         result->id = game_state->entity_at;
         result->type = type;
@@ -252,34 +252,44 @@ add_entity(GameState *game_state, EntityType type){
 
         return(result->index);
     }
+    //if(game_state->entity_at < game_state->entities_size){
+    //    Entity *result = game_state->entities + game_state->entity_at;
+    //    result->index = game_state->entity_at;
+    //    result->id = game_state->entity_at;
+    //    result->type = type;
+    //    game_state->entity_at++;
+
+    //    return(result->index);
+    //}
     return(0);
 }
 
-static u32
-add_entity_pher(GameState *game_state, v2 quad_coord, EntityType type){
-    u32 quad_size = game_state->pher_size / (game_state->quad_row_count * game_state->quad_row_count);
-    u32 quad_stride = quad_size * game_state->quad_row_count;
-    u32 offset_index = (quad_stride * (quad_coord.y - 1)) + (quad_size * (quad_coord.x - 1));
-    u32 quad_index = ((quad_coord.y - 1) * game_state->quad_row_count) + (quad_coord.x - 1);
-    u32 relative_index = game_state->pher_ats[quad_index];
-    u32 index = relative_index + offset_index;
-
-    if(relative_index >= quad_size){
-        game_state->pher_ats[quad_index] = 0;
-        relative_index = 0;
-        index = offset_index;
-    }
-    if(index <= game_state->pher_size){
-        Entity *result = game_state->pheromones + index;
-        result->index = index;
-        result->id = index;
-        result->type = type;
-        game_state->pher_ats[quad_index]++;
-
-        return(result->index);
-    }
-    return(0);
-}
+//static u32
+//add_entity_pher(GameState *game_state, v2 quad_coord, EntityType type){
+//    u32 quad_size = game_state->pher_size / (game_state->quad_row_count * game_state->quad_row_count);
+//    u32 quad_stride = quad_size * game_state->quad_row_count;
+//
+//    u32 offset_index = (quad_stride * (quad_coord.y - 1)) + (quad_size * (quad_coord.x - 1));
+//    u32 quad_index = ((quad_coord.y - 1) * game_state->quad_row_count) + (quad_coord.x - 1);
+//    u32 relative_index = game_state->pher_ats[quad_index];
+//    u32 index = relative_index + offset_index;
+//
+//    if(relative_index >= quad_size){
+//        game_state->pher_ats[quad_index] = 0;
+//        relative_index = 0;
+//        index = offset_index;
+//    }
+//    if(index <= game_state->pher_size){
+//        Entity *result = game_state->pheromones + index;
+//        result->index = index;
+//        result->id = index;
+//        result->type = type;
+//        game_state->pher_ats[quad_index]++;
+//
+//        return(result->index);
+//    }
+//    return(0);
+//}
 
 static u32
 add_pixel(GameState* game_state, f32 x, f32 y, v4 color){
@@ -472,9 +482,9 @@ add_colony(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 }
 
 static u32
-add_to_home_pheromone(GameState *game_state, v2 quad_coord, v2 pos, u8 rad, v4 color){
-    u32 e_index = add_entity_pher(game_state, quad_coord, EntityType_ToHomePheromone);
-    Entity *e = game_state->pheromones + e_index;
+add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
+    u32 e_index = add_entity(game_state, EntityType_ToHomePheromone);
+    Entity *e = game_state->entities + e_index;
     e->position = pos;
     e->color = color;
     e->color.w = 1;
@@ -485,13 +495,13 @@ add_to_home_pheromone(GameState *game_state, v2 quad_coord, v2 pos, u8 rad, v4 c
 
 static u32
 add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
-    u32 e_index = add_entity_pher(game_state, vec2(0, 0), EntityType_ToFoodPheromone);
-    Entity *e = game_state->pheromones + e_index;
+    u32 e_index = add_entity(game_state, EntityType_ToFoodPheromone);
+    Entity *e = game_state->entities + e_index;
     e->position = pos;
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pher_food_decay_rate = 4.0f;
+    e->pher_food_decay_rate = 8.0f;
     return(e->index);
 }
 

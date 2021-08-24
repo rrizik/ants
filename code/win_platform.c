@@ -30,7 +30,7 @@ NOT DONE:
     make it fast (threads, simd)
 
 DONE:
-    entities 
+    entities
     render_buffer
     transformation:
         translation
