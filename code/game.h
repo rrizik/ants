@@ -85,7 +85,6 @@ typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Deposit
 
 typedef struct Entity{
     u32 index;
-    u32 id;
     EntityType type;
     struct Entity* first_child;
     struct Entity* next_child;
@@ -214,13 +213,12 @@ typedef struct GameState{
     
     u32 ants_count;
 
-    u32 free_entities[110];
+    u32 free_entities[110000];
     u32 free_entities_size;
     u32 free_entities_at;
 
-    Entity entities[110];
+    Entity entities[110000];
     u32 entities_size;
-    u32 entity_at;
 
     f32 ant_speed;
 
@@ -243,53 +241,23 @@ add_child(GameState *game_state, u32 parent_index, u32 child_index){
 static u32
 add_entity(GameState *game_state, EntityType type){
     if(game_state->free_entities_at >= 0){
-        i32 entity_index = game_state->free_entities[game_state->free_entities_at--];
-        Entity *result = game_state->entities + entity_index;
-        result->index = game_state->entity_at;
-        result->id = game_state->entity_at;
+        i32 free_entity_index = game_state->free_entities[game_state->free_entities_at--];
+        Entity *result = game_state->entities + free_entity_index;
+        result->index = free_entity_index;
         result->type = type;
-        game_state->entity_at++;
 
-        return(result->index);
+        return(free_entity_index);
     }
-    //if(game_state->entity_at < game_state->entities_size){
-    //    Entity *result = game_state->entities + game_state->entity_at;
-    //    result->index = game_state->entity_at;
-    //    result->id = game_state->entity_at;
+    //if(game_state->entities_at < game_state->entities_size){
+    //    Entity *result = game_state->entities + game_state->entities_at;
+    //    result->index = game_state->entities_at;
     //    result->type = type;
-    //    game_state->entity_at++;
+    //    game_state->entities_at++;
 
     //    return(result->index);
     //}
     return(0);
 }
-
-//static u32
-//add_entity_pher(GameState *game_state, v2 quad_coord, EntityType type){
-//    u32 quad_size = game_state->pher_size / (game_state->quad_row_count * game_state->quad_row_count);
-//    u32 quad_stride = quad_size * game_state->quad_row_count;
-//
-//    u32 offset_index = (quad_stride * (quad_coord.y - 1)) + (quad_size * (quad_coord.x - 1));
-//    u32 quad_index = ((quad_coord.y - 1) * game_state->quad_row_count) + (quad_coord.x - 1);
-//    u32 relative_index = game_state->pher_ats[quad_index];
-//    u32 index = relative_index + offset_index;
-//
-//    if(relative_index >= quad_size){
-//        game_state->pher_ats[quad_index] = 0;
-//        relative_index = 0;
-//        index = offset_index;
-//    }
-//    if(index <= game_state->pher_size){
-//        Entity *result = game_state->pheromones + index;
-//        result->index = index;
-//        result->id = index;
-//        result->type = type;
-//        game_state->pher_ats[quad_index]++;
-//
-//        return(result->index);
-//    }
-//    return(0);
-//}
 
 static u32
 add_pixel(GameState* game_state, f32 x, f32 y, v4 color){

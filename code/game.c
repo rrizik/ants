@@ -1,7 +1,6 @@
 #include "game.h"
 #include "math.h"
 
-// ants stop producing pheramones.
 // ant logic can be simplified dramatically 
 
 
@@ -603,12 +602,6 @@ MAIN_GAME_LOOP(main_game_loop){
     assert(sizeof(TranState) <= memory->transient_storage_size);
     GameState *game_state = (GameState *)memory->permanent_storage;
     TranState *transient_state = (TranState *)memory->transient_storage;
-    //print("at entity: %i - entity_size: %i\n", game_state->entity_at, game_state->entities_size);
-    //print("%i | %i | %i | %i\n%i | %i | %i | %i\n%i | %i | %i | %i\n%i | %i | %i | %i\n---------------------------------------------\n",
-    //        game_state->regions[0][0].count, game_state->regions[0][1].count, game_state->regions[0][2].count, game_state->regions[0][3].count,
-    //        game_state->regions[1][0].count, game_state->regions[1][1].count, game_state->regions[1][2].count, game_state->regions[1][3].count,
-    //        game_state->regions[2][0].count, game_state->regions[2][1].count, game_state->regions[2][2].count, game_state->regions[2][3].count,
-    //        game_state->regions[3][0].count, game_state->regions[3][1].count, game_state->regions[3][2].count, game_state->regions[3][3].count);
 
     if(!memory->initialized){
         initialize_arena(&game_state->permanent_arena,
@@ -636,16 +629,17 @@ MAIN_GAME_LOOP(main_game_loop){
         seed_random(time(NULL), 0);
 
         //game_state->ants_count = 3000;
-        //game_state->ants_count = 1000;
+        game_state->ants_count = 1000;
         //game_state->ants_count = 300;
-        game_state->ants_count = 1;
+        //game_state->ants_count = 1;
         //game_state->ants_count = 10;
-        //game_state->entities_size = 110000;
-        game_state->entities_size = 110;
-        game_state->free_entities_size = 110;
+        game_state->entities_size = 110000;
+        game_state->free_entities_size = 110000;
+        //game_state->entities_size = 110;
+        //game_state->free_entities_size = 110;
         game_state->free_entities_at = game_state->free_entities_size - 1;
 
-        //u32 none_index = add_entity(game_state, EntityType_None);
+        u32 none_index = add_entity(game_state, EntityType_None);
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
@@ -809,6 +803,8 @@ MAIN_GAME_LOOP(main_game_loop){
                         if(entity->color.a <= 0.0f){
                             entity->color.a = 1.0f;
                             entity->type = EntityType_None;
+                            game_state->free_entities_at++;
+                            game_state->free_entities[game_state->free_entities_at] = entity->index;
                         }
                     }break;
                     case EntityType_ToFoodPheromone:{
@@ -1122,7 +1118,7 @@ MAIN_GAME_LOOP(main_game_loop){
 
     transient_state->render_commands_buffer->used_bytes = 0;
     allocate_clear_color(transient_state->render_commands_buffer, BLACK);
-    for(u32 entity_index = 0; entity_index <= game_state->entity_at; ++entity_index){
+    for(u32 entity_index = 0; entity_index <= game_state->entities_size; ++entity_index){
         Entity *entity = game_state->entities + entity_index;
         switch(entity->type){
             case EntityType_Player:{
