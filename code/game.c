@@ -349,6 +349,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
         u32 rounded_x = round_fu32(result.x);
         u32 rounded_y = round_fu32(result.y);
 
+        // clamp is wrong here, was 1 n 0 now 0 n 1
         u32 x_shift = (u32)clamp_f32(0, (cr.x - position.x), 100000);
         u32 y_shift = (u32)clamp_f32(0, (cr.y - position.y), 100000);
 
@@ -603,6 +604,7 @@ MAIN_GAME_LOOP(main_game_loop){
     GameState *game_state = (GameState *)memory->permanent_storage;
     TranState *transient_state = (TranState *)memory->transient_storage;
 
+    //print("free at entity: %i - free entity_size: %i\n", game_state->free_entities_at, game_state->free_entities_size);
     if(!memory->initialized){
         initialize_arena(&game_state->permanent_arena,
                          (u8*)memory->permanent_storage + sizeof(GameState),
@@ -629,10 +631,10 @@ MAIN_GAME_LOOP(main_game_loop){
         seed_random(time(NULL), 0);
 
         //game_state->ants_count = 3000;
-        game_state->ants_count = 1000;
-        //game_state->ants_count = 300;
+        //game_state->ants_count = 1000;
+        //game_state->ants_count = 100;
         //game_state->ants_count = 1;
-        //game_state->ants_count = 10;
+        game_state->ants_count = 10;
         game_state->entities_size = 110000;
         game_state->free_entities_size = 110000;
         //game_state->entities_size = 110;
@@ -668,13 +670,13 @@ MAIN_GAME_LOOP(main_game_loop){
         //add_child(game_state, game_state->clip_region_index, game_state->player_index);
         //add_circle(game_state, vec2(400, 400), 2, green, true);
 
-        add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height), vec2(1024, render_buffer->height - game_state->region_height), RED);
-        add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*2), vec2(1024, render_buffer->height - game_state->region_height*2), RED);
-        add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*3), vec2(1024, render_buffer->height - game_state->region_height*3), RED);
+        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height), vec2(1024, render_buffer->height - game_state->region_height), RED);
+        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*2), vec2(1024, render_buffer->height - game_state->region_height*2), RED);
+        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*3), vec2(1024, render_buffer->height - game_state->region_height*3), RED);
 
-        add_segment(game_state, vec2(render_buffer->width - game_state->region_width, 0), vec2(render_buffer->width - game_state->region_width, 768), RED);
-        add_segment(game_state, vec2(render_buffer->width - game_state->region_width*2, 0), vec2(render_buffer->width - game_state->region_width*2, 768), RED);
-        add_segment(game_state, vec2(render_buffer->width - game_state->region_width*3, 0), vec2(render_buffer->width - game_state->region_width*3, 768), RED);
+        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width, 0), vec2(render_buffer->width - game_state->region_width, 768), RED);
+        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width*2, 0), vec2(render_buffer->width - game_state->region_width*2, 768), RED);
+        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width*3, 0), vec2(render_buffer->width - game_state->region_width*3, 768), RED);
 
         memory->initialized = true;
     }
@@ -715,15 +717,21 @@ MAIN_GAME_LOOP(main_game_loop){
             }break;
             case EntityType_ToHomePheromone:{
                 v2 region_coord = vec2(floor(entity->position.x / game_state->region_width), floor(entity->position.y / game_state->region_height));
+                region_coord.x = clamp_f32(0, region_coord.x, 3);
+                region_coord.y = clamp_f32(0, region_coord.y, 3);
                 LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
                 node->data = entity;
                 LL_push(region, node);
             }break;
             case EntityType_ToFoodPheromone:{
+                v2 region_coord = vec2(floor(entity->position.x / game_state->region_width), floor(entity->position.y / game_state->region_height));
+                region_coord.x = clamp_f32(0, region_coord.x, 3);
+                region_coord.y = clamp_f32(0, region_coord.y, 3);
+                LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
                 node->data = entity;
-                LL_push(&game_state->phers, node);
+                LL_push(region, node);
             }break;
         }
     }
@@ -815,6 +823,8 @@ MAIN_GAME_LOOP(main_game_loop){
                         if(entity->color.a <= 0){
                             entity->color.a = 1.0f;
                             entity->type = EntityType_None;
+                            game_state->free_entities_at++;
+                            game_state->free_entities[game_state->free_entities_at] = entity->index;
                         }
                     }break;
                 }
@@ -848,6 +858,8 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }
             v2 region_coord = vec2(floor(ant->position.x / game_state->region_width), floor(ant->position.y / game_state->region_height));
+            region_coord.x = clamp_f32(0, region_coord.x, 3);
+            region_coord.y = clamp_f32(0, region_coord.y, 3);
             LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
             for(LinkedList* node=region->next; node != region; node=node->next){
                 Entity* pher = node->data;
@@ -987,6 +999,8 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->ant_state = AntState_Depositing;
                 ant->changing_state = true;
                 ant->ant_food->type = EntityType_None;
+                game_state->free_entities_at++;
+                game_state->free_entities[game_state->free_entities_at] = ant->ant_food->index;
                 ant->ant_food->targeted = false;
                 game_state->fc--;
                 ant->target_direction.x = -ant->target_direction.x;
@@ -999,32 +1013,33 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->right_sensor_density = 0.0f;
             ant->middle_sensor_density = 0.0f;
             ant->left_sensor_density = 0.0f;
-            //v2 quad_coord = vec2(ceil(ant->position.x / game_state->quad_pixel_width), ceil(ant->position.y / game_state->quad_pixel_height));
-            //u32 quad_size = game_state->pher_size / (game_state->quad_row_count * game_state->quad_row_count);
-            //u32 quad_stride = quad_size * game_state->quad_row_count;
-            //u32 offset_index = (quad_stride * (quad_coord.y - 1)) + (quad_size * (quad_coord.x - 1));
-            //u32 quad_index = ((quad_coord.y - 1) * game_state->quad_row_count) + (quad_coord.x - 1);
-            //u32 relative_index = game_state->pher_ats[quad_index];
-            //u32 index = relative_index + offset_index;
-            //for(u32 entity_index = offset_index; entity_index <= (offset_index + quad_size); ++entity_index){
-            //    Entity *entity = game_state->pheromones + entity_index;
-            //    switch(entity->type){
-            //        case EntityType_ToHomePheromone:{
-            //            Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-            //            Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-            //            Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-            //            if(rect_collide_point(right_rect, entity->position)){
-            //                ant->right_sensor_density += entity->color.a;
-            //            }
-            //            if(rect_collide_point(mid_rect, entity->position)){
-            //                ant->middle_sensor_density += entity->color.a;
-            //            }
-            //            if(rect_collide_point(left_rect, entity->position)){
-            //                ant->left_sensor_density += entity->color.a;
-            //            }
-            //        } break;
-            //    }
-            //}
+
+            v2 region_coord = vec2(floor(ant->position.x / game_state->region_width), floor(ant->position.y / game_state->region_height));
+            region_coord.x = clamp_f32(0, region_coord.x, 3);
+            region_coord.y = clamp_f32(0, region_coord.y, 3);
+            if(region_coord.x < 0){ region_coord.x = 0; }
+            if(region_coord.y < 0){ region_coord.y = 0; }
+            LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
+            for(LinkedList* node=region->next; node != region; node=node->next){
+                Entity* pher = node->data;
+                switch(pher->type){
+                    case EntityType_ToHomePheromone:{
+                        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        if(rect_collide_point(right_rect, pher->position)){
+                            ant->right_sensor_density += pher->color.a;
+                        }
+                        if(rect_collide_point(mid_rect, pher->position)){
+                            ant->middle_sensor_density += pher->color.a;
+                        }
+                        if(rect_collide_point(left_rect, pher->position)){
+                            ant->left_sensor_density += pher->color.a;
+                        }
+                    } break;
+                }
+            }
+
             if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
                 f32 mid_rad = dir_rad(ant->direction);
                 f32 right_rad = mid_rad + (RAD * ant->sensor_angle);
@@ -1194,18 +1209,18 @@ MAIN_GAME_LOOP(main_game_loop){
                 Rect left_rect = rect(vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
 
 
-                //allocate_box(transient_state->render_commands_buffer, vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), YELLOW);
-                //allocate_box(transient_state->render_commands_buffer, vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), GREEN);
-                //allocate_box(transient_state->render_commands_buffer, vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), ORANGE);
+                allocate_box(transient_state->render_commands_buffer, vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), YELLOW);
+                allocate_box(transient_state->render_commands_buffer, vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), GREEN);
+                allocate_box(transient_state->render_commands_buffer, vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), ORANGE);
 
-                //allocate_circle(transient_state->render_commands_buffer, entity->right_sensor, entity->sensor_radius, YELLOW, false);
-                //allocate_circle(transient_state->render_commands_buffer, entity->mid_sensor, entity->sensor_radius, GREEN, false);
-                //allocate_circle(transient_state->render_commands_buffer, entity->left_sensor, entity->sensor_radius, ORANGE, false);
+                allocate_circle(transient_state->render_commands_buffer, entity->right_sensor, entity->sensor_radius, YELLOW, false);
+                allocate_circle(transient_state->render_commands_buffer, entity->mid_sensor, entity->sensor_radius, GREEN, false);
+                allocate_circle(transient_state->render_commands_buffer, entity->left_sensor, entity->sensor_radius, ORANGE, false);
 
-                //allocate_segment(transient_state->render_commands_buffer, entity->position, entity->right_sensor, YELLOW);
-                //allocate_segment(transient_state->render_commands_buffer, entity->position, entity->mid_sensor, GREEN);
-                //allocate_segment(transient_state->render_commands_buffer, entity->position, entity->left_sensor, ORANGE);
-                //allocate_ray(transient_state->render_commands_buffer, entity->position, entity->target_direction, BLUE);
+                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->right_sensor, YELLOW);
+                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->mid_sensor, GREEN);
+                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->left_sensor, ORANGE);
+                allocate_ray(transient_state->render_commands_buffer, entity->position, entity->target_direction, BLUE);
             }break;
             case EntityType_Colony:{
                 allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, entity->fill);

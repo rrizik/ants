@@ -215,7 +215,7 @@ typedef struct GameState{
 
     u32 free_entities[110000];
     u32 free_entities_size;
-    u32 free_entities_at;
+    i32 free_entities_at;
 
     Entity entities[110000];
     u32 entities_size;

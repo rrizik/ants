@@ -94,12 +94,8 @@ Atan(f32 y, f32 x){
 
 static f32
 clamp_f32(f32 left, f32 value, f32 right){
-    if(value > left){
-        value = left;
-    }
-    if(value < right){
-        value = right;
-    }
+    if(value < left){ value = left; }
+    if(value > right){ value = right; }
     return(value);
 }
 
@@ -121,7 +117,7 @@ lerp_rad(f32 a, f32 b, f32 t) {
 }
 
 static f32 lerp(f32 a, f32 b, f32 t){
-    f32 clamped_t = clamp_f32(1.0f, t, 0.0f); 
+    f32 clamped_t = clamp_f32(0.0f, t, 1.0f); 
     f32 result = a + (clamped_t * (b - a));
     return(result);
 }
