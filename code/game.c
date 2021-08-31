@@ -1,63 +1,7 @@
 #include "game.h"
-#include "math.h"
 
-// ant logic can be simplified dramatically 
-
-
-static v2
-calc_center(v2 *p, u32 count){
-    v2 result = {0};
-
-    for(u32 i=0; i<count; ++i){
-        result.x += p->x;
-        result.y += p->y;
-        p++;
-    }
-    p -= count;
-
-    result.x /= count;
-    result.y /= count;
-
-    return(result);
-}
-
-static void
-translate(v2 *p, u32 count, v2 translation){
-    for(u32 i=0; i<count; ++i){
-        *p = add2(*p, translation);
-        p++;
-    }
-    p -= count;
-}
-
-static void
-scale(v2 *p, u32 count, f32 scalar, v2 origin){
-    for(u32 i=0; i<count; ++i){
-        *p = add2(scale2(sub2(*p, origin), scalar), origin);
-        p++;
-    }
-    p -= count;
-}
-
-static v2
-rotate_pt(v2 p, f32 angle, v2 origin){
-    v2 result = {0};
-    result.x = (p.x - origin.x) * Cos(angle * 3.14f/180.0f) - (p.y - origin.y) * Sin(angle * 3.14f/180.0f) + origin.x;
-    result.y = (p.x - origin.x) * Sin(angle * 3.14f/180.0f) + (p.y - origin.y) * Cos(angle * 3.14f/180.0f) + origin.y;
-    return(result);
-}
-
-static void
-rotate_pts(v2 *p, u32 count, f32 angle, v2 origin){
-    for(u32 i=0; i<count; ++i){
-        v2 result = {0};
-        result = rotate_pt(*p, angle, origin);
-        p->x = result.x;
-        p->y = result.y;
-        p++;
-    }
-    p -= count;
-}
+#define RDTSC 0
+// ant logic can be simplified dramatically
 
 static v4
 get_color_at(RenderBuffer *buffer, f32 x, f32 y){
@@ -76,443 +20,12 @@ get_color_at(RenderBuffer *buffer, f32 x, f32 y){
 }
 
 static void
-draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
-    i32 x = round_fi32(float_x);
-    i32 y = round_fi32(float_y);
-
-    if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
-        u8 *row = (u8 *)buffer->memory +
-                   ((buffer->height - y - 1) * buffer->pitch) +
-                   (x * buffer->bytes_per_pixel);
-
-        u32 *pixel = (u32 *)row;
-
-        f32 current_a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
-        f32 current_r = (f32)((*pixel >> 16) & 0xFF);
-        f32 current_g = (f32)((*pixel >> 8) & 0xFF);
-        f32 current_b = (f32)((*pixel >> 0) & 0xFF);
-
-        color.r *= 255.0f;
-        color.g *= 255.0f;
-        color.b *= 255.0f;
-
-        f32 new_r = (1 - color.a) * current_r + (color.a * color.r);
-        f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
-        f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
-
-        //u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
-        u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
-        *pixel = new_color;
-    }
-}
-
-static void
-draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
-    v2 point1 = round_v2(position);
-    v2 point2 = point1;
-    v2 non_normalized_direction = vec2(position.x + direction.x, position.y + direction.y);
-    direction = round_v2(non_normalized_direction);
-
-    f32 distance_x =  ABS(direction.x - point1.x);
-    f32 distance_y = -ABS(direction.y - point1.y);
-    f32 d1_step_x = point1.x < direction.x ? 1.0f : -1.0f;
-    f32 d1_step_y = point1.y < direction.y ? 1.0f : -1.0f;
-    f32 d2_step_x = -(d1_step_x);
-    f32 d2_step_y = -(d1_step_y);
-
-    f32 error = distance_x + distance_y;
-
-    for(;;){
-        draw_pixel(buffer, point1.x, point1.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-        if(point1.x < 0 || point1.x > buffer->width || point1.y < 0 || point1.y > buffer->height)break;
-
-        f32 error2 = 2 * error;
-        if (error2 >= distance_y){
-            error += distance_y;
-            point1.x += d1_step_x;
-        }
-        if (error2 <= distance_x){
-            error += distance_x;
-            point1.y += d1_step_y;
-        }
-    }
-    for(;;){
-        draw_pixel(buffer, point2.x, point2.y, c);
-        if(point2.x < 0 || point2.x > buffer->width || point2.y < 0 || point2.y > buffer->height)break;
-
-        f32 error2 = 2 * error;
-        if (error2 >= distance_y){
-            error += distance_y;
-            point2.x += d2_step_x;
-        }
-        if (error2 <= distance_x){
-            error += distance_x;
-            point2.y += d2_step_y;
-        }
-    }
-}
-
-static void
-draw_ray(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
-    position = round_v2(position);
-    v2 non_normalized_direction = round_v2(vec2((direction.x * 100000), (direction.y * 100000)));
-    v2 new_direction = vec2(position.x + non_normalized_direction.x, position.y + non_normalized_direction.y);
-
-    f32 distance_x =  ABS(new_direction.x - position.x);
-    f32 distance_y = -ABS(new_direction.y - position.y);
-    f32 step_x = position.x < new_direction.x ? 1.0f : -1.0f;
-    f32 step_y = position.y < new_direction.y ? 1.0f : -1.0f;
-
-    f32 error = distance_x + distance_y;
-
-    for(;;){
-        draw_pixel(buffer, position.x, position.y, c); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
-        if(position.x < 0 || position.x > buffer->width || position.y < 0 || position.y > buffer->height)break;
-
-        f32 error2 = 2 * error;
-        if (error2 >= distance_y){
-            error += distance_y;
-            position.x += step_x;
-        }
-        if (error2 <= distance_x){
-            error += distance_x;
-            position.y += step_y;
-        }
-    }
-}
-
-static void
-draw_segment(RenderBuffer *buffer, v2 p0, v2 p1, v4 c){
-    p0 = round_v2(p0);
-    p1 = round_v2(p1);
-
-    f32 distance_x =  ABS(p1.x - p0.x);
-    f32 distance_y = -ABS(p1.y - p0.y);
-    f32 step_x = p0.x < p1.x ? 1.0f : -1.0f;
-    f32 step_y = p0.y < p1.y ? 1.0f : -1.0f;
-
-    f32 error = distance_x + distance_y;
-
-    for(;;){
-        if(p0.x == p1.x && p0.y == p1.y) break;
-        draw_pixel(buffer, p0.x, p0.y, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-
-        f32 error2 = 2 * error;
-        if (error2 >= distance_y){
-            error += distance_y;
-            p0.x += step_x;
-        }
-        if (error2 <= distance_x){
-            error += distance_x;
-            p0.y += step_y;
-        }
-    }
-}
-
-static void
-draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
-    f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
-    f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
-
-    int start_y = (int)round(p2.y);
-    int end_y = (int)round(p0.y);
-
-    for(int y=start_y; y < end_y; ++y){
-        f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
-        f32 x1 = right_slope * (y + 0.5f - p1.y) + p1.x;
-        int start_x = (int)ceil(x0 - 0.5f);
-        int end_x = (int)ceil(x1 - 0.5f);
-        for(int x=start_x; x < end_x; ++x){
-            draw_pixel(buffer, (f32)x, (f32)y, c);
-        }
-    }
-}
-
-static void
-draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
-    f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
-    f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
-
-    int start_y = (int)round(p0.y);
-    int end_y = (int)round(p1.y);
-
-    for(int y=start_y; y >= end_y; --y){
-        f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
-        f32 x1 = right_slope * (y + 0.5f - p0.y) + p0.x;
-        int start_x = (int)ceil(x0 - 0.5f);
-        int end_x = (int)ceil(x1 - 0.5f);
-        for(int x=start_x; x < end_x; ++x){
-            draw_pixel(buffer, (f32)x, (f32)y, c);
-        }
-    }
-}
-
-static void
-draw_triangle_outlined(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_outlined, bool fill){
-    if(p0.y < p1.y){ swap_v2(&p0, &p1); }
-    if(p0.y < p2.y){ swap_v2(&p0, &p2); }
-    if(p1.y < p2.y){ swap_v2(&p1, &p2); }
-
-    if(fill){
-        if(p0.y == p1.y){
-            if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(buffer, p0, p1, p2, c);
-        }
-        else if(p1.y == p2.y){
-            if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
-        }
-        else{
-            f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
-            v2 p3 = {x, p1.y};
-            if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
-        }
-    }
-    draw_segment(buffer, p0, p1, c_outlined);
-    draw_segment(buffer, p1, p2, c_outlined);
-    draw_segment(buffer, p2, p0, c_outlined);
-}
-
-static void
-draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
-    if(p0.y < p1.y){ swap_v2(&p0, &p1); }
-    if(p0.y < p2.y){ swap_v2(&p0, &p2); }
-    if(p1.y < p2.y){ swap_v2(&p1, &p2); }
-
-    if(fill){
-        if(p0.y == p1.y){
-            if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(buffer, p0, p1, p2, c);
-        }
-        else if(p1.y == p2.y){
-            if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
-        }
-        else{
-            f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
-            v2 p3 = {x, p1.y};
-            if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
-        }
-    }
-    else{
-        draw_segment(buffer, p0, p1, c);
-        draw_segment(buffer, p1, p2, c);
-        draw_segment(buffer, p2, p0, c);
-    }
-}
-
-static void
-clear(RenderBuffer *buffer, v4 c){
-    for(f32 y=0; y < buffer->height; ++y){
-        for(f32 x=0; x < buffer->width; ++x){
-            draw_pixel(buffer, x, y, c);
-        }
-    }
-}
-
-static void
-draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region){
-    v4 cr = {100, 300, 200, 200};
-    if(equal4(clip_region, vec4(0,0,0,0))){
-        f32 rounded_x = round_ff(position.x);
-        f32 rounded_y = round_ff(position.y);
-        for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
-            for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-                v4 color = convert_u32_v4_normalized(*image.pixels++);
-                draw_pixel(buffer, x, y, color);
-            }
-        }
-    }
-    else{
-        v4 result = {position.x, position.y, image.width, image.height};
-
-        if(position.x < cr.x){
-            result.x = cr.x;
-            result.w = image.width - (cr.x - position.x);
-        }
-        if((result.x + result.w) > (cr.x + cr.w)){
-            result.w = result.w - ((result.x + result.w) - (cr.x + cr.w));
-        }
-
-        if(position.y < cr.y){
-            result.y = cr.y;
-            result.h = image.height - (cr.y - position.y);
-        }
-        if((result.y + result.h) > (cr.y + cr.h)){
-            result.h = result.h - ((result.y + result.h) - (cr.y + cr.h));
-        }
-
-        u32 rounded_x = round_fu32(result.x);
-        u32 rounded_y = round_fu32(result.y);
-
-        // clamp is wrong here, was 1 n 0 now 0 n 1
-        u32 x_shift = (u32)clamp_f32(0, (cr.x - position.x), 100000);
-        u32 y_shift = (u32)clamp_f32(0, (cr.y - position.y), 100000);
-
-        u32 iy = 0;
-        for(u32 y = rounded_y; y < rounded_y + result.h; ++y){
-            u32 ix = 0;
-            for(u32 x = rounded_x; x < rounded_x + result.w; ++x){
-                u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
-                u32 *c = (u32 *)byte;
-                v4 color = convert_u32_v4_normalized(*c);
-                draw_pixel(buffer, x, y, color);
-                ix++;
-            }
-            iy++;
-        }
-    }
-}
-
-static void
-draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
-    draw_bitmap_clip(buffer, position, image, vec4(0,0,0,0));
-}
-
-static void
-draw_rect(RenderBuffer *buffer, v2 position, v2 dimension, v4 c){
-    v2 p0 = {position.x, position.y};
-    v2 p1 = {position.x + dimension.w, position.y};
-    v2 p2 = {position.x, position.y + dimension.h};
-    v2 p3 = {position.x + dimension.w, position.y + dimension.h};
-
-    for(f32 y=p0.y; y <= p2.y; ++y){
-        for(f32 x=p0.x; x <= p1.x; ++x){
-            draw_pixel(buffer, x, y, c);
-        }
-    }
-}
-
-static void
-draw_rect_pts(RenderBuffer *buffer, v2 *p, v4 c){
-    v2 p0 = round_v2(*p++);
-    v2 p1 = round_v2(*p++);
-    v2 p2 = round_v2(*p++);
-    v2 p3 = round_v2(*p);
-
-    for(f32 y=p0.y; y <= p2.y; ++y){
-        for(f32 x=p0.x; x <= p1.x; ++x){
-            draw_pixel(buffer, x, y, c);
-        }
-    }
-}
-
-static void
-draw_box(RenderBuffer *buffer, v2 position, v2 dimension, v4 c){
-    v2 p0 = {position.x, position.y};
-    v2 p1 = {position.x + dimension.w, position.y};
-    v2 p2 = {position.x + dimension.w, position.y + dimension.h};
-    v2 p3 = {position.x, position.y + dimension.h};
-
-    draw_segment(buffer, p0, p1, c);
-    draw_segment(buffer, p1, p2, c);
-    draw_segment(buffer, p2, p3, c);
-    draw_segment(buffer, p3, p0, c);
-}
-
-static void
-draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill){
-    v2 p0 = p0_;
-    v2 p1 = p1_;
-    v2 p2 = p2_;
-    v2 p3 = p3_;
-
-    if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-    if(p0.x > p2.x){ swap_v2(&p0, &p2); }
-    if(p0.y > p2.y){ swap_v2(&p0, &p2); }
-    if(p0.x > p3.x){ swap_v2(&p0, &p3); }
-    if(p0.y > p3.y){ swap_v2(&p0, &p3); }
-
-    if(p1.x < p0.x){ swap_v2(&p1, &p0); }
-    if(p1.x < p3.x){ swap_v2(&p1, &p3); }
-    if(p1.y > p2.y){ swap_v2(&p1, &p2); }
-    if(p1.y > p3.y){ swap_v2(&p1, &p3); }
-
-    if(p2.x < p0.x){ swap_v2(&p2, &p0); }
-    if(p2.x < p3.x){ swap_v2(&p2, &p3); }
-    if(p2.y < p0.y){ swap_v2(&p2, &p0); }
-    if(p2.y < p1.y){ swap_v2(&p2, &p1); }
-
-    if(p3.x > p1.x){ swap_v2(&p3, &p1); }
-    if(p3.x > p2.x){ swap_v2(&p3, &p2); }
-    if(p3.y < p0.y){ swap_v2(&p3, &p0); }
-    if(p3.y < p1.y){ swap_v2(&p3, &p1); }
-
-    draw_triangle(buffer, p0, p1, p2, c, fill);
-    draw_triangle(buffer, p0, p2, p3, c, fill);
-}
-
-static void
-draw_polygon(RenderBuffer *buffer, v2 *points, u32 count, v4 c){
-    v2 first = *points++;
-    v2 prev = first;
-    for(u32 i=1; i<count; ++i){
-        draw_segment(buffer, prev, *points, c);
-        prev = *points++;
-    }
-    draw_segment(buffer, first, prev, c);
-}
-
-static void
-draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
-   f32 x = -r;
-   f32 y = 0;
-   f32 err = 2-2*r;
-   do {
-      draw_pixel(buffer, (xm - x), (ym + y), c);
-      draw_pixel(buffer, (xm - y), (ym - x), c);
-      draw_pixel(buffer, (xm + x), (ym - y), c);
-      draw_pixel(buffer, (xm + y), (ym + x), c);
-      r = err;
-      if (r <= y){
-          if(fill){
-              if(ym + y == ym - y){
-                  draw_segment(buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
-              }
-              else{
-                  draw_segment(buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
-                  draw_segment(buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), c);
-              }
-          }
-          y++;
-          err += y * 2 + 1;
-      }
-      if (r > x || err > y){
-          x++;
-          err += x * 2 + 1;
-      }
-   } while (x < 0);
-}
-
-static void
 copy_array(v2 *a, v2 *b, i32 count){
     for(i32 i=0; i < count; ++i){
         *a++ = *b++;
     }
 }
 
-static Bitmap
-load_bitmap(GameMemory *memory, char *filename){
-    Bitmap result = {0};
-
-    char full_path[256];
-    cat_strings(memory->data_dir, filename, full_path);
-
-    FileData bitmap_file = memory->read_entire_file(full_path);
-    if(bitmap_file.size > 0){
-        BitmapHeader *header = (BitmapHeader *)bitmap_file.content;
-        result.pixels = (u32 *)((u8 *)bitmap_file.content + header->bitmap_offset);
-        result.width = header->width;
-        result.height = header->height;
-        // IMPORTANT: depending on compression type you might have to re order the bytes to make it AA RR GG BB
-        // as well as consider the masks for each color included in the header
-    }
-    return(result);
-}
 
 static void
 draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
@@ -584,7 +97,12 @@ draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
 MAIN_GAME_LOOP(main_game_loop){
     clock->cpu_now = __rdtsc();
     f32 cpu_cycles = (f32)(clock->cpu_now - clock->cpu_prev) / (1000 * 1000);
+    f32 c_cycles = get_cpu_cycles_elapsed(clock->cpu_prev, clock->cpu_now);
     clock->cpu_prev = clock->cpu_now;
+
+#if RDTSC
+    print("%0.05f - %0.05f\n", cpu_cycles, c_cycles);
+#endif
 
     v4 RED =     {1.0f, 0.0f, 0.0f,  0.5f};
     v4 GREEN =   {0.0f, 1.0f, 0.0f,  0.5f};
@@ -604,8 +122,8 @@ MAIN_GAME_LOOP(main_game_loop){
     GameState *game_state = (GameState *)memory->permanent_storage;
     TranState *transient_state = (TranState *)memory->transient_storage;
 
-    //print("free at entity: %i - free entity_size: %i\n", game_state->free_entities_at, game_state->free_entities_size);
     if(!memory->initialized){
+        u64 init_cpu_length = __rdtsc();
         initialize_arena(&game_state->permanent_arena,
                          (u8*)memory->permanent_storage + sizeof(GameState),
                          memory->permanent_storage_size - sizeof(GameState));
@@ -617,12 +135,9 @@ MAIN_GAME_LOOP(main_game_loop){
                                                        &transient_state->transient_arena,
                                                        Megabytes(16));
         transient_state->LL_buffer = allocate_LL_buffer(
-                                        &transient_state->transient_arena, 
-                                        Megabytes(100));
+                                        &transient_state->transient_arena,
+                                        Megabytes(1000));
 
-        game_state->region_row_count = 4;
-        game_state->region_width = render_buffer->width / game_state->region_row_count;
-        game_state->region_height = render_buffer->height / game_state->region_row_count;
 
         game_state->screen_width = render_buffer->width;
         game_state->screen_height = render_buffer->height;
@@ -630,11 +145,14 @@ MAIN_GAME_LOOP(main_game_loop){
 
         seed_random(time(NULL), 0);
 
+        game_state->cell_row_count = 16;
+        game_state->cell_width = render_buffer->width / game_state->cell_row_count;
+        game_state->cell_height = render_buffer->height / game_state->cell_row_count;
         //game_state->ants_count = 3000;
         //game_state->ants_count = 1000;
         //game_state->ants_count = 100;
-        //game_state->ants_count = 1;
-        game_state->ants_count = 10;
+        //game_state->ants_count = 10;
+        game_state->ants_count = 1;
         game_state->entities_size = 110000;
         game_state->free_entities_size = 110000;
         //game_state->entities_size = 110;
@@ -647,14 +165,12 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->circle = load_bitmap(memory, "circle.bmp");
         game_state->image = load_bitmap(memory, "image.bmp");
 
+        // setup free entities array
         for(i32 i = game_state->free_entities_size - 1; i >= 0; --i){
             game_state->free_entities[i] = game_state->free_entities_size - 1 - i;
         }
 
-        game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 25, DGRAY, true);
-
         for(u32 i=0; i < game_state->ants_count; ++i){
-            // BUT
             u32 index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
             Entity *ant = game_state->entities + index;
             ant->t = clock->get_ticks();
@@ -662,81 +178,111 @@ MAIN_GAME_LOOP(main_game_loop){
         }
 
 
-        //add_pixel(game_state, 1, 1, red);
-        //game_state->player_index = add_player(game_state, vec2(50, 250), vec2(100, 100), green, game_state->circle);
-        //Entity* player = game_state->entities + game_state->player_index;
-        //player->draw_bounding_box = true;
-        //game_state->clip_region_index = add_box(game_state, vec2(100, 300), vec2(200, 200), blue);
-        //add_child(game_state, game_state->clip_region_index, game_state->player_index);
-        //add_circle(game_state, vec2(400, 400), 2, green, true);
+        for(i32 i=0; i<game_state->cell_row_count; ++i){
+            add_segment(game_state, vec2(0, render_buffer->height - game_state->cell_height * i), vec2(render_buffer->width, render_buffer->height - game_state->cell_height * i), DGRAY);
+            add_segment(game_state, vec2(render_buffer->width - game_state->cell_width * i, 0), vec2(render_buffer->width - game_state->cell_width * i, render_buffer->height), DGRAY);
+        }
+        game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 25, DGRAY, true);
 
-        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height), vec2(1024, render_buffer->height - game_state->region_height), RED);
-        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*2), vec2(1024, render_buffer->height - game_state->region_height*2), RED);
-        //add_segment(game_state, vec2(0, render_buffer->height - game_state->region_height*3), vec2(1024, render_buffer->height - game_state->region_height*3), RED);
-
-        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width, 0), vec2(render_buffer->width - game_state->region_width, 768), RED);
-        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width*2, 0), vec2(render_buffer->width - game_state->region_width*2, 768), RED);
-        //add_segment(game_state, vec2(render_buffer->width - game_state->region_width*3, 0), vec2(render_buffer->width - game_state->region_width*3, 768), RED);
-
+        game_state->add_food = false;
         memory->initialized = true;
+        f32 cycles = get_cpu_cycles_elapsed(__rdtsc(), init_cpu_length);
+#if RDTSC
+        print("init_cycles: %0.0f\n", cycles);
     }
 
+    print("-----------------------------------------\n");
+#else
+    }
+#endif
+
+    u64 cpu_start = __rdtsc();
     reset_LL_sentinel(&game_state->ants);
-    reset_LL_sentinel(&game_state->foods);
-    reset_LL_sentinel(&game_state->phers);
     reset_LL_sentinel(&game_state->misc);
-    reset_LL_sentinel(&game_state->regions[0][0]);
-    reset_LL_sentinel(&game_state->regions[0][1]);
-    reset_LL_sentinel(&game_state->regions[0][2]);
-    reset_LL_sentinel(&game_state->regions[0][3]);
-    reset_LL_sentinel(&game_state->regions[1][0]);
-    reset_LL_sentinel(&game_state->regions[1][1]);
-    reset_LL_sentinel(&game_state->regions[1][2]);
-    reset_LL_sentinel(&game_state->regions[1][3]);
-    reset_LL_sentinel(&game_state->regions[2][0]);
-    reset_LL_sentinel(&game_state->regions[2][1]);
-    reset_LL_sentinel(&game_state->regions[2][2]);
-    reset_LL_sentinel(&game_state->regions[2][3]);
-    reset_LL_sentinel(&game_state->regions[3][0]);
-    reset_LL_sentinel(&game_state->regions[3][1]);
-    reset_LL_sentinel(&game_state->regions[3][2]);
-    reset_LL_sentinel(&game_state->regions[3][3]);
+    for(i32 j=0; j < game_state->cell_row_count; ++j){
+        for(i32 k=0; k < game_state->cell_row_count; ++k){
+            reset_LL_sentinel(&game_state->pher_cells[j][k]);
+            reset_LL_sentinel(&game_state->food_pher_cells[j][k]);
+            reset_LL_sentinel(&game_state->home_pher_cells[j][k]);
+            reset_LL_sentinel(&game_state->food_cells[j][k]);
+        }
+    }
     transient_state->LL_buffer->used_bytes = 0;
+    f32 reset_sentinel_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("reset_sentinels_cycles: %0.05f\n", reset_sentinel_cycles);
+#endif
+
+    cpu_start = __rdtsc();
     for(u32 entity_index = 0; entity_index < game_state->entities_size; ++entity_index){
-        Entity *entity = game_state->entities + entity_index;
-        switch(entity->type){
+        Entity *e = game_state->entities + entity_index;
+        switch(e->type){
+            case EntityType_Box:{
+                e->type = EntityType_None;
+                game_state->free_entities_at++;
+                game_state->free_entities[game_state->free_entities_at] = e->index;
+            }break;
+            case EntityType_Segment:{
+                LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                node->data = e;
+                LL_push(&game_state->misc, node);
+            }break;
             case EntityType_Ant:{
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
-                node->data = entity;
+                node->data = e;
                 LL_push(&game_state->ants, node);
             }break;
             case EntityType_Food:{
+                v2 cell_coord = vec2(floor(e->position.x / game_state->cell_width), floor(e->position.y / game_state->cell_height));
+                cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
+                cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
+                LinkedList* cell = &game_state->food_cells[(i32)cell_coord.y][(i32)cell_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
-                node->data = entity;
-                LL_push(&game_state->foods, node);
+                node->data = e;
+                LL_push(cell, node);
             }break;
             case EntityType_ToHomePheromone:{
-                v2 region_coord = vec2(floor(entity->position.x / game_state->region_width), floor(entity->position.y / game_state->region_height));
-                region_coord.x = clamp_f32(0, region_coord.x, 3);
-                region_coord.y = clamp_f32(0, region_coord.y, 3);
-                LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
+                v2 cell_coord = vec2(floor(e->position.x / game_state->cell_width), floor(e->position.y / game_state->cell_height));
+                cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
+                cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
+
+                LinkedList* cell = &game_state->home_pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
-                node->data = entity;
-                LL_push(region, node);
+                node->data = e;
+                LL_push(cell, node);
+
+                LinkedList* pher_cell = &game_state->pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
+                LinkedList* pher_node = allocate_LL_node(transient_state->LL_buffer);
+                pher_node->data = e;
+                LL_push(pher_cell, pher_node);
             }break;
             case EntityType_ToFoodPheromone:{
-                v2 region_coord = vec2(floor(entity->position.x / game_state->region_width), floor(entity->position.y / game_state->region_height));
-                region_coord.x = clamp_f32(0, region_coord.x, 3);
-                region_coord.y = clamp_f32(0, region_coord.y, 3);
-                LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
+                v2 cell_coord = vec2(floor(e->position.x / game_state->cell_width), floor(e->position.y / game_state->cell_height));
+                cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
+                cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
+                LinkedList* cell = &game_state->food_pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
-                node->data = entity;
-                LL_push(region, node);
+                node->data = e;
+                LL_push(cell, node);
+
+                LinkedList* pher_cell = &game_state->pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
+                LinkedList* pher_node = allocate_LL_node(transient_state->LL_buffer);
+                pher_node->data = e;
+                LL_push(pher_cell, pher_node);
             }break;
         }
     }
+    for(LinkedList* node=game_state->misc.next; node != &game_state->misc; node=node->next){
+        Entity *e = node->data;
+        e->color = DGRAY;
+    }
+    f32 LL_setup = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("setup_sentinels_cycles: %0.05f\n", LL_setup);
+#endif
 
     // keyboard/controller/mouse events
+    cpu_start = __rdtsc();
     for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
         if(event->type == EVENT_MOUSEMOTION){
@@ -790,96 +336,146 @@ MAIN_GAME_LOOP(main_game_loop){
             }
         }
     }
+    f32 events_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("events_cycles:          %0.05f\n", events_cycles);
+#endif
 
-    if(game_state->controller.m1){
-        game_state->fc++;
+    if(game_state->controller.m2){
         add_food(game_state, game_state->controller.mouse_pos, 2, GREEN, true);
+        game_state->ccc++;
+    }
+    if(game_state->controller.m1){
+        //game_state->fc++;
+        if(!game_state->add_food){
+            game_state->add_food = true;
+            v2 cell_coord = vec2(floor(game_state->controller.mouse_pos.x / game_state->cell_width), floor(game_state->controller.mouse_pos.y / game_state->cell_height));
+            cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
+            cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
+            i32 x_start = cell_coord.x * game_state->cell_width;
+            i32 y_start = cell_coord.y * game_state->cell_height;
+            for(i32 x = x_start; x < (i32)(x_start + game_state->cell_width); x+=5){
+                for(i32 y = y_start; y < (i32)(y_start + game_state->cell_height); y+=5){
+                    add_food(game_state, vec2(x, y), 2, GREEN, true);
+                    game_state->ccc++;
+                }
+            }
+        }
+    }
+    else{
+        game_state->add_food = false;
     }
 
-    for(u32 i=0; i<4; ++i){
-        for(u32 j=0; j<4; ++j){
-            LinkedList *region = &game_state->regions[i][j];
-            for(LinkedList* node = region->next; node != region; node=node->next){
-                Entity *entity = (Entity*)node->data;
-                switch(entity->type){
-                    case EntityType_ToHomePheromone:{
-                        u64 now = clock->get_ticks();
-                        f32 seconds_elapsed = clock->get_seconds_elapsed(entity->home_decay_timer, now);
-                        f32 t = seconds_elapsed / entity->pher_home_decay_rate;
-                        entity->color.a = lerp(1.0f, 0.0f, t);
-
-                        if(entity->color.a <= 0.0f){
-                            entity->color.a = 1.0f;
-                            entity->type = EntityType_None;
-                            game_state->free_entities_at++;
-                            game_state->free_entities[game_state->free_entities_at] = entity->index;
-                        }
-                    }break;
+    cpu_start = __rdtsc();
+    for(i32 y=0; y<game_state->cell_row_count; ++y){
+        for(i32 x=0; x<game_state->cell_row_count; ++x){
+            LinkedList *pher_cell = &game_state->pher_cells[y][x];
+            for(LinkedList* node=pher_cell->next; node != pher_cell; node=node->next){
+                Entity *e = node->data;
+                switch(e->type){
                     case EntityType_ToFoodPheromone:{
                         u64 now = clock->get_ticks();
-                        f32 seconds_elapsed = clock->get_seconds_elapsed(entity->food_decay_timer, now);
-                        f32 t = seconds_elapsed / entity->pher_food_decay_rate;
-                        entity->color.a = lerp(1.0f, 0.0f, t);
-                        if(entity->color.a <= 0){
-                            entity->color.a = 1.0f;
-                            entity->type = EntityType_None;
+                        f32 seconds_elapsed = clock->get_seconds_elapsed(e->food_decay_timer, now);
+                        f32 t = seconds_elapsed / e->pher_food_decay_rate;
+                        e->color.a = lerp(1.0f, 0.0f, t);
+                        if(e->color.a <= 0){
+                            e->color.a = 1.0f;
+                            e->type = EntityType_None;
                             game_state->free_entities_at++;
-                            game_state->free_entities[game_state->free_entities_at] = entity->index;
+                            game_state->free_entities[game_state->free_entities_at] = e->index;
+                        }
+                    }break;
+                    case EntityType_ToHomePheromone:{
+                        u64 now = clock->get_ticks();
+                        f32 seconds_elapsed = clock->get_seconds_elapsed(e->home_decay_timer, now);
+                        f32 t = seconds_elapsed / e->pher_home_decay_rate;
+                        e->color.a = lerp(1.0f, 0.0f, t);
+
+                        if(e->color.a <= 0.0f){
+                            e->color.a = 1.0f;
+                            e->type = EntityType_None;
+                            game_state->free_entities_at++;
+                            game_state->free_entities[game_state->free_entities_at] = e->index;
                         }
                     }break;
                 }
             }
         }
     }
+    f32 pher_degredation = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("pher_degredate_cycles:  %0.05f\n", pher_degredation);
+#endif
 
+    cpu_start = __rdtsc();
     for(LinkedList* node=game_state->ants.next; node != &game_state->ants; node=node->next){
         Entity *ant = (Entity*)node->data;
 
+        u64 c3 = __rdtsc();
         if(ant->ant_state == AntState_Wondering){
             ant->color = LGRAY;
             //game_state->wc++;
             ant->right_sensor_density = 0.0f;
             ant->middle_sensor_density = 0.0f;
             ant->left_sensor_density = 0.0f;
-            for(LinkedList* node=game_state->foods.next; node != &game_state->foods; node=node->next){
-                Entity *food = node->data;
-                if(!food->targeted){
-                    Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                    Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                    Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                    if(rect_collide_point(right_rect, food->position) || rect_collide_point(mid_rect, food->position) || rect_collide_point(left_rect, food->position)){
-                        ant->ant_state = AntState_Collecting;
-                        ant->ant_food = food;
-                        food->targeted = true;
-                        ant->changing_state = true;
-                        //ant->color = RED;
-                        break;
+
+            v2 middle_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
+            middle_coord.x = clamp_f32(0, middle_coord.x, game_state->cell_row_count - 1);
+            middle_coord.y = clamp_f32(0, middle_coord.y, game_state->cell_row_count - 1);
+            v2 bottom_left = vec2(middle_coord.x - 1, middle_coord.y - 1);
+            u64 c1 = __rdtsc();
+            for(i32 y=bottom_left.y; y<=middle_coord.y+1; ++y){
+                for(i32 x=bottom_left.x; x<=middle_coord.x+1; ++x){
+                    if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
+                        //add_box(game_state, vec2(game_state->cell_width * x, game_state->cell_height * y), vec2(game_state->cell_width, game_state->cell_height), ORANGE);
+                        u64 c0 = __rdtsc();
+                        LinkedList* food_cell = &game_state->food_cells[y][x];
+                        for(LinkedList* node=food_cell->next; node != food_cell; node=node->next){
+                            Entity *food = node->data;
+                            if(!food->targeted){
+                                Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                if(rect_collide_point(right_rect, food->position) || rect_collide_point(mid_rect, food->position) || rect_collide_point(left_rect, food->position)){
+                                    ant->ant_state = AntState_Collecting;
+                                    ant->ant_food = food;
+                                    food->targeted = true;
+                                    ant->changing_state = true;
+                                    //ant->color = RED;
+                                    break;
+                                }
+                            }
+                        }
+                        game_state->c0_total += get_cpu_cycles_elapsed(__rdtsc(), c0);
+                        u64 c2 = __rdtsc();
+                        LinkedList* pher_cell = &game_state->food_pher_cells[(i32)middle_coord.y][(i32)middle_coord.x];
+                        for(LinkedList *node=pher_cell->next; node != pher_cell; node=node->next){
+                            Entity *pher = node->data;
+                            switch(pher->type){
+                                case EntityType_ToFoodPheromone:{
+                                    Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                                    if(rect_collide_point(right_rect, pher->position)){
+                                        ant->right_sensor_density += pher->color.a;
+                                    }
+                                    if(rect_collide_point(mid_rect, pher->position)){
+                                        ant->middle_sensor_density += pher->color.a;
+                                    }
+                                    if(rect_collide_point(left_rect, pher->position)){
+                                        ant->left_sensor_density += pher->color.a;
+                                    }
+                                } break;
+                            }
+                        }
+                        f32 result2 = get_cpu_cycles_elapsed(__rdtsc(), c2);
+                        game_state->c2_total += result2;
                     }
                 }
             }
-            v2 region_coord = vec2(floor(ant->position.x / game_state->region_width), floor(ant->position.y / game_state->region_height));
-            region_coord.x = clamp_f32(0, region_coord.x, 3);
-            region_coord.y = clamp_f32(0, region_coord.y, 3);
-            LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
-            for(LinkedList* node=region->next; node != region; node=node->next){
-                Entity* pher = node->data;
-                switch(pher->type){
-                    case EntityType_ToFoodPheromone:{
-                        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        if(rect_collide_point(right_rect, pher->position)){
-                            ant->right_sensor_density += pher->color.a;
-                        }
-                        if(rect_collide_point(mid_rect, pher->position)){
-                            ant->middle_sensor_density += pher->color.a;
-                        }
-                        if(rect_collide_point(left_rect, pher->position)){
-                            ant->left_sensor_density += pher->color.a;
-                        }
-                    } break;
-                }
-            }
+            f32 result1 = get_cpu_cycles_elapsed(__rdtsc(), c1);
+            game_state->c1_total += result1;
+
 
             if(ant->ant_state != AntState_Collecting){
                 if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
@@ -976,6 +572,9 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }
         }
+        f32 result3 = get_cpu_cycles_elapsed(__rdtsc(), c3);
+        game_state->c3_total += result3;
+        u64 c4 = __rdtsc();
         if(ant->ant_state == AntState_Collecting){
             if(ant->changing_state){
                 ant->rot_percent = 0.0f;
@@ -1007,6 +606,9 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->target_direction.y = -ant->target_direction.y;
             }
         }
+        f32 result4 = get_cpu_cycles_elapsed(__rdtsc(), c4);
+        game_state->c4_total += result4;
+        u64 c5 = __rdtsc();
         if(ant->ant_state == AntState_Depositing){
             game_state->dc++;
             ant->color = RED;
@@ -1014,31 +616,36 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->middle_sensor_density = 0.0f;
             ant->left_sensor_density = 0.0f;
 
-            v2 region_coord = vec2(floor(ant->position.x / game_state->region_width), floor(ant->position.y / game_state->region_height));
-            region_coord.x = clamp_f32(0, region_coord.x, 3);
-            region_coord.y = clamp_f32(0, region_coord.y, 3);
-            if(region_coord.x < 0){ region_coord.x = 0; }
-            if(region_coord.y < 0){ region_coord.y = 0; }
-            LinkedList* region = &game_state->regions[(i32)region_coord.y][(i32)region_coord.x];
-            for(LinkedList* node=region->next; node != region; node=node->next){
-                Entity* pher = node->data;
-                switch(pher->type){
-                    case EntityType_ToHomePheromone:{
-                        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        if(rect_collide_point(right_rect, pher->position)){
-                            ant->right_sensor_density += pher->color.a;
+
+            v2 middle_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
+            middle_coord.x = clamp_f32(0, middle_coord.x, game_state->cell_row_count - 1);
+            middle_coord.y = clamp_f32(0, middle_coord.y, game_state->cell_row_count - 1);
+            v2 bottom_left = vec2(middle_coord.x - 1, middle_coord.y - 1);
+            u64 c6 = __rdtsc();
+            for(i32 y=bottom_left.y; y<=middle_coord.y+1; ++y){
+                for(i32 x=bottom_left.x; x<=middle_coord.x+1; ++x){
+                    if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
+                        LinkedList* pher_cell = &game_state->home_pher_cells[y][x];
+                        for(LinkedList* node=pher_cell->next; node != pher_cell; node=node->next){
+                            Entity *pher = node->data;
+                            Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            if(rect_collide_point(right_rect, pher->position)){
+                                ant->right_sensor_density += pher->color.a;
+                            }
+                            if(rect_collide_point(mid_rect, pher->position)){
+                                ant->middle_sensor_density += pher->color.a;
+                            }
+                            if(rect_collide_point(left_rect, pher->position)){
+                                ant->left_sensor_density += pher->color.a;
+                            }
                         }
-                        if(rect_collide_point(mid_rect, pher->position)){
-                            ant->middle_sensor_density += pher->color.a;
-                        }
-                        if(rect_collide_point(left_rect, pher->position)){
-                            ant->left_sensor_density += pher->color.a;
-                        }
-                    } break;
+                    }
                 }
             }
+            f32 result6 = get_cpu_cycles_elapsed(__rdtsc(), c6);
+            game_state->c6_total += result6;
 
             if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
                 f32 mid_rad = dir_rad(ant->direction);
@@ -1121,7 +728,6 @@ MAIN_GAME_LOOP(main_game_loop){
             Entity* colony = game_state->entities + game_state->colony_index;
             f32 colony_distance = distance2(ant->position, colony->position);
             if(colony_distance < 20){
-                //ant->color = LGRAY;
                 ant->ant_state = AntState_Wondering;
                 ant->changing_state = true;
                 ant->ant_food = NULL;
@@ -1129,114 +735,143 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->target_direction.y = -ant->target_direction.y;
             }
         }
+        f32 result5 = get_cpu_cycles_elapsed(__rdtsc(), c5);
+        game_state->c5_total += result5;
     }
+    f32 ant_behavior = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("ant_behavior_cycles:    %0.05f\n", ant_behavior);
+    print("     wondering_cycles:    %0.05f\n", game_state->c3_total);
+    print("         food+pher_cycles:    %0.05f\n", game_state->c1_total);
+    print("         food_cycles:    %0.05f\n", game_state->c0_total);
+    print("         phers_cycles:    %0.05f\n", game_state->c2_total);
+    print("     collecting_cycles:    %0.05f\n", game_state->c4_total);
+    print("     depositing_cycles:    %0.05f\n", game_state->c5_total);
+    print("         phers_cycles:    %0.05f\n", game_state->c6_total);
+    game_state->c0_total = 0;
+    game_state->c1_total = 0;
+    game_state->c2_total = 0;
+    game_state->c3_total = 0;
+    game_state->c4_total = 0;
+    game_state->c5_total = 0;
+    game_state->c6_total = 0;
+#endif
 
+    cpu_start = __rdtsc();
     transient_state->render_commands_buffer->used_bytes = 0;
     allocate_clear_color(transient_state->render_commands_buffer, BLACK);
     for(u32 entity_index = 0; entity_index <= game_state->entities_size; ++entity_index){
-        Entity *entity = game_state->entities + entity_index;
-        switch(entity->type){
+        Entity *e = game_state->entities + entity_index;
+        switch(e->type){
             case EntityType_Player:{
-                allocate_bitmap(transient_state->render_commands_buffer, entity->position, entity->image);
-                if(entity->draw_bounding_box){
-                    allocate_box(transient_state->render_commands_buffer, entity->position, entity->dimension, entity->color);
+                allocate_bitmap(transient_state->render_commands_buffer, e->position, e->image);
+                if(e->draw_bounding_box){
+                    allocate_box(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
                 }
-                //allocate_rect(transient_state->render_commands_buffer, entity->position, entity->dimension, entity->color);
+                //allocate_rect(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
             }break;
             case EntityType_Pixel:{
-                allocate_pixel(transient_state->render_commands_buffer, entity->position, entity->color);
+                allocate_pixel(transient_state->render_commands_buffer, e->position, e->color);
             }break;
             case EntityType_Segment:{
-                allocate_segment(transient_state->render_commands_buffer, entity->p0, entity->p1, entity->color);
+                allocate_segment(transient_state->render_commands_buffer, e->p0, e->p1, e->color);
             }break;
             case EntityType_Line:{
-                allocate_line(transient_state->render_commands_buffer, entity->position, entity->direction, entity->color);
+                allocate_line(transient_state->render_commands_buffer, e->position, e->direction, e->color);
             }break;
             case EntityType_Ray:{
-                allocate_ray(transient_state->render_commands_buffer, entity->position, entity->direction, entity->color);
+                allocate_ray(transient_state->render_commands_buffer, e->position, e->direction, e->color);
             }break;
             case EntityType_Rect:{
-                allocate_rect(transient_state->render_commands_buffer, entity->position, entity->dimension, entity->color);
+                allocate_rect(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
             }break;
             case EntityType_Box:{
-                allocate_box(transient_state->render_commands_buffer, entity->position, entity->dimension, entity->color);
+                allocate_box(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
             }break;
             case EntityType_Quad:{
-                allocate_quad(transient_state->render_commands_buffer, entity->p0, entity->p1, entity->p2, entity->p3, entity->color, entity->fill);
+                allocate_quad(transient_state->render_commands_buffer, e->p0, e->p1, e->p2, e->p3, e->color, e->fill);
             }break;
             case EntityType_Triangle:{
-                allocate_triangle(transient_state->render_commands_buffer, entity->p0, entity->p1, entity->p2, entity->color, entity->fill);
+                allocate_triangle(transient_state->render_commands_buffer, e->p0, e->p1, e->p2, e->color, e->fill);
             }break;
             case EntityType_Circle:{
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, entity->fill);
-                v2 dimenstion = vec2(entity->rad*2, entity->rad*2);
-                v2 position = vec2(entity->position.x - entity->rad, entity->position.y - entity->rad);
-                if(entity->draw_bounding_box){
-                    allocate_box(transient_state->render_commands_buffer, position, dimenstion, entity->color);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+                v2 dimenstion = vec2(e->rad*2, e->rad*2);
+                v2 position = vec2(e->position.x - e->rad, e->position.y - e->rad);
+                if(e->draw_bounding_box){
+                    allocate_box(transient_state->render_commands_buffer, position, dimenstion, e->color);
                 }
             }break;
             case EntityType_Bitmap:{
-                allocate_bitmap(transient_state->render_commands_buffer, entity->position, entity->image);
+                allocate_bitmap(transient_state->render_commands_buffer, e->position, e->image);
             }break;
             case EntityType_None:{
             }break;
             case EntityType_Object:{
             }break;
             case EntityType_Food:{
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, entity->fill);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
             }break;
             case EntityType_Ant:{
                 //HERE
                 // TODO: segments seem to crash the game, figure out why
-                //allocate_segment(transient_state->render_commands_buffer, entity->position, game_state->controller.mouse_pos, RED);
+                //allocate_segment(transient_state->render_commands_buffer, e->position, game_state->controller.mouse_pos, RED);
 
 
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, entity->fill);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
 
-                f32 mid_rad = dir_rad(entity->direction);
-                f32 right_rad = mid_rad + (RAD * entity->sensor_angle);
-                f32 left_rad = mid_rad - (RAD * entity->sensor_angle);
+                f32 mid_rad = dir_rad(e->direction);
+                f32 right_rad = mid_rad + (RAD * e->sensor_angle);
+                f32 left_rad = mid_rad - (RAD * e->sensor_angle);
 
                 v2 right_direction = rad_dir(right_rad);
                 v2 left_direction = rad_dir(left_rad);
 
-                entity->right_sensor = vec2(entity->position.x + (entity->sensor_distance * right_direction.x), entity->position.y + (entity->sensor_distance * right_direction.y));
-                entity->mid_sensor = vec2(entity->position.x + (entity->sensor_distance * entity->direction.x), entity->position.y + (entity->sensor_distance * entity->direction.y));
-                entity->left_sensor = vec2(entity->position.x + (entity->sensor_distance * left_direction.x), entity->position.y + (entity->sensor_distance * left_direction.y));
+                e->right_sensor = vec2(e->position.x + (e->sensor_distance * right_direction.x), e->position.y + (e->sensor_distance * right_direction.y));
+                e->mid_sensor = vec2(e->position.x + (e->sensor_distance * e->direction.x), e->position.y + (e->sensor_distance * e->direction.y));
+                e->left_sensor = vec2(e->position.x + (e->sensor_distance * left_direction.x), e->position.y + (e->sensor_distance * left_direction.y));
 
-                Rect right_rect = rect(vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
-                Rect mid_rect = rect(vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
-                Rect left_rect = rect(vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2));
+                Rect right_rect = rect(vec2(e->right_sensor.x - e->sensor_radius, e->right_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
+                Rect mid_rect = rect(vec2(e->mid_sensor.x - e->sensor_radius, e->mid_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
+                Rect left_rect = rect(vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
 
 
-                allocate_box(transient_state->render_commands_buffer, vec2(entity->right_sensor.x - entity->sensor_radius, entity->right_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), YELLOW);
-                allocate_box(transient_state->render_commands_buffer, vec2(entity->mid_sensor.x - entity->sensor_radius, entity->mid_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), GREEN);
-                allocate_box(transient_state->render_commands_buffer, vec2(entity->left_sensor.x - entity->sensor_radius, entity->left_sensor.y - entity->sensor_radius), vec2(entity->sensor_radius * 2, entity->sensor_radius * 2), ORANGE);
+                //allocate_box(transient_state->render_commands_buffer, vec2(e->right_sensor.x - e->sensor_radius, e->right_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), YELLOW);
+                //allocate_box(transient_state->render_commands_buffer, vec2(e->mid_sensor.x - e->sensor_radius, e->mid_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), GREEN);
+                //allocate_box(transient_state->render_commands_buffer, vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), ORANGE);
 
-                allocate_circle(transient_state->render_commands_buffer, entity->right_sensor, entity->sensor_radius, YELLOW, false);
-                allocate_circle(transient_state->render_commands_buffer, entity->mid_sensor, entity->sensor_radius, GREEN, false);
-                allocate_circle(transient_state->render_commands_buffer, entity->left_sensor, entity->sensor_radius, ORANGE, false);
+                //allocate_circle(transient_state->render_commands_buffer, e->right_sensor, e->sensor_radius, YELLOW, false);
+                //allocate_circle(transient_state->render_commands_buffer, e->mid_sensor, e->sensor_radius, GREEN, false);
+                //allocate_circle(transient_state->render_commands_buffer, e->left_sensor, e->sensor_radius, ORANGE, false);
 
-                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->right_sensor, YELLOW);
-                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->mid_sensor, GREEN);
-                allocate_segment(transient_state->render_commands_buffer, entity->position, entity->left_sensor, ORANGE);
-                allocate_ray(transient_state->render_commands_buffer, entity->position, entity->target_direction, BLUE);
+                //allocate_segment(transient_state->render_commands_buffer, e->position, e->right_sensor, YELLOW);
+                //allocate_segment(transient_state->render_commands_buffer, e->position, e->mid_sensor, GREEN);
+                //allocate_segment(transient_state->render_commands_buffer, e->position, e->left_sensor, ORANGE);
+                //allocate_ray(transient_state->render_commands_buffer, e->position, e->target_direction, BLUE);
             }break;
             case EntityType_Colony:{
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, entity->fill);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
             }break;
             case EntityType_ToHomePheromone:{
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, true);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, true);
             }break;
             case EntityType_ToFoodPheromone:{
-                allocate_circle(transient_state->render_commands_buffer, entity->position, entity->rad, entity->color, true);
+                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, true);
             }break;
         }
     }
+    f32 push_draw_commands = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("draw_commands_cycles:   %0.05f\n", push_draw_commands);
+#endif
     //print("DT: %.05f - X: %.02f - Y: %.02f\n", clock->dt, game_state->c2->position.x, game_state->c2->position.y);
     //print("fc: %i - wc: %i - cc: %i - dc: %i - tc: %i - ntc: %i - ptc: %i\n", game_state->fc, game_state->wc, game_state->cc, game_state->dc, game_state->tc, game_state->ntc, game_state->ptc);
-    u64 s = __rdtsc();
+    cpu_start = __rdtsc();
     draw_commands(render_buffer, transient_state->render_commands_buffer);
+    f32 draw_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+#if RDTSC
+    print("draw_cycles:            %0.05f\n", draw_cycles);
+#endif
     game_state->wc = 0;
     game_state->cc = 0;
     game_state->dc = 0;

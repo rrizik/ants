@@ -6,6 +6,7 @@
 #include <time.h>
 #include "vectors.h"
 #include "linked_list.h"
+#include "math.h"
 
 // get rid of this shit
 #include <stdio.h>
@@ -185,6 +186,13 @@ typedef struct TranState{
 
 typedef struct GameState{
     MemoryArena permanent_arena;
+    f32 c0_total;
+    f32 c1_total;
+    f32 c2_total;
+    f32 c3_total;
+    f32 c4_total;
+    f32 c5_total;
+    f32 c6_total;
 
     u32 c;
     u64 start;
@@ -197,15 +205,16 @@ typedef struct GameState{
     u32 ntc;
     u32 ptc;
 
-    LinkedList regions[4][4];
+    LinkedList pher_cells     [16][16];
+    LinkedList food_pher_cells[16][16];
+    LinkedList home_pher_cells[16][16];
+    LinkedList food_cells     [16][16];
     LinkedList ants;
-    LinkedList foods;
-    LinkedList phers;
     LinkedList misc;
 
-    u32 region_row_count;
-    u32 region_width;
-    u32 region_height;
+    i32 cell_row_count;
+    i32 cell_width;
+    i32 cell_height;
 
     f32 screen_width;
     f32 screen_height;
@@ -227,6 +236,9 @@ typedef struct GameState{
     Bitmap test;
     Bitmap circle;
     Bitmap image;
+
+    i32 ccc;
+    bool add_food;
 
 } GameState;
 
@@ -473,15 +485,23 @@ add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     return(e->index);
 }
 
-static v4
-convert_u32_v4_normalized(u32 value){
-	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
-	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
-	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
-	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
-    v4 result = {red, green, blue, alpha};
-    return result;
-}
+static Bitmap
+load_bitmap(GameMemory *memory, char *filename){
+    Bitmap result = {0};
 
+    char full_path[256];
+    cat_strings(memory->data_dir, filename, full_path);
+
+    FileData bitmap_file = memory->read_entire_file(full_path);
+    if(bitmap_file.size > 0){
+        BitmapHeader *header = (BitmapHeader *)bitmap_file.content;
+        result.pixels = (u32 *)((u8 *)bitmap_file.content + header->bitmap_offset);
+        result.width = header->width;
+        result.height = header->height;
+        // IMPORTANT: depending on compression type you might have to re order the bytes to make it AA RR GG BB
+        // as well as consider the masks for each color included in the header
+    }
+    return(result);
+}
 #define GAME_H
 #endif

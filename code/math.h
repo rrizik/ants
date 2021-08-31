@@ -122,5 +122,71 @@ static f32 lerp(f32 a, f32 b, f32 t){
     return(result);
 }
 
+static v2
+calc_center(v2 *p, u32 count){
+    v2 result = {0};
+
+    for(u32 i=0; i<count; ++i){
+        result.x += p->x;
+        result.y += p->y;
+        p++;
+    }
+    p -= count;
+
+    result.x /= count;
+    result.y /= count;
+
+    return(result);
+}
+
+static void
+translate(v2 *p, u32 count, v2 translation){
+    for(u32 i=0; i<count; ++i){
+        *p = add2(*p, translation);
+        p++;
+    }
+    p -= count;
+}
+
+static void
+scale(v2 *p, u32 count, f32 scalar, v2 origin){
+    for(u32 i=0; i<count; ++i){
+        *p = add2(scale2(sub2(*p, origin), scalar), origin);
+        p++;
+    }
+    p -= count;
+}
+
+static v2
+rotate_pt(v2 p, f32 angle, v2 origin){
+    v2 result = {0};
+    result.x = (p.x - origin.x) * Cos(angle * 3.14f/180.0f) - (p.y - origin.y) * Sin(angle * 3.14f/180.0f) + origin.x;
+    result.y = (p.x - origin.x) * Sin(angle * 3.14f/180.0f) + (p.y - origin.y) * Cos(angle * 3.14f/180.0f) + origin.y;
+    return(result);
+}
+
+static void
+rotate_pts(v2 *p, u32 count, f32 angle, v2 origin){
+    for(u32 i=0; i<count; ++i){
+        v2 result = {0};
+        result = rotate_pt(*p, angle, origin);
+        p->x = result.x;
+        p->y = result.y;
+        p++;
+    }
+    p -= count;
+}
+
+static v4
+convert_u32_v4_normalized(u32 value){
+	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
+	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
+	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
+	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
+    v4 result = {red, green, blue, alpha};
+    return result;
+}
+
+
 #define MATH_H
 #endif

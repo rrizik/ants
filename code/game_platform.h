@@ -95,15 +95,25 @@ typedef WIN_GET_CLOCK(GetTicks);
 #define WIN_GET_SECONDS_ELAPSED(name) f32 name(u64 start, u64 end)
 typedef WIN_GET_SECONDS_ELAPSED(GetSecondsElapsed);
 
+#define WIN_GET_CPU_CYCLES_ELAPSED(name) f32 name(u64 start, u64 end)
+typedef WIN_GET_CPU_CYCLES_ELAPSED(GetCPUCyclesElapsed);
+
 typedef struct Clock{
     GetTicks *get_ticks;
     GetSecondsElapsed *get_seconds_elapsed;
+    GetCPUCyclesElapsed *get_cpu_cycles_elapsed;
     u64 frequency;
     f32 dt;
 
     u64 cpu_prev;
     u64 cpu_now;
 } Clock;
+
+static f32 
+get_cpu_cycles_elapsed(u64 end, u64 start){
+    f32 result = (f32)(end - start) / (1000 * 1000);
+    return(result);
+}
 
 //static f32
 //get_seconds_elapsed(u64 start, u64 end, u64 frequency){
