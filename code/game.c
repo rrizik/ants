@@ -682,7 +682,6 @@ MAIN_GAME_LOOP(main_game_loop){
             else{
                 // direction change timer
                 if(ant->direction_change_timer >= ant->direction_change_timer_max){
-                    print("ok\n");
                     ant->direction_change_timer = clock->get_ticks();
                     ant->change_direction = true;
                 }
@@ -698,9 +697,9 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->target_direction = get_normalized2(add2(ant->direction, ant->random_vector));
                 }
             }
-            ant->timer += 0.1f;
+            ant->direction_change_timer += 0.1f;
             if(ant->changing_state){
-                ant->timer = 0.0f;
+                ant->direction_change_timer = 0.0f;
                 ant->direction_change_timer = clock->get_ticks();
                 ant->rot_percent = 0.0f;
                 ant->changing_state = false;
