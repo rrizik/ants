@@ -86,6 +86,7 @@ typedef struct Controller{
     bool right;
     bool m1;
     bool m2;
+    bool m3;
     v2 mouse_pos;
 } Controller;
 

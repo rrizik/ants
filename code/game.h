@@ -117,7 +117,6 @@ typedef struct Entity{
     u64 direction_change_timer;
     f32 direction_change_timer_max;
     f32 timer;
-    f32 max_timer;
 	f32 rot_percent;
     bool targeted;
     v2 right_sensor;
@@ -135,9 +134,10 @@ typedef struct Entity{
     f32 right_sensor_density;
     f32 middle_sensor_density;
     f32 left_sensor_density;
-    bool right;
-    bool middle;
-    bool left;
+    //bool right;
+    //bool middle;
+    //bool left;
+    bool colony_targeted;
     v2 target_direction;
 
     f32 pher_home_decay_rate;
@@ -428,7 +428,6 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->rot_percent = 0.0f;
     e->change_direction = false;
     e->changing_state = false;
-    e->max_timer = (random_range(10) + 1);
     e->direction_change_timer_max = (random_range(3) + 1);
     e->pheromone_spawn_timer_max = 0.25;
     e->speed = 250.0f;
