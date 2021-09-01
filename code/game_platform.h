@@ -25,9 +25,9 @@ typedef double f64;
 #define array_size(value) (sizeof(value)/sizeof(value[0]))
 #define ABS(n) ((n)<0 ? -(n) : (n))
 #define PI 3.14159265f
+#define RAD 0.0174533f
 #define RAD2DEG(n) ((180.0f/PI) * (n))
 #define DEG2RAD(n) ((PI/180.0f) * (n))
-#define RAD 0.0174533f
 
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)

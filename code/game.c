@@ -173,8 +173,8 @@ MAIN_GAME_LOOP(main_game_loop){
         for(u32 i=0; i < game_state->ants_count; ++i){
             u32 index = add_ant(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 2, LGRAY, true);
             Entity *ant = game_state->entities + index;
-            ant->t = clock->get_ticks();
-            ant->tp = clock->get_ticks();
+            ant->direction_change_timer = clock->get_ticks();
+            ant->pheromone_spawn_timer = clock->get_ticks();
         }
 
 
@@ -428,14 +428,15 @@ MAIN_GAME_LOOP(main_game_loop){
                 for(i32 x=bottom_left.x; x<=middle_coord.x+1; ++x){
                     if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
                         //add_box(game_state, vec2(game_state->cell_width * x, game_state->cell_height * y), vec2(game_state->cell_width, game_state->cell_height), ORANGE);
-                        u64 c0 = __rdtsc();
                         LinkedList* food_cell = &game_state->food_cells[y][x];
+                        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                        Entity *food = NULL;
+                        u64 c0 = __rdtsc();
                         for(LinkedList* node=food_cell->next; node != food_cell; node=node->next){
-                            Entity *food = node->data;
+                            food = node->data;
                             if(!food->targeted){
-                                Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
                                 if(rect_collide_point(right_rect, food->position) || rect_collide_point(mid_rect, food->position) || rect_collide_point(left_rect, food->position)){
                                     ant->ant_state = AntState_Collecting;
                                     ant->ant_food = food;
@@ -448,24 +449,19 @@ MAIN_GAME_LOOP(main_game_loop){
                         }
                         game_state->c0_total += get_cpu_cycles_elapsed(__rdtsc(), c0);
                         u64 c2 = __rdtsc();
+                        // TODO: not measuring this yet
                         LinkedList* pher_cell = &game_state->food_pher_cells[(i32)middle_coord.y][(i32)middle_coord.x];
+                        Entity *pher = NULL;
                         for(LinkedList *node=pher_cell->next; node != pher_cell; node=node->next){
-                            Entity *pher = node->data;
-                            switch(pher->type){
-                                case EntityType_ToFoodPheromone:{
-                                    Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                    Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                    Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                                    if(rect_collide_point(right_rect, pher->position)){
-                                        ant->right_sensor_density += pher->color.a;
-                                    }
-                                    if(rect_collide_point(mid_rect, pher->position)){
-                                        ant->middle_sensor_density += pher->color.a;
-                                    }
-                                    if(rect_collide_point(left_rect, pher->position)){
-                                        ant->left_sensor_density += pher->color.a;
-                                    }
-                                } break;
+                            pher = node->data;
+                            if(rect_collide_point(right_rect, pher->position)){
+                                ant->right_sensor_density += pher->color.a;
+                            }
+                            if(rect_collide_point(mid_rect, pher->position)){
+                                ant->middle_sensor_density += pher->color.a;
+                            }
+                            if(rect_collide_point(left_rect, pher->position)){
+                                ant->left_sensor_density += pher->color.a;
                             }
                         }
                         f32 result2 = get_cpu_cycles_elapsed(__rdtsc(), c2);
@@ -479,9 +475,9 @@ MAIN_GAME_LOOP(main_game_loop){
 
             if(ant->ant_state != AntState_Collecting){
                 if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-                    f32 mid_rad = dir_rad(ant->direction);
-                    f32 right_rad = mid_rad + (RAD * ant->sensor_angle);
-                    f32 left_rad = mid_rad - (RAD * ant->sensor_angle);
+                    f32 forward_rad = dir_rad(ant->direction);
+                    f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+                    f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
 
                     v2 right_direction = rad_dir(right_rad);
                     v2 left_direction = rad_dir(left_rad);
@@ -523,7 +519,7 @@ MAIN_GAME_LOOP(main_game_loop){
                         ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                         ant->rot_percent = 0.0f;
                         ant->max_timer = (random_range(10) + 1);
-                        ant->t_max = (random_range(3) + 1);
+                        ant->direction_change_timer_max = (random_range(3) + 1);
                         ant->change_direction = false;
                         ant->target_direction = ant->random_vector;
                     }
@@ -532,7 +528,7 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->timer += 0.1f;
                 if(ant->changing_state){
                     ant->timer = 0.0f;
-                    ant->t = clock->get_ticks();
+                    ant->direction_change_timer = clock->get_ticks();
                     ant->rot_percent = 0.0f;
                     ant->changing_state = false;
                 }
@@ -546,9 +542,9 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
 
                 u64 now = clock->get_ticks();
-                f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
-                if(seconds_elapsed >= ant->tp_max){
-                    ant->tp = clock->get_ticks();
+                f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, now);
+                if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
+                    ant->pheromone_spawn_timer = clock->get_ticks();
                     u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
                     Entity *pher = game_state->entities + index;
                     pher->home_decay_timer = clock->get_ticks();
@@ -617,20 +613,21 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->left_sensor_density = 0.0f;
 
 
+            u64 c6 = __rdtsc();
             v2 middle_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
             middle_coord.x = clamp_f32(0, middle_coord.x, game_state->cell_row_count - 1);
             middle_coord.y = clamp_f32(0, middle_coord.y, game_state->cell_row_count - 1);
             v2 bottom_left = vec2(middle_coord.x - 1, middle_coord.y - 1);
-            u64 c6 = __rdtsc();
+            Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+            Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+            Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+            Entity *pher = NULL;
             for(i32 y=bottom_left.y; y<=middle_coord.y+1; ++y){
                 for(i32 x=bottom_left.x; x<=middle_coord.x+1; ++x){
                     if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
                         LinkedList* pher_cell = &game_state->home_pher_cells[y][x];
                         for(LinkedList* node=pher_cell->next; node != pher_cell; node=node->next){
-                            Entity *pher = node->data;
-                            Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                            Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                            Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+                            pher = node->data;
                             if(rect_collide_point(right_rect, pher->position)){
                                 ant->right_sensor_density += pher->color.a;
                             }
@@ -648,9 +645,9 @@ MAIN_GAME_LOOP(main_game_loop){
             game_state->c6_total += result6;
 
             if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-                f32 mid_rad = dir_rad(ant->direction);
-                f32 right_rad = mid_rad + (RAD * ant->sensor_angle);
-                f32 left_rad = mid_rad - (RAD * ant->sensor_angle);
+                f32 forward_rad = dir_rad(ant->direction);
+                f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+                f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
 
                 v2 right_direction = rad_dir(right_rad);
                 v2 left_direction = rad_dir(left_rad);
@@ -683,16 +680,20 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }
             else{
-                if(ant->t >= ant->t_max){
-                    ant->t = clock->get_ticks();
+                // direction change timer
+                if(ant->direction_change_timer >= ant->direction_change_timer_max){
+                    print("ok\n");
+                    ant->direction_change_timer = clock->get_ticks();
                     ant->change_direction = true;
                 }
+                //print("direction_change_timer: %0.05");
+                // random direction change
                 if(ant->change_direction){
                     ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                     ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                     ant->rot_percent = 0.0f;
                     ant->max_timer = (random_range(10) + 1);
-                    ant->t_max = (random_range(3) + 1);
+                    ant->direction_change_timer_max = (random_range(3) + 1);
                     ant->change_direction = false;
                     ant->target_direction = get_normalized2(add2(ant->direction, ant->random_vector));
                 }
@@ -700,13 +701,14 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->timer += 0.1f;
             if(ant->changing_state){
                 ant->timer = 0.0f;
-                ant->t = clock->get_ticks();
+                ant->direction_change_timer = clock->get_ticks();
                 ant->rot_percent = 0.0f;
                 ant->changing_state = false;
             }
 
             f32 ant_angle = dir_rad(ant->direction);
             f32 target_angle = dir_rad(ant->target_direction);
+            print("ant_angle: %0.05f - target_angle: %0.05f\n", ant_angle, target_angle);
             ant->direction = rad_dir(lerp_rad(ant_angle, target_angle, ant->rot_percent));
             ant->rot_percent += ant->rotate_speed;
             if(ant->rot_percent > 1.0f){
@@ -714,9 +716,9 @@ MAIN_GAME_LOOP(main_game_loop){
             }
 
             u64 now = clock->get_ticks();
-            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->tp, now);
-            if(seconds_elapsed >= ant->tp_max){
-                ant->tp = clock->get_ticks();
+            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, now);
+            if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
+                ant->pheromone_spawn_timer = clock->get_ticks();
                 u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
                 Entity *pher = game_state->entities + index;
                 pher->food_decay_timer = clock->get_ticks();
@@ -820,9 +822,9 @@ MAIN_GAME_LOOP(main_game_loop){
 
                 allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
 
-                f32 mid_rad = dir_rad(e->direction);
-                f32 right_rad = mid_rad + (RAD * e->sensor_angle);
-                f32 left_rad = mid_rad - (RAD * e->sensor_angle);
+                f32 forward_dir = dir_rad(e->direction);
+                f32 right_rad = forward_dir + (RAD * e->sensor_angle);
+                f32 left_rad = forward_dir - (RAD * e->sensor_angle);
 
                 v2 right_direction = rad_dir(right_rad);
                 v2 left_direction = rad_dir(left_rad);
@@ -836,18 +838,18 @@ MAIN_GAME_LOOP(main_game_loop){
                 Rect left_rect = rect(vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
 
 
-                //allocate_box(transient_state->render_commands_buffer, vec2(e->right_sensor.x - e->sensor_radius, e->right_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), YELLOW);
-                //allocate_box(transient_state->render_commands_buffer, vec2(e->mid_sensor.x - e->sensor_radius, e->mid_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), GREEN);
-                //allocate_box(transient_state->render_commands_buffer, vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), ORANGE);
+                allocate_box(transient_state->render_commands_buffer, vec2(e->right_sensor.x - e->sensor_radius, e->right_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), YELLOW);
+                allocate_box(transient_state->render_commands_buffer, vec2(e->mid_sensor.x - e->sensor_radius, e->mid_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), GREEN);
+                allocate_box(transient_state->render_commands_buffer, vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2), ORANGE);
 
-                //allocate_circle(transient_state->render_commands_buffer, e->right_sensor, e->sensor_radius, YELLOW, false);
-                //allocate_circle(transient_state->render_commands_buffer, e->mid_sensor, e->sensor_radius, GREEN, false);
-                //allocate_circle(transient_state->render_commands_buffer, e->left_sensor, e->sensor_radius, ORANGE, false);
+                allocate_circle(transient_state->render_commands_buffer, e->right_sensor, e->sensor_radius, YELLOW, false);
+                allocate_circle(transient_state->render_commands_buffer, e->mid_sensor, e->sensor_radius, GREEN, false);
+                allocate_circle(transient_state->render_commands_buffer, e->left_sensor, e->sensor_radius, ORANGE, false);
 
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->right_sensor, YELLOW);
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->mid_sensor, GREEN);
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->left_sensor, ORANGE);
-                //allocate_ray(transient_state->render_commands_buffer, e->position, e->target_direction, BLUE);
+                allocate_segment(transient_state->render_commands_buffer, e->position, e->right_sensor, YELLOW);
+                allocate_segment(transient_state->render_commands_buffer, e->position, e->mid_sensor, GREEN);
+                allocate_segment(transient_state->render_commands_buffer, e->position, e->left_sensor, ORANGE);
+                allocate_ray(transient_state->render_commands_buffer, e->position, e->target_direction, BLUE);
             }break;
             case EntityType_Colony:{
                 allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);

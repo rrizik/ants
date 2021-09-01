@@ -114,8 +114,8 @@ typedef struct Entity{
     v2 random_vector;
     bool changing_state;
     bool change_direction;
-    u64 t;
-    f32 t_max;
+    u64 direction_change_timer;
+    f32 direction_change_timer_max;
     f32 timer;
     f32 max_timer;
 	f32 rot_percent;
@@ -128,8 +128,8 @@ typedef struct Entity{
     f32 sensor_distance;
 	f32 pheromone_timer;
 	f32 pheromone_timer_max;
-    u64 tp;
-    f32 tp_max;
+    u64 pheromone_spawn_timer;
+    f32 pheromone_spawn_timer_max;
     struct Entity *pher_target;
     bool pher_targeted;
     f32 right_sensor_density;
@@ -429,8 +429,8 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->change_direction = false;
     e->changing_state = false;
     e->max_timer = (random_range(10) + 1);
-    e->t_max = (random_range(3) + 1);
-    e->tp_max = 0.25;
+    e->direction_change_timer_max = (random_range(3) + 1);
+    e->pheromone_spawn_timer_max = 0.25;
     e->speed = 250.0f;
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
