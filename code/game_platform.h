@@ -29,6 +29,9 @@ typedef double f64;
 #define RAD2DEG(n) ((180.0f/PI) * (n))
 #define DEG2RAD(n) ((PI/180.0f) * (n))
 
+#define MAX(a,b) ((a) >= (b) ? a : b)
+#define MIN(a,b) ((a) <= (b) ? a : b)
+
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
 #define Gigabytes(Value) (Megabytes(Value) * 1024LL)

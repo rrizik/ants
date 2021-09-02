@@ -1,18 +1,27 @@
 #if !defined(RENDERER_H)
 
 typedef struct Rect{
-    f32 x, y, w, h, width, height;
+    v2 position;
+    v2 dimension;
+    f32 x; 
+    f32 y;
+    f32 w; 
+    f32 h;
+    f32 x1;
+    f32 y1;
 } Rect;
 
 static Rect
 rect(v2 pos, v2 dim){
     Rect result = {0};
+    result.position = pos;
+    result.dimension = dim;
     result.x = pos.x;
     result.y = pos.y;
     result.w = dim.x;
     result.h = dim.y;
-    result.width = result.w;
-    result.height = result.h;
+    result.x1 = pos.x + dim.x;
+    result.y1 = pos.y + dim.y;
     return(result);
 }
 
@@ -28,7 +37,7 @@ rect_collides_rect(Rect r1, Rect r2){
 }
 
 static bool
-rect_collide_point(Rect r1, v2 p){
+rect_collides_point(Rect r1, v2 p){
     if((p.x < r1.x + r1.w) &&
        (p.x > r1.x) &&
        (p.y < r1.y + r1.h) &&

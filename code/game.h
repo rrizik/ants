@@ -118,6 +118,7 @@ typedef struct Entity{
     f32 direction_change_timer_max;
     f32 timer;
 	f32 rot_percent;
+    bool rot_complete;
     bool targeted;
     v2 right_sensor;
     v2 left_sensor;
@@ -219,6 +220,7 @@ typedef struct GameState{
     f32 screen_width;
     f32 screen_height;
     u32 colony_index;
+    u32 player_index;
     
     u32 ants_count;
 
@@ -390,6 +392,7 @@ add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap im
     e->dimension = dimension;
     e->color = color;
     e->image = image;
+	e->speed = 50;
     return(e->index);
 }
 
@@ -422,6 +425,8 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->direction.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
     e->random_vector.x = e->direction.x;
     e->random_vector.y = e->direction.y;
+    //e->target_direction.x = 1;
+    //e->target_direction.y = 0;
     e->target_direction.x = e->direction.x;
     e->target_direction.y = e->direction.y;
     e->timer = 0.0f;
@@ -430,7 +435,8 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->changing_state = false;
     e->direction_change_timer_max = (random_range(3) + 1);
     e->pheromone_spawn_timer_max = 0.25;
-    e->speed = 250.0f;
+    //e->speed = 4.0f;
+    e->speed = 40.0f;
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
     e->sensor_angle = 60;
@@ -480,7 +486,7 @@ add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pher_food_decay_rate = 8.0f;
+    e->pher_food_decay_rate = 14.0f;
     return(e->index);
 }
 
