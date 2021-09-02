@@ -512,27 +512,62 @@ MAIN_GAME_LOOP(main_game_loop){
             game_state->c1_total += result1;
 
             if(ant->ant_state != AntState_Collecting){
-                if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-                    if(ant->rot_complete){
-                        f32 forward_rad = dir_rad(ant->direction);
-                        f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
-                        f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
+				if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
+					f32 forward_rad = dir_rad(ant->direction);
+					f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+					f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
 
-                        v2 right_direction = rad_dir(right_rad);
-                        v2 left_direction = rad_dir(left_rad);
-                        if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
-                            ant->target_direction = ant->direction;
-                        }
-                        else if(ant->right_sensor_density > ant->left_sensor_density){
-                            ant->target_direction = right_direction;
-                        }
-                        else if(ant->left_sensor_density > ant->right_sensor_density){
-                            ant->target_direction = left_direction;
-                        }
-                        ant->rot_percent = 0.0f;
-                        ant->rot_complete = false;
-                    }
-                }
+					v2 right_direction = rad_dir(right_rad);
+					v2 left_direction = rad_dir(left_rad);
+					if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
+						ant->target_direction = ant->direction;
+						if(ant->middle == false){
+							ant->rot_percent = 0.0f;
+						}
+						ant->right = false;
+						ant->middle = true;
+						ant->left = false;
+					}
+					else if(ant->right_sensor_density > ant->left_sensor_density){
+						ant->target_direction = right_direction;
+						if(ant->right == false){
+							ant->rot_percent = 0.0f;
+						}
+						ant->right = true;
+						ant->middle = false;
+						ant->left = false;
+					}
+					else if(ant->left_sensor_density > ant->right_sensor_density){
+						ant->target_direction = left_direction;
+						if(ant->left == false){
+							ant->rot_percent = 0.0f;
+						}
+						ant->right = false;
+						ant->middle = false;
+						ant->left = true;
+					}
+				}
+                //if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
+                //    if(ant->rot_complete){
+                //        f32 forward_rad = dir_rad(ant->direction);
+                //        f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+                //        f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
+
+                //        v2 right_direction = rad_dir(right_rad);
+                //        v2 left_direction = rad_dir(left_rad);
+                //        if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
+                //            ant->target_direction = ant->direction;
+                //        }
+                //        else if(ant->right_sensor_density > ant->left_sensor_density){
+                //            ant->target_direction = right_direction;
+                //        }
+                //        else if(ant->left_sensor_density > ant->right_sensor_density){
+                //            ant->target_direction = left_direction;
+                //        }
+                //        ant->rot_percent = 0.0f;
+                //        ant->rot_complete = false;
+                //    }
+                //}
                 else{
                     // random target_direction on timer
                     u64 now = clock->get_ticks();
@@ -672,6 +707,7 @@ MAIN_GAME_LOOP(main_game_loop){
             f32 result6 = get_cpu_cycles_elapsed(__rdtsc(), c6);
             game_state->c6_total += result6;
 
+
             if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
                 f32 forward_rad = dir_rad(ant->direction);
                 f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
@@ -681,17 +717,52 @@ MAIN_GAME_LOOP(main_game_loop){
                 v2 left_direction = rad_dir(left_rad);
                 if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
                     ant->target_direction = ant->direction;
-                    ant->rot_percent = 0.0f;
+                    if(ant->middle == false){
+                        ant->rot_percent = 0.0f;
+                    }
+                    ant->right = false;
+                    ant->middle = true;
+                    ant->left = false;
                 }
                 else if(ant->right_sensor_density > ant->left_sensor_density){
                     ant->target_direction = right_direction;
-                    ant->rot_percent = 0.0f;
+                    if(ant->right == false){
+                        ant->rot_percent = 0.0f;
+                    }
+                    ant->right = true;
+                    ant->middle = false;
+                    ant->left = false;
                 }
                 else if(ant->left_sensor_density > ant->right_sensor_density){
                     ant->target_direction = left_direction;
-                    ant->rot_percent = 0.0f;
+                    if(ant->left == false){
+                        ant->rot_percent = 0.0f;
+                    }
+                    ant->right = false;
+                    ant->middle = false;
+                    ant->left = true;
                 }
             }
+            //if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
+            //    f32 forward_rad = dir_rad(ant->direction);
+            //    f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+            //    f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
+
+            //    v2 right_direction = rad_dir(right_rad);
+            //    v2 left_direction = rad_dir(left_rad);
+            //    if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
+            //        ant->target_direction = ant->direction;
+            //        ant->rot_percent = 0.0f;
+            //    }
+            //    else if(ant->right_sensor_density > ant->left_sensor_density){
+            //        ant->target_direction = right_direction;
+            //        ant->rot_percent = 0.0f;
+            //    }
+            //    else if(ant->left_sensor_density > ant->right_sensor_density){
+            //        ant->target_direction = left_direction;
+            //        ant->rot_percent = 0.0f;
+            //    }
+            //}
             else{
                 // direction change timer
                 u64 now = clock->get_ticks();
@@ -706,6 +777,7 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }
 
+            // move towards colony when close enough
             Entity* colony = game_state->entities + game_state->colony_index;
             f32 colony_distance = distance2(ant->position, colony->position);
             if(colony_distance < 100){
@@ -730,8 +802,6 @@ MAIN_GAME_LOOP(main_game_loop){
             ant->position.y += (ant->speed * ant->direction.y) * clock->dt;
 
             // deposite if close to colony
-            //Entity* colony = game_state->entities + game_state->colony_index;
-            //f32 colony_distance = distance2(ant->position, colony->position);
             if(colony_distance < 20){
                 ant->ant_state = AntState_Wondering;
                 ant->changing_state = true;

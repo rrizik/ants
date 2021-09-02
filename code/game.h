@@ -108,6 +108,9 @@ typedef struct Entity{
     v2 p3;
     u8 rad;
     f32 speed;
+    bool right;
+    bool middle;
+    bool left;
 
     AntState ant_state;
     struct Entity *ant_food;
