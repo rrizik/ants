@@ -114,6 +114,7 @@ typedef struct Entity{
 
     AntState ant_state;
     struct Entity *ant_food;
+    struct Entity *food_ant;
     v2 random_vector;
     bool changing_state;
     bool change_direction;
@@ -208,11 +209,16 @@ typedef struct GameState{
     u32 tc; 
     u32 ntc;
     u32 ptc;
+    bool draw_home_phers;
+    bool draw_food_phers;
+    bool draw_depositing_ants;
+    bool draw_wondering_ants;
 
     LinkedList pher_cells     [16][16];
     LinkedList food_pher_cells[16][16];
     LinkedList home_pher_cells[16][16];
     LinkedList food_cells     [16][16];
+    LinkedList foods;
     LinkedList ants;
     LinkedList misc;
 
@@ -244,7 +250,9 @@ typedef struct GameState{
 
     i32 ccc;
     bool add_food;
-
+    i32 food_targeted_count;
+    i32 food_not_targeted_count;
+    u64 frame_index;
 } GameState;
 
 static void
@@ -438,8 +446,8 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->changing_state = false;
     e->direction_change_timer_max = (random_range(3) + 1);
     e->pheromone_spawn_timer_max = 0.25;
-    //e->speed = 4.0f;
-    e->speed = 40.0f;
+    e->rot_percent = 0.0f;
+    e->speed = 80.0f;
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
     e->sensor_angle = 60;
@@ -477,7 +485,7 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pher_home_decay_rate = 8.0f;
+    e->pher_home_decay_rate = 14.0f;
     return(e->index);
 }
 

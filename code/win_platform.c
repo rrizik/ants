@@ -154,15 +154,8 @@ global Events events;
 
 global u32 eventkey_mapping[0xFF] = {
     [VK_ESCAPE]=KEY_ESCAPE,
-    ['W']=KEY_W,
-    ['A']=KEY_A,
-    ['S']=KEY_S,
-    ['D']=KEY_D,
-    ['L']=KEY_L,
-    ['P']=KEY_P,
-    ['1']=KEY_1,
-    ['2']=KEY_2,
-    ['3']=KEY_3,
+    ['A']=KEY_A,['B']=KEY_B,['C']=KEY_C,['D']=KEY_D,['E']=KEY_E,['F']=KEY_F,['G']=KEY_G,['H']=KEY_H,['I']=KEY_I,['J']=KEY_J,['K']=KEY_K,['L']=KEY_L,['M']=KEY_M,['N']=KEY_N,['O']=KEY_O,['P']=KEY_P,['Q']=KEY_Q,['R']=KEY_R,['S']=KEY_S,['T']=KEY_T,['U']=KEY_U,['V']=KEY_V,['W']=KEY_W,['X']=KEY_X,['Y']=KEY_Y, ['Z']=KEY_Z,
+    ['1']=KEY_1,['2']=KEY_2,['3']=KEY_3,['4']=KEY_4,['5']=KEY_5,['6']=KEY_6,['7']=KEY_7,['8']=KEY_8,['9']=KEY_9,['0']=KEY_0,
 };
 
 global u32 eventpad_mapping[0x5838] = {
@@ -736,7 +729,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                 GameMemory game_memory = {0};
                 game_memory.running = true;
                 //game_memory.permanent_storage_size = Megabytes(64);
-                game_memory.permanent_storage_size = Megabytes(100);
+                game_memory.permanent_storage_size = Megabytes(500);
                 game_memory.transient_storage_size = Gigabytes(1);
 
                 game_memory.read_entire_file = read_entire_file;
@@ -795,7 +788,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
                     clock.cpu_prev = __rdtsc();
                     while(global_running){
                         win_clock.end = get_ticks();
-                        clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
+                        clock.dt = 1.0f/60.0f;
+                        //clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
 
                         FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                         if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
