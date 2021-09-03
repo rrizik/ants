@@ -191,24 +191,17 @@ typedef struct TranState{
 
 typedef struct GameState{
     MemoryArena permanent_arena;
-    f32 c0_total;
-    f32 c1_total;
-    f32 c2_total;
-    f32 c3_total;
-    f32 c4_total;
-    f32 c5_total;
-    f32 c6_total;
+    f32 wondering_food_search_cycles;
+    f32 wondering_search_cycles;
+    f32 wondering_pher_search_cycles;
+    f32 wondering_cycles;
+    f32 collecting_cycles;
+    f32 depositing_cycles;
+    f32 depositing_search_cycles;
 
-    u32 c;
     u64 start;
     bool added;
-    u32 fc; 
-    u32 wc; 
-    u32 cc; 
-    u32 dc; 
-    u32 tc; 
-    u32 ntc;
-    u32 ptc;
+
     bool draw_home_phers;
     bool draw_food_phers;
     bool draw_depositing_ants;
@@ -218,7 +211,6 @@ typedef struct GameState{
     LinkedList food_pher_cells[16][16];
     LinkedList home_pher_cells[16][16];
     LinkedList food_cells     [16][16];
-    LinkedList foods;
     LinkedList ants;
     LinkedList misc;
 
@@ -248,10 +240,7 @@ typedef struct GameState{
     Bitmap circle;
     Bitmap image;
 
-    i32 ccc;
     bool add_food;
-    i32 food_targeted_count;
-    i32 food_not_targeted_count;
     u64 frame_index;
 } GameState;
 
@@ -444,10 +433,11 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->rot_percent = 0.0f;
     e->change_direction = false;
     e->changing_state = false;
-    e->direction_change_timer_max = (random_range(3) + 1);
-    e->pheromone_spawn_timer_max = 0.25;
+    e->direction_change_timer_max = 0;
+    e->pheromone_spawn_timer_max = 0.25f;
     e->rot_percent = 0.0f;
-    e->speed = 80.0f;
+    //e->speed = 40.0f; // variable dt
+    e->speed = 120.0f; // constant dt
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
     e->sensor_angle = 60;
@@ -485,7 +475,7 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pher_home_decay_rate = 14.0f;
+    e->pher_home_decay_rate = 18.0f;
     return(e->index);
 }
 
@@ -497,7 +487,7 @@ add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     e->color = color;
     e->color.w = 1;
     e->rad = rad;
-    e->pher_food_decay_rate = 14.0f;
+    e->pher_food_decay_rate = 18.0f;
     return(e->index);
 }
 
