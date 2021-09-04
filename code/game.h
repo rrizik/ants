@@ -89,16 +89,12 @@ typedef struct Entity{
     EntityType type;
     struct Entity* first_child;
     struct Entity* next_child;
-    int children_count;
+    i32 children_count;
     u32 flags;
     v2 position;
     v2 dimension;
     v2 direction;
     v4 color;
-    f32 x;
-    f32 y;
-    f32 w;
-    f32 h;
     bool fill;
     bool draw_bounding_box;
     v4 outline_color;
@@ -108,21 +104,19 @@ typedef struct Entity{
     v2 p3;
     u8 rad;
     f32 speed;
-    bool right;
-    bool middle;
-    bool left;
+
+    bool out_of_bounds_x;
+    bool out_of_bounds_y;
 
     AntState ant_state;
     struct Entity *ant_food;
-    struct Entity *food_ant;
     v2 random_vector;
-    bool changing_state;
     bool change_direction;
     u64 direction_change_timer;
     f32 direction_change_timer_max;
-    f32 timer;
 	f32 rot_percent;
-    bool rot_complete;
+    f32 rotate_speed;
+
     bool targeted;
     v2 right_sensor;
     v2 left_sensor;
@@ -130,18 +124,17 @@ typedef struct Entity{
     u8 sensor_radius;
     f32 sensor_angle;
     f32 sensor_distance;
-	f32 pheromone_timer;
-	f32 pheromone_timer_max;
     u64 pheromone_spawn_timer;
     f32 pheromone_spawn_timer_max;
-    struct Entity *pher_target;
-    bool pher_targeted;
+	f32 pheromone_alpha_start;
+
     f32 right_sensor_density;
-    f32 middle_sensor_density;
+    f32 forward_sensor_density;
     f32 left_sensor_density;
-    //bool right;
-    //bool middle;
-    //bool left;
+    bool forward;
+    bool right;
+    bool left;
+
     bool colony_targeted;
     v2 target_direction;
 
@@ -149,8 +142,6 @@ typedef struct Entity{
     f32 pher_food_decay_rate;
     u64 food_decay_timer;
     u64 home_decay_timer;
-
-    f32 rotate_speed;
 
     Bitmap image;
     bool render;
@@ -190,6 +181,10 @@ typedef struct TranState{
 } TranState;
 
 typedef struct GameState{
+    f32 frame_average;
+    f32 draw_average;
+    u32 frame_count;
+    u32 draw_count;
     MemoryArena permanent_arena;
     f32 wondering_food_search_cycles;
     f32 wondering_search_cycles;
@@ -207,12 +202,12 @@ typedef struct GameState{
     bool draw_depositing_ants;
     bool draw_wondering_ants;
 
-    LinkedList pher_cells     [16][16];
-    LinkedList food_pher_cells[16][16];
-    LinkedList home_pher_cells[16][16];
-    LinkedList food_cells     [16][16];
     LinkedList ants;
     LinkedList misc;
+    LinkedList food_cells     [16][16];
+    LinkedList pher_cells     [16][16];
+    LinkedList pher_food_cells[16][16];
+    LinkedList pher_home_cells[16][16];
 
     i32 cell_row_count;
     i32 cell_width;
@@ -274,11 +269,10 @@ add_entity(GameState *game_state, EntityType type){
 }
 
 static u32
-add_pixel(GameState* game_state, f32 x, f32 y, v4 color){
+add_pixel(GameState* game_state, v2 position, v4 color){
     u32 e_index = add_entity(game_state, EntityType_Pixel);
     Entity *e = game_state->entities + e_index;
-    e->x = x;
-    e->y = y;
+    e->position = position;
     e->color = color;
     return(e->index);
 }
@@ -319,8 +313,6 @@ add_rect(GameState* game_state, v2 position, v2 dimension, v4 color){
     Entity *e = game_state->entities + e_index;
     e->position = position;
     e->dimension = dimension;
-    e->w = dimension.w;
-    e->h = dimension.h;
     e->color = color;
     return(e->index);
 }
@@ -331,8 +323,6 @@ add_box(GameState* game_state, v2 position, v2 dimension, v4 color){
     Entity *e = game_state->entities + e_index;
     e->position = position;
     e->dimension = dimension;
-    e->w = dimension.w;
-    e->h = dimension.h;
     e->color = color;
     return(e->index);
 }
@@ -378,8 +368,6 @@ add_bitmap(GameState* game_state, v2 position, Bitmap image){
     u32 e_index = add_entity(game_state, EntityType_Bitmap);
     Entity *e = game_state->entities + e_index;
     e->position = position;
-    e->x = position.x;
-    e->y = position.y;
     e->image = image;
     return(e->index);
 }
@@ -425,29 +413,21 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->direction.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
     e->random_vector.x = e->direction.x;
     e->random_vector.y = e->direction.y;
-    //e->target_direction.x = 1;
-    //e->target_direction.y = 0;
     e->target_direction.x = e->direction.x;
     e->target_direction.y = e->direction.y;
-    e->timer = 0.0f;
     e->rot_percent = 0.0f;
     e->change_direction = false;
-    e->changing_state = false;
     e->direction_change_timer_max = 0;
     e->pheromone_spawn_timer_max = 0.25f;
     e->rot_percent = 0.0f;
     //e->speed = 40.0f; // variable dt
-    e->speed = 120.0f; // constant dt
+    e->speed = 140.0f; // constant dt
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
     e->sensor_angle = 60;
     e->sensor_distance = 20;
-    e->pheromone_timer = 0;
-    e->pheromone_timer_max = 1.0f;
-    e->pher_target = NULL;
-    e->pher_targeted = false;
     e->right_sensor_density = 0.0f;
-    e->middle_sensor_density = 0.0f;
+    e->forward_sensor_density = 0.0f;
     e->left_sensor_density = 0.0f;
     e->rotate_speed = 0.05f;
     
@@ -472,8 +452,9 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     u32 e_index = add_entity(game_state, EntityType_ToHomePheromone);
     Entity *e = game_state->entities + e_index;
     e->position = pos;
+    e->pheromone_alpha_start = 0.25;
     e->color = color;
-    e->color.w = 1;
+    e->color.a = e->pheromone_alpha_start;
     e->rad = rad;
     e->pher_home_decay_rate = 18.0f;
     return(e->index);
@@ -484,8 +465,9 @@ add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
     u32 e_index = add_entity(game_state, EntityType_ToFoodPheromone);
     Entity *e = game_state->entities + e_index;
     e->position = pos;
+    e->pheromone_alpha_start = 0.25;
     e->color = color;
-    e->color.w = 1;
+    e->color.a = e->pheromone_alpha_start;
     e->rad = rad;
     e->pher_food_decay_rate = 18.0f;
     return(e->index);

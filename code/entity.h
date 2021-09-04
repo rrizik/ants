@@ -4,8 +4,8 @@ typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
 typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap} EntityType;
 
 typedef struct Entity{
-    int id;
-    int index;
+    i32 id;
+    i32 index;
     ui32 flags;
     EntityType type;
     v2 position;

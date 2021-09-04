@@ -1,6 +1,6 @@
 #include "game.h"
 
-#define RDTSC 1
+#define RDTSC 0
 // ant logic can be simplified dramatically
 // ants are not detecting the colony properly still, as if they dont see it, but be a bool problem
 // same with food, sometimes they just dont see it.
@@ -106,10 +106,10 @@ MAIN_GAME_LOOP(main_game_loop){
     v4 RED =     {1.0f, 0.0f, 0.0f,  0.5f};
     v4 GREEN =   {0.0f, 1.0f, 0.0f,  0.5f};
     v4 BLUE =    {0.0f, 0.0f, 1.0f,  0.5f};
-    v4 MAGENTA = {1.0f, 0.0f, 1.0f,  0.2f};
+    v4 MAGENTA = {1.0f, 0.0f, 1.0f,  0.1f};
     v4 PINK =    {0.92f, 0.62f, 0.96f, 0.5f};
     v4 YELLOW =  {0.9f, 0.9f, 0.0f,  0.5f};
-    v4 TEAL =    {0.0f, 1.0f, 1.0f,  0.2f};
+    v4 TEAL =    {0.0f, 1.0f, 1.0f,  0.1f};
     v4 ORANGE =  {1.0f, 0.5f, 0.15f,  0.5f};
     v4 DGRAY =   {0.5f, 0.5f, 0.5f,  0.5f};
     v4 LGRAY =   {0.8f, 0.8f, 0.8f,  0.5f};
@@ -138,6 +138,7 @@ MAIN_GAME_LOOP(main_game_loop){
                                         Megabytes(800));
 
 
+        //init
         game_state->screen_width = render_buffer->width;
         game_state->screen_height = render_buffer->height;
 
@@ -170,6 +171,7 @@ MAIN_GAME_LOOP(main_game_loop){
 
         // add ants
         game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, 100), 25, DGRAY, true);
+        //game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, render_buffer->height/2), 25, DGRAY, true);
         Entity *colony = game_state->entities + game_state->colony_index;
         for(u32 i=0; i < game_state->ants_count; ++i){
             u32 index = add_ant(game_state, colony->position, 2, LGRAY, true);
@@ -205,14 +207,15 @@ MAIN_GAME_LOOP(main_game_loop){
 
     Entity *player = game_state->entities + game_state->player_index;
 
+    // reset LL
     reset_LL_sentinel(&game_state->ants);
     reset_LL_sentinel(&game_state->misc);
     for(i32 j=0; j < game_state->cell_row_count; ++j){
         for(i32 k=0; k < game_state->cell_row_count; ++k){
-            reset_LL_sentinel(&game_state->pher_cells[j][k]);
-            reset_LL_sentinel(&game_state->food_pher_cells[j][k]);
-            reset_LL_sentinel(&game_state->home_pher_cells[j][k]);
             reset_LL_sentinel(&game_state->food_cells[j][k]);
+            reset_LL_sentinel(&game_state->pher_cells[j][k]);
+            reset_LL_sentinel(&game_state->pher_food_cells[j][k]);
+            reset_LL_sentinel(&game_state->pher_home_cells[j][k]);
         }
     }
     transient_state->LL_buffer->used_bytes = 0;
@@ -222,6 +225,7 @@ MAIN_GAME_LOOP(main_game_loop){
     cpu_start = __rdtsc();
 #endif
 
+    // setup LL
     for(u32 entity_index = 0; entity_index < game_state->entities_size; ++entity_index){
         Entity *e = game_state->entities + entity_index;
         switch(e->type){
@@ -254,7 +258,7 @@ MAIN_GAME_LOOP(main_game_loop){
                 cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
                 cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
 
-                LinkedList* cell = &game_state->home_pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
+                LinkedList* cell = &game_state->pher_home_cells[(i32)cell_coord.y][(i32)cell_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
                 node->data = e;
                 LL_push(cell, node);
@@ -268,7 +272,8 @@ MAIN_GAME_LOOP(main_game_loop){
                 v2 cell_coord = vec2(floor(e->position.x / game_state->cell_width), floor(e->position.y / game_state->cell_height));
                 cell_coord.x = clamp_f32(0, cell_coord.x, game_state->cell_row_count - 1);
                 cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
-                LinkedList* cell = &game_state->food_pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
+
+                LinkedList* cell = &game_state->pher_food_cells[(i32)cell_coord.y][(i32)cell_coord.x];
                 LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
                 node->data = e;
                 LL_push(cell, node);
@@ -279,10 +284,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 LL_push(pher_cell, pher_node);
             }break;
         }
-    }
-    for(LinkedList* node=game_state->misc.next; node != &game_state->misc; node=node->next){
-        Entity *e = node->data;
-        e->color = DGRAY;
     }
 #if RDTSC
     f32 LL_setup = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
@@ -338,15 +339,15 @@ MAIN_GAME_LOOP(main_game_loop){
 
     cpu_start = __rdtsc();
 #endif
-	
+
 	//Entity *player = game_state->entities + game_state->player_index;
             //        ant->position.x += (ant->speed * ant->direction.x) * clock->dt;
 	if(game_state->controller.up){ player->position.y += player->speed * clock->dt;}
 	if(game_state->controller.down){ player->position.y -= player->speed * clock->dt;}
 	if(game_state->controller.right){ player->position.x += player->speed * clock->dt;}
 	if(game_state->controller.left){ player->position.x -= player->speed * clock->dt;}
-    
-    
+
+
 
     if(game_state->controller.m1){
         u32 index = add_to_food_pheromone(game_state, game_state->controller.mouse_pos, 1, TEAL);
@@ -382,6 +383,7 @@ MAIN_GAME_LOOP(main_game_loop){
 
     cpu_start = __rdtsc();
 #endif
+    // pheromone degradation
     for(i32 y=0; y<game_state->cell_row_count; ++y){
         for(i32 x=0; x<game_state->cell_row_count; ++x){
             LinkedList *pher_cell = &game_state->pher_cells[y][x];
@@ -392,10 +394,10 @@ MAIN_GAME_LOOP(main_game_loop){
                         u64 now = clock->get_ticks();
                         f32 seconds_elapsed = clock->get_seconds_elapsed(e->food_decay_timer, now);
                         f32 t = seconds_elapsed / e->pher_food_decay_rate;
-                        e->color.a = lerp(1.0f, 0.0f, t);
+                        e->color.a = lerp(e->pheromone_alpha_start, 0.0f, t);
 
                         if(e->color.a <= 0){
-                            e->color.a = 1.0f;
+                            e->color.a = e->pheromone_alpha_start;
                             e->type = EntityType_None;
                             game_state->free_entities_at++;
                             game_state->free_entities[game_state->free_entities_at] = e->index;
@@ -405,10 +407,10 @@ MAIN_GAME_LOOP(main_game_loop){
                         u64 now = clock->get_ticks();
                         f32 seconds_elapsed = clock->get_seconds_elapsed(e->home_decay_timer, now);
                         f32 t = seconds_elapsed / e->pher_home_decay_rate;
-                        e->color.a = lerp(1.0f, 0.0f, t);
+                        e->color.a = lerp(e->pheromone_alpha_start, 0.0f, t);
 
                         if(e->color.a <= 0.0f){
-                            e->color.a = 1.0f;
+                            e->color.a = e->pheromone_alpha_start;
                             e->type = EntityType_None;
                             game_state->free_entities_at++;
                             game_state->free_entities[game_state->free_entities_at] = e->index;
@@ -423,39 +425,40 @@ MAIN_GAME_LOOP(main_game_loop){
 
     cpu_start = __rdtsc();
 #endif
+    // ant behavior
     for(LinkedList* node=game_state->ants.next; node != &game_state->ants; node=node->next){
         Entity *ant = (Entity*)node->data;
+
+        // get sendor left/forward/right sensor rects
+        f32 forward_rad = dir_to_rad(ant->direction);
+        f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+        f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
+        v2 forward_direction = rad_to_dir(forward_rad);
+        v2 right_direction = rad_to_dir(right_rad);
+        v2 left_direction = rad_to_dir(left_rad);
+        ant->right_sensor = vec2(ant->position.x + (ant->sensor_distance * right_direction.x), ant->position.y + (ant->sensor_distance * right_direction.y));
+        ant->mid_sensor = vec2(ant->position.x + (ant->sensor_distance * ant->direction.x), ant->position.y + (ant->sensor_distance * ant->direction.y));
+        ant->left_sensor = vec2(ant->position.x + (ant->sensor_distance * left_direction.x), ant->position.y + (ant->sensor_distance * left_direction.y));
+        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
+
+        v2 center_cell_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
+        center_cell_coord.x = clamp_f32(0, center_cell_coord.x, game_state->cell_row_count - 1);
+        center_cell_coord.y = clamp_f32(0, center_cell_coord.y, game_state->cell_row_count - 1);
+        v2 bottom_left = vec2(center_cell_coord.x - 1, center_cell_coord.y - 1);
 
         u64 wondering_cycles = __rdtsc();
         if(ant->ant_state == AntState_Wondering){
             ant->color = LGRAY;
             ant->right_sensor_density = 0.0f;
-            ant->middle_sensor_density = 0.0f;
+            ant->forward_sensor_density = 0.0f;
             ant->left_sensor_density = 0.0f;
 
-            v2 middle_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
-            middle_coord.x = clamp_f32(0, middle_coord.x, game_state->cell_row_count - 1);
-            middle_coord.y = clamp_f32(0, middle_coord.y, game_state->cell_row_count - 1);
-            v2 bottom_left = vec2(middle_coord.x - 1, middle_coord.y - 1);
             u64 wondering_search_cycles = __rdtsc();
-            for(i32 y=bottom_left.y; y<=middle_coord.y+1 && ant->ant_food == NULL; ++y){
-                for(i32 x=bottom_left.x; x<=middle_coord.x+1 && ant->ant_food == NULL; ++x){
+            for(i32 y=bottom_left.y; y<=center_cell_coord.y+1 && ant->ant_state == AntState_Wondering; ++y){
+                for(i32 x=bottom_left.x; x<=center_cell_coord.x+1 && ant->ant_food == AntState_Wondering; ++x){
                     if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
-                        f32 forward_rad = dir_rad(ant->direction);
-                        f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
-                        f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
-
-                        v2 forward_direction = rad_dir(forward_rad);
-                        v2 right_direction = rad_dir(right_rad);
-                        v2 left_direction = rad_dir(left_rad);
-
-                        ant->right_sensor = vec2(ant->position.x + (ant->sensor_distance * right_direction.x), ant->position.y + (ant->sensor_distance * right_direction.y));
-                        ant->mid_sensor = vec2(ant->position.x + (ant->sensor_distance * ant->direction.x), ant->position.y + (ant->sensor_distance * ant->direction.y));
-                        ant->left_sensor = vec2(ant->position.x + (ant->sensor_distance * left_direction.x), ant->position.y + (ant->sensor_distance * left_direction.y));
-
-                        Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                        Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
                         //add_box(game_state, vec2(game_state->cell_width * x, game_state->cell_height * y), vec2(game_state->cell_width, game_state->cell_height), ORANGE);
                         u64 wondering_food_search_cycles = __rdtsc();
                         Entity *food = NULL;
@@ -466,7 +469,6 @@ MAIN_GAME_LOOP(main_game_loop){
                                 if(rect_collides_point(left_rect, food->position) || rect_collides_point(mid_rect, food->position) || rect_collides_point(right_rect, food->position)){
                                     ant->ant_state = AntState_Collecting;
                                     ant->ant_food = food;
-                                    food->food_ant = ant;
                                     food->targeted = true;
                                     ant->rot_percent = 0.0f;
                                     break;
@@ -474,114 +476,106 @@ MAIN_GAME_LOOP(main_game_loop){
                             }
                         }
                         game_state->wondering_food_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_food_search_cycles);
-                        if(ant->ant_state != AntState_Collecting){
-                            u64 wondering_pher_search_cycles = __rdtsc();
-                            Entity *pher = NULL;
-                            LinkedList* pher_cell = &game_state->food_pher_cells[y][x];
-                            for(LinkedList *node=pher_cell->next; node != pher_cell; node=node->next){
-                                pher = node->data;
-                                if(rect_collides_point(right_rect, pher->position)){
-                                    ant->right_sensor_density += pher->color.a;
-                                }
-                                if(rect_collides_point(mid_rect, pher->position)){
-                                    ant->middle_sensor_density += pher->color.a;
-                                }
-                                if(rect_collides_point(left_rect, pher->position)){
-                                    ant->left_sensor_density += pher->color.a;
-                                }
+
+                        u64 wondering_pher_search_cycles = __rdtsc();
+                        Entity *pher = NULL;
+                        LinkedList* pher_cell = &game_state->pher_food_cells[y][x];
+                        for(LinkedList *node=pher_cell->next; node != pher_cell && ant->ant_state == AntState_Wondering; node=node->next){
+                            pher = node->data;
+                            if(rect_collides_point(right_rect, pher->position)){
+                                ant->right_sensor_density += pher->color.a;
                             }
-                            game_state->wondering_pher_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_pher_search_cycles);
+                            if(rect_collides_point(mid_rect, pher->position)){
+                                ant->forward_sensor_density += pher->color.a;
+                            }
+                            if(rect_collides_point(left_rect, pher->position)){
+                                ant->left_sensor_density += pher->color.a;
+                            }
                         }
+                        game_state->wondering_pher_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_pher_search_cycles);
                     }
                 }
             }
             game_state->wondering_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_search_cycles);
 
-            if(ant->ant_state != AntState_Collecting){
-				if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-					f32 forward_rad = dir_rad(ant->direction);
-					f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
-					f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
-
-					v2 right_direction = rad_dir(right_rad);
-					v2 left_direction = rad_dir(left_rad);
-					if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
-						ant->target_direction = ant->direction;
-						if(ant->middle == false){
-							ant->rot_percent = 0.0f;
-						}
-						ant->right = false;
-						ant->middle = true;
-						ant->left = false;
-					}
-					else if(ant->right_sensor_density > ant->left_sensor_density){
-						ant->target_direction = right_direction;
-						if(ant->right == false){
-							ant->rot_percent = 0.0f;
-						}
-						ant->right = true;
-						ant->middle = false;
-						ant->left = false;
-					}
-					else if(ant->left_sensor_density > ant->right_sensor_density){
-						ant->target_direction = left_direction;
-						if(ant->left == false){
-							ant->rot_percent = 0.0f;
-						}
-						ant->right = false;
-						ant->middle = false;
-						ant->left = true;
-					}
-				}
-                else{
-                    // random target_direction on timer
-                    u64 now = clock->get_ticks();
-                    f32 seconds_elapsed = clock->get_seconds_elapsed(ant->direction_change_timer, now);
-                    if(seconds_elapsed >= ant->direction_change_timer_max){
-                        ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
-                        ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
-                        ant->rot_percent = 0.0f;
-                        ant->direction_change_timer_max = (random_range(3) + 1);
-                        ant->direction_change_timer = clock->get_ticks();
-                        ant->target_direction = ant->random_vector;
-                    }
-                }
-
-                // rotate towards target_direction
-                f32 ant_angle = dir_rad(ant->direction);
-                f32 target_angle = dir_rad(ant->target_direction);
-                ant->direction = rad_dir(lerp_rad(ant_angle, target_angle, ant->rot_percent));
-                ant->rot_percent += ant->rotate_speed;
-                if(ant->rot_percent > 1.0f){
-                    ant->rot_percent = 1.0f;
-                    //ant->rot_complete = true;
-                }
-
-                // move towards ants forward direction
-                if((ant->position.x + (ant->speed * ant->direction.x) * clock->dt) < 0.0f ||
-                   (ant->position.x + (ant->speed * ant->direction.x) * clock->dt) > render_buffer->width){
-                    ant->direction.x = -ant->direction.x;
-                    ant->random_vector.x = -ant->random_vector.x;
-                    ant->target_direction.x = -ant->target_direction.x;
-                }
-                else if((ant->position.y + (ant->speed * ant->direction.y) * clock->dt) < 0 ||
-                        (ant->position.y + (ant->speed * ant->direction.y) * clock->dt) > render_buffer->height){
-                    ant->direction.y = -ant->direction.y;
-                    ant->random_vector.y = -ant->random_vector.y;
-                    ant->target_direction.y = -ant->target_direction.y;
-                }
-                else{
-                    ant->position.x += (ant->speed * ant->direction.x) * clock->dt;
-                    ant->position.y += (ant->speed * ant->direction.y) * clock->dt;
-                }
-
+            if(ant->ant_state == AntState_Wondering){
                 // to home pheromones
                 f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, clock->get_ticks());
                 if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
-                    ant->pheromone_spawn_timer = clock->get_ticks();
                     u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
                     Entity *pher = game_state->entities + index;
                     pher->home_decay_timer = clock->get_ticks();
+                    ant->pheromone_spawn_timer = clock->get_ticks();
+                }
+
+                // X wall collision
+                if((ant->position.x + (ant->speed * ant->direction.x) * clock->dt) < 10.0f ||
+                   (ant->position.x + (ant->speed * ant->direction.x) * clock->dt) > render_buffer->width - 10.0f){
+                    if(!ant->out_of_bounds_x){
+                        ant->direction_change_timer = clock->get_ticks();
+                        ant->target_direction.x = -ant->target_direction.x;
+                        ant->rot_percent = 0.0f;
+                        ant->out_of_bounds_x = true;
+                    }
+                }
+                // Y wall collision
+                else if((ant->position.y + (ant->speed * ant->direction.y) * clock->dt) < 10.0f ||
+                        (ant->position.y + (ant->speed * ant->direction.y) * clock->dt) > render_buffer->height - 10.0f){
+                    if(!ant->out_of_bounds_y){
+                        ant->direction_change_timer = clock->get_ticks();
+                        ant->target_direction.y = -ant->target_direction.y;
+                        ant->rot_percent = 0.0f;
+                        ant->out_of_bounds_y = true;
+                    }
+                }
+                else{
+                    ant->out_of_bounds_x = false;
+                    ant->out_of_bounds_y = false;
+                }
+
+                if(!ant->out_of_bounds_x && !ant->out_of_bounds_y){
+                    if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
+                        if(ant->forward_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
+                            ant->target_direction = ant->direction;
+                            if(ant->forward == false){
+                                ant->rot_percent = 0.0f;
+                            }
+                            ant->right = false;
+                            ant->forward = true;
+                            ant->left = false;
+                        }
+                        else if(ant->right_sensor_density > ant->left_sensor_density){
+                            ant->target_direction = right_direction;
+                            if(ant->right == false){
+                                ant->rot_percent = 0.0f;
+                            }
+                            ant->right = true;
+                            ant->forward = false;
+                            ant->left = false;
+                        }
+                        else if(ant->left_sensor_density > ant->right_sensor_density){
+                            ant->target_direction = left_direction;
+                            if(ant->left == false){
+                                ant->rot_percent = 0.0f;
+                            }
+                            ant->right = false;
+                            ant->forward = false;
+                            ant->left = true;
+                        }
+                    }
+                    else{
+                        // random target_direction on timer
+                        u64 now = clock->get_ticks();
+                        f32 seconds_elapsed = clock->get_seconds_elapsed(ant->direction_change_timer, now);
+                        if(seconds_elapsed >= ant->direction_change_timer_max){
+                            ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                            ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                            ant->rot_percent = 0.0f;
+                            ant->direction_change_timer_max = (random_range(3) + 1);
+                            ant->direction_change_timer = clock->get_ticks();
+                            ant->target_direction = ant->random_vector;
+                        }
+                    }
                 }
             }
         }
@@ -589,22 +583,6 @@ MAIN_GAME_LOOP(main_game_loop){
 
         u64 collecting_cycles = __rdtsc();
         if(ant->ant_state == AntState_Collecting){
-            ant->color = ORANGE;
-
-            // rotate towards target_direction (food)
-            ant->target_direction = direction2(ant->position, ant->ant_food->position);
-            f32 ant_angle = dir_rad(ant->direction);
-            f32 target_angle = dir_rad(ant->target_direction);
-            ant->direction = rad_dir(lerp_rad(ant_angle, target_angle, ant->rot_percent));
-            ant->rot_percent += ant->rotate_speed;
-            if(ant->rot_percent > 1.0f){
-                ant->rot_percent = 1.0f;
-            }
-
-            // move towards ants forward direction
-            ant->position.x += (ant->speed * ant->direction.x) * clock->dt;
-            ant->position.y += (ant->speed * ant->direction.y) * clock->dt;
-
             // consume food once close enough
             f32 distance = distance2(ant->position, ant->ant_food->position);
             if(distance < 10){
@@ -616,9 +594,10 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->target_direction.x = -ant->target_direction.x;
                 ant->target_direction.y = -ant->target_direction.y;
                 ant->rot_percent = 0.0f;
+                ant->direction_change_timer_max = (random_range(3) + 1);
+                ant->direction_change_timer = clock->get_ticks();
 
                 ant->ant_food->targeted = false;
-                ant->ant_food->food_ant = NULL;
                 ant->ant_food = NULL;
             }
         }
@@ -627,31 +606,33 @@ MAIN_GAME_LOOP(main_game_loop){
         u64 depositing_cycles = __rdtsc();
         if(ant->ant_state == AntState_Depositing){
             ant->color = RED;
+            // to food pheromones
+            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, clock->get_ticks());
+            if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
+                u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
+                Entity *pher = game_state->entities + index;
+                pher->food_decay_timer = clock->get_ticks();
+                ant->pheromone_spawn_timer = clock->get_ticks();
+            }
+
             if(!ant->colony_targeted){
                 ant->right_sensor_density = 0.0f;
-                ant->middle_sensor_density = 0.0f;
+                ant->forward_sensor_density = 0.0f;
                 ant->left_sensor_density = 0.0f;
 
                 u64 depositing_search_cycles = __rdtsc();
-                v2 middle_coord = vec2(floor(ant->position.x / game_state->cell_width), floor(ant->position.y / game_state->cell_height));
-                middle_coord.x = clamp_f32(0, middle_coord.x, game_state->cell_row_count - 1);
-                middle_coord.y = clamp_f32(0, middle_coord.y, game_state->cell_row_count - 1);
-                v2 bottom_left = vec2(middle_coord.x - 1, middle_coord.y - 1);
-                Rect right_rect = rect(vec2(ant->right_sensor.x - ant->sensor_radius, ant->right_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
-                Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
                 Entity *pher = NULL;
-                for(i32 y=bottom_left.y; y<=middle_coord.y+1; ++y){
-                    for(i32 x=bottom_left.x; x<=middle_coord.x+1; ++x){
+                for(i32 y=bottom_left.y; y<=center_cell_coord.y+1; ++y){
+                    for(i32 x=bottom_left.x; x<=center_cell_coord.x+1; ++x){
                         if(x >= 0 && x < game_state->cell_row_count && y >= 0 && y < game_state->cell_row_count){
-                            LinkedList* pher_cell = &game_state->home_pher_cells[y][x];
+                            LinkedList* pher_cell = &game_state->pher_home_cells[y][x];
                             for(LinkedList* node=pher_cell->next; node != pher_cell; node=node->next){
                                 pher = node->data;
                                 if(rect_collides_point(right_rect, pher->position)){
                                     ant->right_sensor_density += pher->color.a;
                                 }
                                 if(rect_collides_point(mid_rect, pher->position)){
-                                    ant->middle_sensor_density += pher->color.a;
+                                    ant->forward_sensor_density += pher->color.a;
                                 }
                                 if(rect_collides_point(left_rect, pher->position)){
                                     ant->left_sensor_density += pher->color.a;
@@ -662,20 +643,14 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
                 game_state->depositing_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), depositing_search_cycles);
 
-                if(ant->right_sensor_density > 0 || ant->middle_sensor_density > 0 || ant->left_sensor_density > 0){
-                    f32 forward_rad = dir_rad(ant->direction);
-                    f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
-                    f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
-
-                    v2 right_direction = rad_dir(right_rad);
-                    v2 left_direction = rad_dir(left_rad);
-                    if(ant->middle_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
+                if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
+                    if(ant->forward_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
                         ant->target_direction = ant->direction;
-                        if(ant->middle == false){
+                        if(ant->forward == false){
                             ant->rot_percent = 0.0f;
                         }
                         ant->right = false;
-                        ant->middle = true;
+                        ant->forward = true;
                         ant->left = false;
                     }
                     else if(ant->right_sensor_density > ant->left_sensor_density){
@@ -684,7 +659,7 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->rot_percent = 0.0f;
                         }
                         ant->right = true;
-                        ant->middle = false;
+                        ant->forward = false;
                         ant->left = false;
                     }
                     else if(ant->left_sensor_density > ant->right_sensor_density){
@@ -693,7 +668,7 @@ MAIN_GAME_LOOP(main_game_loop){
                             ant->rot_percent = 0.0f;
                         }
                         ant->right = false;
-                        ant->middle = false;
+                        ant->forward = false;
                         ant->left = true;
                     }
                 }
@@ -722,19 +697,6 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
             }
 
-            // rotate towards target_angle
-            f32 ant_angle = dir_rad(ant->direction);
-            f32 target_angle = dir_rad(ant->target_direction);
-            ant->direction = rad_dir(lerp_rad(ant_angle, target_angle, ant->rot_percent));
-            ant->rot_percent += ant->rotate_speed;
-            if(ant->rot_percent > 1.0f){
-                ant->rot_percent = 1.0f;
-            }
-
-            // move forward direction
-            ant->position.x += (ant->speed * ant->direction.x) * clock->dt;
-            ant->position.y += (ant->speed * ant->direction.y) * clock->dt;
-
             // deposite if close to colony
             if(colony_distance < 10){
                 ant->ant_state = AntState_Wondering;
@@ -742,37 +704,48 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->target_direction.y = -ant->target_direction.y;
                 ant->colony_targeted = false;
                 ant->rot_percent = 0.0f;
-            }
-
-            // to food pheromones
-            f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, clock->get_ticks());
-            if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
-                ant->pheromone_spawn_timer = clock->get_ticks();
-                u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
-                Entity *pher = game_state->entities + index;
-                pher->food_decay_timer = clock->get_ticks();
+                ant->direction_change_timer_max = (random_range(3) + 1);
+                ant->direction_change_timer = clock->get_ticks();
             }
         }
         game_state->depositing_cycles += get_cpu_cycles_elapsed(__rdtsc(), depositing_cycles);
+
+        // rotate towards target_angle
+        f32 ant_direction_radian = dir_to_rad(ant->direction);
+        f32 target_direction_radian = dir_to_rad(ant->target_direction);
+        v2 new_lerped_direction = rad_to_dir(lerp_rad(ant_direction_radian, target_direction_radian, ant->rot_percent));
+        ant->direction = rad_to_dir(lerp_rad(ant_direction_radian, target_direction_radian, ant->rot_percent));
+        ant->rot_percent += ant->rotate_speed;
+        if(ant->rot_percent > 1.0f){
+            ant->rot_percent = 1.0f;
+        }
+
+        // move forward direction
+        ant->position.x += (ant->speed * ant->direction.x) * clock->dt;
+        ant->position.y += (ant->speed * ant->direction.y) * clock->dt;
     }
 
 #if RDTSC
     f32 ant_behavior = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
 
-    print("frame_cycles: %0.05f\n", frame_cycles);
-    print("reset_sentinels_cycles: %0.05f\n", reset_sentinel_cycles);
-    print("setup_sentinels_cycles: %0.05f\n", LL_setup);
-    print("events_cycles:          %0.05f\n", events_cycles);
+    game_state->frame_count++;
+    game_state->frame_average += frame_cycles;
+    f32 frame_cycle_average = game_state->frame_average / game_state->frame_count;
+    //print("frame_cycles: %0.05f\n", frame_cycle_average);
+    print("frame_cycles:               %0.05f\n", frame_cycles);
+    print("reset_sentinels_cycles:     %0.05f\n", reset_sentinel_cycles);
+    print("setup_sentinels_cycles:     %0.05f\n", LL_setup);
+    print("events_cycles:              %0.05f\n", events_cycles);
     print("controller_cycles:          %0.05f\n", controller_cycles);
-    print("pher_degredate_cycles:  %0.05f\n", pher_degredation);
-    print("ant_behavior_cycles:    %0.05f\n", ant_behavior);
-    print("     wondering_cycles:    %0.05f\n", game_state->wondering_cycles);
-    print("         food+pher_cycles:    %0.05f\n", game_state->wondering_search_cycles);
-    print("         food_cycles:    %0.05f\n", game_state->wondering_food_search_cycles);
-    print("         phers_cycles:    %0.05f\n", game_state->wondering_pher_search_cycles);
-    print("     collecting_cycles:    %0.05f\n", game_state->collecting_cycles);
-    print("     depositing_cycles:    %0.05f\n", game_state->depositing_cycles);
-    print("         phers_cycles:    %0.05f\n", game_state->depositing_search_cycles);
+    print("pher_degredate_cycles:      %0.05f\n", pher_degredation);
+    print("ant_behavior_cycles:        %0.05f\n", ant_behavior);
+    print("     wondering_cycles:      %0.05f\n", game_state->wondering_cycles);
+    print("         food+pher_cycles:  %0.05f\n", game_state->wondering_search_cycles);
+    print("         food_cycles:       %0.05f\n", game_state->wondering_food_search_cycles);
+    print("         pher_home_cycles:  %0.05f\n", game_state->wondering_pher_search_cycles);
+    print("     collecting_cycles:     %0.05f\n", game_state->collecting_cycles);
+    print("     depositing_cycles:     %0.05f\n", game_state->depositing_cycles);
+    print("         pher_food_cycles:  %0.05f\n", game_state->depositing_search_cycles);
     game_state->wondering_cycles = 0;
     game_state->wondering_search_cycles = 0;
     game_state->wondering_food_search_cycles = 0;
@@ -854,12 +827,12 @@ MAIN_GAME_LOOP(main_game_loop){
                 }
 
 
-                f32 forward_rad = dir_rad(e->direction);
+                f32 forward_rad = dir_to_rad(e->direction);
                 f32 right_rad = forward_rad + (RAD * e->sensor_angle);
                 f32 left_rad = forward_rad - (RAD * e->sensor_angle);
 
-                v2 right_direction = rad_dir(right_rad);
-                v2 left_direction = rad_dir(left_rad);
+                v2 right_direction = rad_to_dir(right_rad);
+                v2 left_direction = rad_to_dir(left_rad);
 
                 e->right_sensor = vec2(e->position.x + (e->sensor_distance * right_direction.x), e->position.y + (e->sensor_distance * right_direction.y));
                 e->mid_sensor = vec2(e->position.x + (e->sensor_distance * e->direction.x), e->position.y + (e->sensor_distance * e->direction.y));
@@ -899,12 +872,16 @@ MAIN_GAME_LOOP(main_game_loop){
     }
 #if RDTSC
     f32 push_draw_commands = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    print("draw_commands_cycles:   %0.05f\n", push_draw_commands);
+    print("allocate_commands_cycles:   %0.05f\n", push_draw_commands);
     cpu_start = __rdtsc();
 #endif
     draw_commands(render_buffer, transient_state->render_commands_buffer);
 #if RDTSC
     f32 draw_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
+    game_state->draw_count++;
+    game_state->draw_average += draw_cycles;
+    f32 draw_cycles_average = game_state->draw_average / game_state->draw_count;
+    //print("draw_cycles:            %0.05f\n", draw_cycles_average);
     print("draw_cycles:            %0.05f\n", draw_cycles);
 #endif
     game_state->frame_index++;

@@ -429,15 +429,15 @@ draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
     f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
-    int start_y = (int)round(p2.y);
-    int end_y = (int)round(p0.y);
+    i32 start_y = (int)round(p2.y);
+    i32 end_y = (int)round(p0.y);
 
-    for(int y=start_y; y < end_y; ++y){
+    for(i32 y=start_y; y < end_y; ++y){
         f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
         f32 x1 = right_slope * (y + 0.5f - p1.y) + p1.x;
-        int start_x = (int)ceil(x0 - 0.5f);
-        int end_x = (int)ceil(x1 - 0.5f);
-        for(int x=start_x; x < end_x; ++x){
+        i32 start_x = (int)ceil(x0 - 0.5f);
+        i32 end_x = (int)ceil(x1 - 0.5f);
+        for(i32 x=start_x; x < end_x; ++x){
             draw_pixel(buffer, (f32)x, (f32)y, c);
         }
     }
@@ -448,15 +448,15 @@ draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
     f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
 
-    int start_y = (int)round(p0.y);
-    int end_y = (int)round(p1.y);
+    i32 start_y = (int)round(p0.y);
+    i32 end_y = (int)round(p1.y);
 
-    for(int y=start_y; y >= end_y; --y){
+    for(i32 y=start_y; y >= end_y; --y){
         f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
         f32 x1 = right_slope * (y + 0.5f - p0.y) + p0.x;
-        int start_x = (int)ceil(x0 - 0.5f);
-        int end_x = (int)ceil(x1 - 0.5f);
-        for(int x=start_x; x < end_x; ++x){
+        i32 start_x = (int)ceil(x0 - 0.5f);
+        i32 end_x = (int)ceil(x1 - 0.5f);
+        for(i32 x=start_x; x < end_x; ++x){
             draw_pixel(buffer, (f32)x, (f32)y, c);
         }
     }

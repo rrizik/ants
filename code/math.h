@@ -100,12 +100,12 @@ clamp_f32(f32 left, f32 value, f32 right){
 }
 
 static v2
-rad_dir(f32 rad){
+rad_to_dir(f32 rad){
     return vec2(cosf(rad), sinf(rad));
 }
 
 static f32
-dir_rad(v2 dir){
+dir_to_rad(v2 dir){
     return atan2f(dir.y, dir.x);
 }
 

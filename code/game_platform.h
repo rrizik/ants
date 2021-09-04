@@ -68,12 +68,12 @@ typedef struct Events{
 
 typedef struct RenderBuffer{
     void *memory;
-    int memory_size;
+    i32 memory_size;
 
-    int bytes_per_pixel;
-    int width;
-    int height;
-    int pitch;
+    i32 bytes_per_pixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
 } RenderBuffer;
 
 typedef struct FileData{
@@ -127,9 +127,9 @@ get_cpu_cycles_elapsed(u64 end, u64 start){
 //    return(result);
 //}
 
-static int
+static i32
 string_length(char* s){
-    int count = 0;
+    i32 count = 0;
     while(*s++){
         ++count;
     }
@@ -138,7 +138,7 @@ string_length(char* s){
 }
 
 static char *
-string_point_at_last(char s[], char t, int count){
+string_point_at_last(char s[], char t, i32 count){
     char *result = NULL;
     char *found[10];
     u32 i = 0;
@@ -156,13 +156,13 @@ string_point_at_last(char s[], char t, int count){
 
 static void
 cat_strings(char *left, char *right, char *dest){
-    int left_size = string_length(left);
-    int right_size = string_length(right);
+    i32 left_size = string_length(left);
+    i32 right_size = string_length(right);
 
-    for(int i=0; i < left_size; ++i){
+    for(i32 i=0; i < left_size; ++i){
         *dest++ = *left++;
     }
-    for(int i=0; i < right_size; ++i){
+    for(i32 i=0; i < right_size; ++i){
         *dest++ = *right++;
     }
 
@@ -178,7 +178,7 @@ end_of_string(char *str){
 
 static void
 get_root_dir(char *left, i64 length, char *full_path){
-    int i=0;
+    i32 i=0;
     for(;i < length; ++i){
         *left++ = *full_path++;
     }

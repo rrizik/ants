@@ -99,7 +99,7 @@ scale2(v2 a, f32 s){
 // INCOMPLETE: LOOK AT SIZE_T VS INT DIFFERENCES
 static void
 scale_pts(v2 *p, size_t count, f32 s){
-    for(int i=0; i < (int)count; ++i){
+    for(i32 i=0; i < (int)count; ++i){
         *p = scale2(*p, s);
         p++;
     }

@@ -147,7 +147,7 @@ FUTURE TODO: Game dev stuff to accomplish
 
 // TODO: re-organize this
 global bool global_pause;
-global int global_running;
+global i32 global_running;
 global WIN_Clock win_clock;
 global WIN_RenderBuffer offscreen_render_buffer;
 global Events events;
@@ -353,7 +353,7 @@ WIN_get_window_dimensions(HWND window){
 }
 
 static void
-WIN_init_render_buffer(WIN_RenderBuffer *buffer, int width, int height){
+WIN_init_render_buffer(WIN_RenderBuffer *buffer, i32 width, i32 height){
     // NOTE: This is just a nice safegaurd incase its called again
     if(buffer->memory){
         VirtualFree(buffer->memory, 0, MEM_RELEASE);
@@ -376,9 +376,9 @@ WIN_init_render_buffer(WIN_RenderBuffer *buffer, int width, int height){
 }
 
 static void
-WIN_update_window(WIN_RenderBuffer buffer, HDC DC, int width, int height){
-    int x_offset = 10;
-    int y_offset = 10;
+WIN_update_window(WIN_RenderBuffer buffer, HDC DC, i32 width, i32 height){
+    i32 x_offset = 10;
+    i32 y_offset = 10;
 
     PatBlt(DC, 0, 0, width, y_offset, WHITENESS);
     PatBlt(DC, 0, 0, x_offset, height, WHITENESS);
@@ -425,7 +425,7 @@ WIN_process_controller_input(void){
 }
 
 static void
-WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, int recording_index){
+WIN_init_recording_handle(WIN_State *state, GameMemory *game_memory, i32 recording_index){
     //assert((u64)recording_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[recording_index];
@@ -457,7 +457,7 @@ WIN_record_input(WIN_State *state, Events *events){
 }
 
 static void
-WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, int playback_index){
+WIN_init_playback_handle(WIN_State *state, GameMemory *game_memory, i32 playback_index){
     //assert(playback_index < array_count(state->replay_buffers));
     // CONSIDER: maybe do this in the future of it ends up slowing down
     //WIN_ReplayBuffer *replay_buffer = &state->replay_buffers[playback_index];
@@ -488,7 +488,7 @@ WIN_play_input(WIN_State *state, GameMemory *game_memory, Events *events){
     if(ReadFile(state->playback_handle, events, sizeof(*events), &bytes_read, 0)){
         if(bytes_read == 0){
             // NOTE: We've hit the end of the stream, go back to the beginning
-            int playback_index = state->playback_index;
+            i32 playback_index = state->playback_index;
             WIN_release_playback_handle(state);
             WIN_init_playback_handle(state, game_memory, playback_index);
             ReadFile(state->playback_handle, events, sizeof(*events), &bytes_read, 0);
@@ -658,8 +658,8 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 // this will give you access to a console more easily if you wanted it
 // but if not maybe stick to using WinMain
 // GetModuleHandle(0) -> gets hinstance
-int CALLBACK
-WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd){
+i32 CALLBACK
+WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cmd){
     WIN_load_xinput();
     WIN_init_render_buffer(&offscreen_render_buffer, 1024, 768);
 
@@ -681,8 +681,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
             if(SetWindowPos(window, HWND_TOP, 10, 10, 1054, 818, SWP_SHOWWINDOW)){
                 HDC DC = GetDC(window);
                 // QUESTION: ask about this, and how does it always get 144, and how can i get the other monitors refresh rate
-                //int refresh_rate = GetDeviceCaps(DC, VREFRESH);
-                int gpu_monitor_refresh_hz = 60;
+                //i32 refresh_rate = GetDeviceCaps(DC, VREFRESH);
+                i32 gpu_monitor_refresh_hz = 60;
                 f32 soft_monitor_refresh_hz = (gpu_monitor_refresh_hz / 2.0f);
                 win_clock.target_seconds_per_frame = 1.0f / (f32)soft_monitor_refresh_hz;
 

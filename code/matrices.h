@@ -69,8 +69,8 @@ cmp4x4(mat4 a, mat4 b){
 static void
 transpose_any(f32 *source_mat, f32 *dest_mat, ui32 source_rows, ui32 source_cols){
     for(ui32 i = 0; i < source_rows * source_cols; ++i){
-        int row = i / source_rows;
-        int col = i % source_rows;
+        i32 row = i / source_rows;
+        i32 col = i % source_rows;
         dest_mat[i] = source_mat[source_cols * col + row];
     }
 }
@@ -99,7 +99,7 @@ transpose4(mat4 source_mat){
 static mat2
 scale2x2(mat2 src, f32 scalar){
     mat2 result;
-    for(int i=0; i < 4; ++i){
+    for(i32 i=0; i < 4; ++i){
         result.e[i] = src.e[i] * scalar;
     }
     return(result);
@@ -108,7 +108,7 @@ scale2x2(mat2 src, f32 scalar){
 static mat3
 scale3x3(mat3 src, f32 scalar){
     mat3 result;
-    for(int i=0; i < 9; ++i){
+    for(i32 i=0; i < 9; ++i){
         result.e[i] = src.e[i] * scalar;
     }
     return(result);
@@ -117,7 +117,7 @@ scale3x3(mat3 src, f32 scalar){
 static mat4
 scale4x4(mat4 src, f32 scalar){
     mat4 result;
-    for(int i=0; i < 16; ++i){
+    for(i32 i=0; i < 16; ++i){
         result.e[i] = src.e[i] * scalar;
     }
     return(result);
@@ -133,8 +133,8 @@ mul_any(f32 *mat_a, ui32 a_rows, ui32 a_cols, f32 *mat_b, ui32 b_cols, ui32 b_ro
        for(ui32 j = 0; j < b_cols; ++j){
            out[b_cols * i + j] = 0.0f;
            for(ui32 k = 0; k < b_rows; ++k){
-               int a = a_cols * i + k;
-               int b = b_cols * k + j;
+               i32 a = a_cols * i + k;
+               i32 b = b_cols * k + j;
                out[b_cols * i + j] += mat_a[a] * mat_b[b];
            }
        }

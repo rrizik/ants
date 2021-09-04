@@ -2,20 +2,20 @@
 
 typedef struct WIN_RenderBuffer{
     void *memory;
-    int memory_size;
+    i32 memory_size;
     BITMAPINFO info;
 
-    int bytes_per_pixel;
-    int width;
-    int height;
-    int pitch;
+    i32 bytes_per_pixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
 } WIN_RenderBuffer;
 
 typedef struct WIN_WindowDimensions{
-    int x;
-    int y;
-    int width;
-    int height;
+    i32 x;
+    i32 y;
+    i32 width;
+    i32 height;
 } WIN_WindowDimensions;
 
 typedef struct WIN_Clock{
@@ -53,11 +53,11 @@ typedef struct WIN_State{
     void *replay_buffers[4];
     // CONSIDER: maybe do this in the future if it ends up slowing down WIN_ReplayBuffer replay_buffers[4];
 
-    int recording_index;
+    i32 recording_index;
     HANDLE recording_handle;
 
     HANDLE playback_handle;
-    int playback_index;
+    i32 playback_index;
 } WIN_State;
 
 #define WIN_PLATFORM_H
