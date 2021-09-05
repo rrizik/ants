@@ -108,6 +108,7 @@ typedef struct Entity{
     bool out_of_bounds_x;
     bool out_of_bounds_y;
 
+    v2 state_first_direction;
     AntState ant_state;
     struct Entity *ant_food;
     v2 random_vector;

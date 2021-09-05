@@ -156,6 +156,15 @@ direction2(v2 a, v2 b){
     return(result);
 }
 
+static v2
+direction(v2 a, v2 b){
+    v2 result = {0};
+    result.x = b.x - a.x;
+    result.y = b.y - a.y;
+    normalize2(&result);
+    return(result);
+}
+
 static f32
 distance2(v2 a, v2 b){
     v2 result = sub2(a, b);
