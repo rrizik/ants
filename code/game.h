@@ -117,6 +117,7 @@ typedef struct Entity{
     f32 direction_change_timer_max;
 	f32 rot_percent;
     f32 rotate_speed;
+    bool rotation_complete;
 
     bool targeted;
     v2 right_sensor;
@@ -182,10 +183,6 @@ typedef struct TranState{
 } TranState;
 
 typedef struct GameState{
-    f32 frame_average;
-    f32 draw_average;
-    u32 frame_count;
-    u32 draw_count;
     MemoryArena permanent_arena;
     f32 wondering_food_search_cycles;
     f32 wondering_search_cycles;
@@ -213,6 +210,7 @@ typedef struct GameState{
     i32 cell_row_count;
     i32 cell_width;
     i32 cell_height;
+    i32 border_size;
 
     f32 screen_width;
     f32 screen_height;
