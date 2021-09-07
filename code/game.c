@@ -2,7 +2,11 @@
 
 #define RDTSC 0
 // ant logic can be simplified dramatically
-// ants are not turning around properly
+// ants are not turning around properly (maybe fixed)
+// try having ants change direction only after they have completed a rotation
+// threads
+// whats the value of {}
+// entity handles
 
 static void
 draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
@@ -133,7 +137,7 @@ MAIN_GAME_LOOP(main_game_loop){
         game_state->free_entities_size = 110000;
         game_state->free_entities_at = game_state->free_entities_size - 1;
 
-        u32 none_index = add_entity(game_state, EntityType_None);
+        Entity *none_entity = add_entity(game_state, EntityType_None);
 
         game_state->test = load_bitmap(memory, "test.bmp");
         game_state->circle = load_bitmap(memory, "circle.bmp");
@@ -145,11 +149,8 @@ MAIN_GAME_LOOP(main_game_loop){
         }
 
         // add ants
-        game_state->colony_index = add_colony(game_state, vec2(render_buffer->width/2, 100), 25, DGRAY, true);
-        Entity *colony = game_state->entities + game_state->colony_index;
         for(u32 i=0; i < game_state->ants_count; ++i){
-            u32 index = add_ant(game_state, colony->position, 2, LGRAY, true);
-            Entity *ant = game_state->entities + index;
+            Entity* ant = add_ant(game_state, game_state->colony->position, 2, LGRAY, true);
             ant->direction_change_timer = clock->get_ticks();
             ant->pheromone_spawn_timer = clock->get_ticks();
         }
@@ -159,7 +160,7 @@ MAIN_GAME_LOOP(main_game_loop){
         //    add_segment(game_state, vec2(0, render_buffer->height - game_state->cell_height * i), vec2(render_buffer->width, render_buffer->height - game_state->cell_height * i), DGRAY);
         //    add_segment(game_state, vec2(render_buffer->width - game_state->cell_width * i, 0), vec2(render_buffer->width - game_state->cell_width * i, render_buffer->height), DGRAY);
         //}
-        //game_state->player_index = add_player(game_state, vec2(100, 100), vec2(20, 20), ORANGE, game_state->image);
+        //game_state->player = add_player(game_state, vec2(100, 100), vec2(20, 20), ORANGE, game_state->image);
         game_state->border_size = 10;
         add_segment(game_state, vec2(game_state->border_size, game_state->border_size), vec2(render_buffer->width - game_state->border_size, game_state->border_size), RED);
         add_segment(game_state, vec2(game_state->border_size, game_state->border_size), vec2(game_state->border_size, render_buffer->height - game_state->border_size), RED);
@@ -183,8 +184,6 @@ MAIN_GAME_LOOP(main_game_loop){
 #else
     }
 #endif
-
-    Entity *player = game_state->entities + game_state->player_index;
 
     // reset LL
     reset_LL_sentinel(&game_state->collected_foods);
@@ -279,7 +278,7 @@ MAIN_GAME_LOOP(main_game_loop){
             }break;
         }
     }
-    print("%i - %i\n", game_state->collecting_count, game_state->food_count);
+    //print("%i - %i\n", game_state->collecting_count, game_state->food_count);
 #if RDTSC
     f32 LL_setup = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
 
@@ -335,20 +334,17 @@ MAIN_GAME_LOOP(main_game_loop){
     cpu_start = __rdtsc();
 #endif
 
-	//Entity *player = game_state->entities + game_state->player_index;
-	if(game_state->controller.up){ player->position.y += player->speed * clock->dt;}
-	if(game_state->controller.down){ player->position.y -= player->speed * clock->dt;}
-	if(game_state->controller.right){ player->position.x += player->speed * clock->dt;}
-	if(game_state->controller.left){ player->position.x -= player->speed * clock->dt;}
+	if(game_state->controller.up){ game_state->player->position.y += game_state->player->speed * clock->dt;}
+	if(game_state->controller.down){ game_state->player->position.y -= game_state->player->speed * clock->dt;}
+	if(game_state->controller.right){ game_state->player->position.x += game_state->player->speed * clock->dt;}
+	if(game_state->controller.left){ game_state->player->position.x -= game_state->player->speed * clock->dt;}
 
     if(game_state->controller.m1){
-        u32 index = add_to_food_pheromone(game_state, game_state->controller.mouse_pos, 1, TEAL);
-        Entity *pher = game_state->entities + index;
+        Entity* pher = add_to_food_pheromone(game_state, game_state->controller.mouse_pos, 1, TEAL);
         pher->food_decay_timer = clock->get_ticks();
     }
     if(game_state->controller.m2){
-        u32 index = add_to_home_pheromone(game_state, game_state->controller.mouse_pos, 1, MAGENTA);
-        Entity *pher = game_state->entities + index;
+        Entity* pher = add_to_home_pheromone(game_state, game_state->controller.mouse_pos, 1, MAGENTA);
         pher->home_decay_timer = clock->get_ticks();
     }
     if(game_state->controller.m3){
@@ -359,8 +355,8 @@ MAIN_GAME_LOOP(main_game_loop){
             cell_coord.y = clamp_f32(0, cell_coord.y, game_state->cell_row_count - 1);
             i32 x_start = cell_coord.x * game_state->cell_width;
             i32 y_start = cell_coord.y * game_state->cell_height;
-            for(i32 x = x_start; x < (i32)(x_start + game_state->cell_width); x+=5){
-                for(i32 y = y_start; y < (i32)(y_start + game_state->cell_height); y+=5){
+            for(i32 x = x_start; x < (i32)(x_start + game_state->cell_width); x+=3){
+                for(i32 y = y_start; y < (i32)(y_start + game_state->cell_height); y+=3){
                     add_food(game_state, vec2(x, y), 1, GREEN, true);
                 }
             }
@@ -439,13 +435,11 @@ MAIN_GAME_LOOP(main_game_loop){
         f32 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, clock->get_ticks());
         if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
             if(ant->ant_state == AntState_Wondering || ant->ant_state == AntState_Collecting){
-                u32 index = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
-                Entity *pher = game_state->entities + index;
+                Entity* pher = add_to_home_pheromone(game_state, ant->position, 1, MAGENTA);
                 pher->home_decay_timer = clock->get_ticks();
             }
             if(ant->ant_state == AntState_Depositing){
-                u32 index = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
-                Entity *pher = game_state->entities + index;
+                Entity* pher = add_to_food_pheromone(game_state, ant->position, 1, TEAL);
                 pher->food_decay_timer = clock->get_ticks();
             }
             ant->pheromone_spawn_timer = clock->get_ticks();
@@ -540,7 +534,6 @@ MAIN_GAME_LOOP(main_game_loop){
 
         u64 wondering_cycles = __rdtsc();
         if(ant->ant_state == AntState_Wondering){
-            ant->color = LGRAY;
 
             u64 wondering_search_cycles = __rdtsc();
             Entity *food = NULL;
@@ -554,17 +547,15 @@ MAIN_GAME_LOOP(main_game_loop){
                         for(LinkedList* node=food_cell->next; node != food_cell; node=node->next){
                             food = node->data;
                             if(!food->food_targeted){
-                                //if(rect_collides_point(left_rect, food->position) || rect_collides_point(mid_rect, food->position) || rect_collides_point(right_rect, food->position)){
                                 f32 distance = distance2(ant->position, food->position);
                                 if(distance < 20){
+                                    //ant->color = ORANGE;
                                     ant->ant_state = AntState_Collecting;
                                     food->food_targeted = true;
                                     ant->ant_food = food;
                                     food->food_ant = ant;
-                                    ant->color = ORANGE;
 
                                     ant->target_direction = direction(ant->position, food->position);
-                                    ant->state_first_direction = vec2(-ant->direction.x, -ant->direction.y);
                                     ant->rot_percent = 0.0f;
                                     game_state->wondering_food_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_food_search_cycles);
                                     goto end_of_behavior;
@@ -644,13 +635,11 @@ MAIN_GAME_LOOP(main_game_loop){
             f32 distance = distance2(ant->position, ant->ant_food->position);
 
             // consume food once close enough
-            //print("%0.05f\n", distance);
             if(distance < 2){
                 ant->ant_state = AntState_Depositing;
                 ant->ant_food->food_collected = true;
-                ant->target_direction.x = ant->state_first_direction.x;
-                ant->target_direction.y = ant->state_first_direction.y;
-                ant->state_first_direction = vec2(-ant->direction.x, -ant->direction.y);
+                ant->target_direction.x = -ant->direction.x;
+                ant->target_direction.y = -ant->direction.y;
                 ant->rot_percent = 0.0f;
                 ant->direction_change_timer_max = (random_range(3) + 1);
                 ant->direction_change_timer = clock->get_ticks();
@@ -731,10 +720,9 @@ MAIN_GAME_LOOP(main_game_loop){
             }
 
             // target colony when close enough
-            Entity* colony = game_state->entities + game_state->colony_index;
-            f32 colony_distance = distance2(ant->position, colony->position);
+            f32 colony_distance = distance2(ant->position, game_state->colony->position);
             if(colony_distance < 75){
-                ant->target_direction = direction2(ant->position, colony->position);
+                ant->target_direction = direction2(ant->position, game_state->colony->position);
                 if(!ant->colony_targeted){
                     ant->rot_percent = 0;
                     ant->colony_targeted = true;
@@ -758,6 +746,7 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->ant_food->food_collected = false;
                 ant->ant_food->food_ant = NULL;
                 ant->ant_food = NULL;
+                ant->color = LGRAY;
             }
             game_state->depositing_cycles += get_cpu_cycles_elapsed(__rdtsc(), depositing_cycles);
         }
