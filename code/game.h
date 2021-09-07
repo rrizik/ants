@@ -111,6 +111,7 @@ typedef struct Entity{
     v2 state_first_direction;
     AntState ant_state;
     struct Entity *ant_food;
+    struct Entity *food_ant;
     v2 random_vector;
     bool change_direction;
     u64 direction_change_timer;
@@ -119,7 +120,9 @@ typedef struct Entity{
     f32 rotate_speed;
     bool rotation_complete;
 
-    bool targeted;
+    bool food_targeted;
+    bool food_collected;
+
     v2 right_sensor;
     v2 left_sensor;
     v2 mid_sensor;
@@ -183,6 +186,8 @@ typedef struct TranState{
 } TranState;
 
 typedef struct GameState{
+    i32 collecting_count;
+    i32 food_count;
     MemoryArena permanent_arena;
     f32 wondering_food_search_cycles;
     f32 wondering_search_cycles;
@@ -201,6 +206,7 @@ typedef struct GameState{
     bool draw_wondering_ants;
 
     LinkedList ants;
+    LinkedList collected_foods;
     LinkedList misc;
     LinkedList food_cells     [16][16];
     LinkedList pher_cells     [16][16];
@@ -390,7 +396,8 @@ add_food(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 
     e->position = pos;
     e->color = color;
-    e->targeted = false;
+    e->food_targeted = false;
+    e->food_collected = false;
     //e->dimension = dimension;
     e->draw_bounding_box = true;
     e->rad = rad;

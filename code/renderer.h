@@ -702,5 +702,22 @@ draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
       }
    } while (x < 0);
 }
+
+static v4
+get_color_at(RenderBuffer *buffer, f32 x, f32 y){
+    v4 result = {0};
+
+    u8 *location = (u8 *)buffer->memory +
+                    ((buffer->height - (i32)y - 1) * buffer->pitch) +
+                    ((i32)x * buffer->bytes_per_pixel);
+    u32 *pixel = (u32 *)location;
+    result.a = (f32)((*pixel >> 24) & 0xFF) / 255.0f;
+    result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
+    result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
+    result.b = (f32)((*pixel >> 0) & 0xFF) / 255.0f;
+
+    return(result);
+}
+
 #define RENDERER_H
 #endif

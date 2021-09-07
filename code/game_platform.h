@@ -192,6 +192,13 @@ copy_string(char *src, char *dst, size_t size){
     }
 }
 
+static void
+copy_array(v2 *a, v2 *b, i32 count){
+    for(i32 i=0; i < count; ++i){
+        *a++ = *b++;
+    }
+}
+
 static f32
 f32_max(f32 a, f32 b){
     if(a >= b){
