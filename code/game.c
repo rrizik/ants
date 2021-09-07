@@ -149,6 +149,7 @@ MAIN_GAME_LOOP(main_game_loop){
         }
 
         // add ants
+        game_state->colony = add_colony(game_state, vec2(render_buffer->width/2, 100), 25, DGRAY, true);
         for(u32 i=0; i < game_state->ants_count; ++i){
             Entity* ant = add_ant(game_state, game_state->colony->position, 2, LGRAY, true);
             ant->direction_change_timer = clock->get_ticks();
