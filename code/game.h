@@ -59,7 +59,7 @@ typedef struct MemoryArena {
     u8 *base;
     size_t size;
     size_t used;
-} MemoryArena; 
+} MemoryArena;
 
 static void
 initialize_arena(MemoryArena *arena, u8 *base, size_t size){
@@ -84,9 +84,15 @@ typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
 typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
 typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
+typedef struct EntityHandle{
+    u32 index;
+    u32 generation;
+} EntityHandle;
+
 typedef struct Entity{
     u32 index;
     u32 generation;
+
     EntityType type;
     struct Entity* first_child;
     struct Entity* next_child;
@@ -111,8 +117,8 @@ typedef struct Entity{
 
     AntState ant_state;
 
-    struct Entity *ant_food;
-    struct Entity *food_ant;
+    EntityHandle ant_food;
+    EntityHandle food_ant;
 
     v2 random_vector;
     u64 direction_change_timer;
@@ -153,23 +159,6 @@ typedef struct Entity{
     bool render;
 } Entity;
 
-typedef struct Handle{
-    u32 index;
-    u32 generation;
-} Handle;
-
-static Entity*
-entity_from_handle(Handle *handle){
-    Entity *e = {0};
-    return(e);
-}
-
-static Handle*
-handle_from_entity(){
-    Handle *result = {0};
-    return(result);
-}
-
 static bool
 has_flags(Entity *e, u32 flags){
     return(e->flags & flags);
@@ -182,7 +171,7 @@ set_flags(Entity *e, u32 flags){
 
 static void
 clear_flags(Entity *e, u32 flags){
-    e->flags &= ~flags; 
+    e->flags &= ~flags;
 }
 
 
@@ -204,9 +193,24 @@ typedef struct TranState{
 } TranState;
 
 typedef struct GameState{
-    i32 collecting_count;
+    u64 frame_ticks_now;
+    u64 frame_ticks_prev;
     i32 food_count;
     MemoryArena permanent_arena;
+
+    f32 screen_width;
+    f32 screen_height;
+
+    f32 behavior_none_stated_ticks;
+    f32 wondering_search_ticks;
+    f32 wondering_food_search_ticks;
+    f32 wondering_pher_search_ticks;
+    f32 wondering_ticks;
+    f32 collecting_ticks;
+    f32 depositing_ticks;
+    f32 depositing_search_ticks;
+
+    f32 behavior_none_stated_cycles;
     f32 wondering_food_search_cycles;
     f32 wondering_search_cycles;
     f32 wondering_pher_search_cycles;
@@ -223,33 +227,31 @@ typedef struct GameState{
     bool draw_depositing_ants;
     bool draw_wondering_ants;
 
+    i32 cell_row_count;
+    i32 cell_width;
+    i32 cell_height;
+    i32 border_size;
+
     LinkedList ants;
-    LinkedList collected_foods;
     LinkedList misc;
     LinkedList food_cells     [16][16];
     LinkedList pher_cells     [16][16];
     LinkedList pher_food_cells[16][16];
     LinkedList pher_home_cells[16][16];
 
-    i32 cell_row_count;
-    i32 cell_width;
-    i32 cell_height;
-    i32 border_size;
-
-    f32 screen_width;
-    f32 screen_height;
-    Entity* colony;
-    Entity* player;
-    
-    u32 ants_count;
-
     u32 free_entities[110000];
     u32 free_entities_size;
     i32 free_entities_at;
 
+    u32 generation[110000];
+
     Entity entities[110000];
     u32 entities_size;
 
+    Entity* colony;
+    Entity* player;
+
+    u32 ants_count;
     f32 ant_speed;
 
     u32 clip_region_index;
@@ -262,29 +264,70 @@ typedef struct GameState{
     u64 frame_index;
 } GameState;
 
+static EntityHandle
+zero_entity_handle(){
+    EntityHandle result = {0};
+    return(result);
+}
+
+static Entity*
+entity_from_handle(GameState* state, EntityHandle handle){
+    Entity *result = NULL;
+    if(handle.index < state->entities_size){
+        Entity *e = state->entities + handle.index;
+        if(e->generation == handle.generation){
+            result = e;
+        }
+    }
+    return(result);
+}
+
+static EntityHandle
+handle_from_entity(GameState* state, Entity *e){
+    assert(e != NULL);
+    EntityHandle result = {0};
+    if((e >= (state->entities + 0)) && (e < (state->entities + state->entities_size))){
+        result.index = e->index;
+        result.generation = e->generation;
+    }
+    return(result);
+}
+
 static void
-add_child(GameState *game_state, u32 parent_index, u32 child_index){
-    Entity *parent = game_state->entities + parent_index;
-    Entity *child = game_state->entities + child_index;
+add_child(GameState *state, u32 parent_index, u32 child_index){
+    Entity *parent = state->entities + parent_index;
+    Entity *child = state->entities + child_index;
     child->next_child = parent->first_child;
     parent->first_child = child;
 }
 
+static void
+remove_entity(GameState* state, Entity* e){
+    // TODO: make sure im not supposed to do [free_entities_at + 1]
+    e->type = EntityType_None;
+    state->free_entities_at++;
+    state->free_entities[state->free_entities_at] = e->index;
+    e->index = 0;
+    e->generation = 0;
+}
+
 static Entity*
-add_entity(GameState *game_state, EntityType type){
-    if(game_state->free_entities_at >= 0){
-        i32 free_entity_index = game_state->free_entities[game_state->free_entities_at--];
-        Entity *e = game_state->entities + free_entity_index;
+add_entity(GameState *state, EntityType type){
+    if(state->free_entities_at >= 0){
+        i32 free_entity_index = state->free_entities[state->free_entities_at--];
+        Entity *e = state->entities + free_entity_index;
         e->index = free_entity_index;
+        state->generation[e->index] += 1;
+        e->generation = state->generation[e->index];
         e->type = type;
 
         return(e);
     }
-    //if(game_state->entities_at < game_state->entities_size){
-    //    Entity *result = game_state->entities + game_state->entities_at;
-    //    result->index = game_state->entities_at;
+    //if(state->entities_at < state->entities_size){
+    //    Entity *result = state->entities + state->entities_at;
+    //    result->index = state->entities_at;
     //    result->type = type;
-    //    game_state->entities_at++;
+    //    state->entities_at++;
 
     //    return(result->index);
     //}
@@ -292,16 +335,16 @@ add_entity(GameState *game_state, EntityType type){
 }
 
 static Entity*
-add_pixel(GameState* game_state, v2 position, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Pixel);
+add_pixel(GameState* state, v2 position, v4 color){
+    Entity* e = add_entity(state, EntityType_Pixel);
     e->position = position;
     e->color = color;
     return(e);
 }
 
 static Entity*
-add_segment(GameState* game_state, v2 p0, v2 p1, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Segment);
+add_segment(GameState* state, v2 p0, v2 p1, v4 color){
+    Entity* e = add_entity(state, EntityType_Segment);
     e->color = color;
     e->p0 = p0;
     e->p1 = p1;
@@ -309,8 +352,8 @@ add_segment(GameState* game_state, v2 p0, v2 p1, v4 color){
 }
 
 static Entity*
-add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Ray);
+add_ray(GameState* state, v2 position, v2 direction, v4 color){
+    Entity* e = add_entity(state, EntityType_Ray);
     e->color = color;
     e->position = position;
     e->direction = direction;
@@ -318,8 +361,8 @@ add_ray(GameState* game_state, v2 position, v2 direction, v4 color){
 }
 
 static Entity*
-add_line(GameState* game_state, v2 position, v2 direction, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Line);
+add_line(GameState* state, v2 position, v2 direction, v4 color){
+    Entity* e = add_entity(state, EntityType_Line);
     e->color = color;
     e->position = position;
     e->direction = direction;
@@ -327,8 +370,8 @@ add_line(GameState* game_state, v2 position, v2 direction, v4 color){
 }
 
 static Entity*
-add_rect(GameState* game_state, v2 position, v2 dimension, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Rect);
+add_rect(GameState* state, v2 position, v2 dimension, v4 color){
+    Entity* e = add_entity(state, EntityType_Rect);
     e->position = position;
     e->dimension = dimension;
     e->color = color;
@@ -336,8 +379,8 @@ add_rect(GameState* game_state, v2 position, v2 dimension, v4 color){
 }
 
 static Entity*
-add_box(GameState* game_state, v2 position, v2 dimension, v4 color){
-    Entity* e = add_entity(game_state, EntityType_Box);
+add_box(GameState* state, v2 position, v2 dimension, v4 color){
+    Entity* e = add_entity(state, EntityType_Box);
     e->position = position;
     e->dimension = dimension;
     e->color = color;
@@ -345,8 +388,8 @@ add_box(GameState* game_state, v2 position, v2 dimension, v4 color){
 }
 
 static Entity*
-add_quad(GameState* game_state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Quad);
+add_quad(GameState* state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Quad);
     e->color = color;
     e->p0 = p0;
     e->p1 = p1;
@@ -357,8 +400,8 @@ add_quad(GameState* game_state, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill)
 }
 
 static Entity*
-add_triangle(GameState *game_state, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Triangle);
+add_triangle(GameState *state, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Triangle);
     e->p0 = p0;
     e->p1 = p1;
     e->p2 = p2;
@@ -368,8 +411,8 @@ add_triangle(GameState *game_state, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
 }
 
 static Entity*
-add_circle(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Circle);
+add_circle(GameState *state, v2 pos, u8 rad, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Circle);
     e->position = pos;
     e->color = color;
     e->fill = fill;
@@ -378,16 +421,16 @@ add_circle(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 }
 
 static Entity*
-add_bitmap(GameState* game_state, v2 position, Bitmap image){
-    Entity* e = add_entity(game_state, EntityType_Bitmap);
+add_bitmap(GameState* state, v2 position, Bitmap image){
+    Entity* e = add_entity(state, EntityType_Bitmap);
     e->position = position;
     e->image = image;
     return(e);
 }
 
 static Entity*
-add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap image){
-    Entity* e = add_entity(game_state, EntityType_Player);
+add_player(GameState *state, v2 position, v2 dimension, v4 color, Bitmap image){
+    Entity* e = add_entity(state, EntityType_Player);
     e->position = position;
     e->dimension = dimension;
     e->color = color;
@@ -397,8 +440,8 @@ add_player(GameState *game_state, v2 position, v2 dimension, v4 color, Bitmap im
 }
 
 static Entity*
-add_food(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Food);
+add_food(GameState *state, v2 pos, u8 rad, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Food);
 
     e->position = pos;
     e->color = color;
@@ -412,8 +455,8 @@ add_food(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 }
 
 static Entity*
-add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Ant);
+add_ant(GameState *state, v2 pos, u8 rad, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Ant);
 
     e->ant_state = AntState_Wondering;
     e->position = pos;
@@ -441,13 +484,13 @@ add_ant(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
     e->left_sensor_density = 0.0f;
     e->rotate_speed = 0.05f;
     e->rotation_complete = true;
-    
+
     return(e);
 }
 
 static Entity*
-add_colony(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
-    Entity* e = add_entity(game_state, EntityType_Colony);
+add_colony(GameState *state, v2 pos, u8 rad, v4 color, bool fill){
+    Entity* e = add_entity(state, EntityType_Colony);
     e->position = pos;
     e->color = color;
     e->fill = fill;
@@ -458,8 +501,8 @@ add_colony(GameState *game_state, v2 pos, u8 rad, v4 color, bool fill){
 }
 
 static Entity*
-add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
-    Entity* e = add_entity(game_state, EntityType_ToHomePheromone);
+add_to_home_pheromone(GameState *state, v2 pos, u8 rad, v4 color){
+    Entity* e = add_entity(state, EntityType_ToHomePheromone);
     e->position = pos;
     e->pheromone_alpha_start = 0.25;
     e->color = color;
@@ -470,8 +513,8 @@ add_to_home_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
 }
 
 static Entity*
-add_to_food_pheromone(GameState *game_state, v2 pos, u8 rad, v4 color){
-    Entity* e = add_entity(game_state, EntityType_ToFoodPheromone);
+add_to_food_pheromone(GameState *state, v2 pos, u8 rad, v4 color){
+    Entity* e = add_entity(state, EntityType_ToFoodPheromone);
     e->position = pos;
     e->pheromone_alpha_start = 0.25;
     e->color = color;

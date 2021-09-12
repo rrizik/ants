@@ -513,6 +513,13 @@ WIN_GET_SECONDS_ELAPSED(get_seconds_elapsed){
     return(result);
 }
 
+WIN_GET_MS_ELAPSED(get_ms_elapsed){
+    f32 result;
+    result = ((f32)(end - start) / ((f32)win_clock.frequency));
+
+    return(1000*result);
+}
+
 static void
 WIN_sync_framerate(void){
     u64 time_stamp = get_ticks();
@@ -695,6 +702,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                 Clock clock = {0};
                 clock.get_ticks = get_ticks;
                 clock.get_seconds_elapsed = get_seconds_elapsed;
+                clock.get_ms_elapsed = get_ms_elapsed;
                 clock.frequency = frequency.QuadPart;
 
                 win_clock.cpu_start = __rdtsc();

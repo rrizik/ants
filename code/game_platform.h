@@ -99,13 +99,13 @@ typedef WIN_GET_CLOCK(GetTicks);
 #define WIN_GET_SECONDS_ELAPSED(name) f32 name(u64 start, u64 end)
 typedef WIN_GET_SECONDS_ELAPSED(GetSecondsElapsed);
 
-#define WIN_GET_CPU_CYCLES_ELAPSED(name) f32 name(u64 start, u64 end)
-typedef WIN_GET_CPU_CYCLES_ELAPSED(GetCPUCyclesElapsed);
+#define WIN_GET_MS_ELAPSED(name) f32 name(u64 start, u64 end)
+typedef WIN_GET_MS_ELAPSED(GetMsElapsed);
 
 typedef struct Clock{
     GetTicks *get_ticks;
     GetSecondsElapsed *get_seconds_elapsed;
-    GetCPUCyclesElapsed *get_cpu_cycles_elapsed;
+    GetMsElapsed *get_ms_elapsed;
     u64 frequency;
     f32 dt;
 

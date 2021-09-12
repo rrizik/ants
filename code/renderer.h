@@ -302,22 +302,28 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
 
         u32 *pixel = (u32 *)row;
 
-        f32 current_a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
-        f32 current_r = (f32)((*pixel >> 16) & 0xFF);
-        f32 current_g = (f32)((*pixel >> 8) & 0xFF);
-        f32 current_b = (f32)((*pixel >> 0) & 0xFF);
+        if(color.a == 1){
+            u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r*255.0f) << 16 | round_fi32(color.g*255.0f) << 8 | round_fi32(color.b*255.0f) << 0);
+            *pixel = new_color;
+        }
+        else if(color.a > 0){
+            f32 current_a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
+            f32 current_r = (f32)((*pixel >> 16) & 0xFF);
+            f32 current_g = (f32)((*pixel >> 8) & 0xFF);
+            f32 current_b = (f32)((*pixel >> 0) & 0xFF);
 
-        color.r *= 255.0f;
-        color.g *= 255.0f;
-        color.b *= 255.0f;
+            color.r *= 255.0f;
+            color.g *= 255.0f;
+            color.b *= 255.0f;
 
-        f32 new_r = (1 - color.a) * current_r + (color.a * color.r);
-        f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
-        f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
+            f32 new_r = (1 - color.a) * current_r + (color.a * color.r);
+            f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
+            f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-        //u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
-        u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
-        *pixel = new_color;
+            //u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
+            u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+            *pixel = new_color;
+        }
     }
 }
 
@@ -522,10 +528,10 @@ draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
 
 static void
 clear(RenderBuffer *buffer, v4 c){
-    for(f32 y=0; y < buffer->height; ++y){
-        for(f32 x=0; x < buffer->width; ++x){
-            draw_pixel(buffer, x, y, c);
-        }
+    for(i32 i=0; i < (buffer->width * buffer->height); ++i){
+        u32 *pixel = (u32 *)((u8 *)(buffer->memory) + (i * buffer->bytes_per_pixel));
+        u32 new_color = (round_fi32(c.a * 255.0f) << 24 | round_fi32(c.r*255.0f) << 16 | round_fi32(c.g*255.0f) << 8 | round_fi32(c.b*255.0f) << 0);
+        *pixel = new_color;
     }
 }
 
@@ -702,22 +708,5 @@ draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
       }
    } while (x < 0);
 }
-
-static v4
-get_color_at(RenderBuffer *buffer, f32 x, f32 y){
-    v4 result = {0};
-
-    u8 *location = (u8 *)buffer->memory +
-                    ((buffer->height - (i32)y - 1) * buffer->pitch) +
-                    ((i32)x * buffer->bytes_per_pixel);
-    u32 *pixel = (u32 *)location;
-    result.a = (f32)((*pixel >> 24) & 0xFF) / 255.0f;
-    result.r = (f32)((*pixel >> 16) & 0xFF) / 255.0f;
-    result.g = (f32)((*pixel >> 8) & 0xFF) / 255.0f;
-    result.b = (f32)((*pixel >> 0) & 0xFF) / 255.0f;
-
-    return(result);
-}
-
 #define RENDERER_H
 #endif
