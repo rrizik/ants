@@ -113,9 +113,15 @@ typedef struct Clock{
     u64 cpu_now;
 } Clock;
 
+//static f32 
+//get_cycles_elapsed(u64 end, u64 start){
+//    f32 result = (f32)(end - start) / (1000 * 1000);
+//    return(result);
+//}
+
 static f32 
-get_cpu_cycles_elapsed(u64 end, u64 start){
-    f32 result = (f32)(end - start) / (1000 * 1000);
+get_cycles_elapsed(u64 end, u64 start){
+    f32 result = (f32)(end - start);
     return(result);
 }
 
@@ -223,6 +229,46 @@ typedef WRITE_ENTIRE_FILE(WriteEntireFile);
 
 #define FREE_FILE_MEMORY(name) void name(void *memory)
 typedef FREE_FILE_MEMORY(FreeFileMemory);
+    
+
+enum{
+    DebugCycleCounter_frame,
+    DebugCycleCounter_init,
+    DebugCycleCounter_reset_sentinels,
+    DebugCycleCounter_LL_setup,
+    DebugCycleCounter_events,
+    DebugCycleCounter_controller,
+    DebugCycleCounter_degrade_pher,
+    DebugCycleCounter_behavior,
+    DebugCycleCounter_state_none,
+    DebugCycleCounter_state_wondering,
+    DebugCycleCounter_wondering,
+    DebugCycleCounter_wondering_search,
+    DebugCycleCounter_wondering_search_food,
+    DebugCycleCounter_wondering_search_pher,
+    DebugCycleCounter_state_collecting,
+    DebugCycleCounter_state_depositing,
+    DebugCycleCounter_depositing_search,
+    DebugCycleCounter_allocate_commands,
+    DebugCycleCounter_draw,
+    DebugCycleCounter_count,
+};
+
+typedef struct DebugCycleCounter{
+    u64 cycle_count;
+    u32 hit_count;
+} DebugCycleCounter;
+
+struct GameMemory *debug_global_memory;
+
+#define RDTSC 1
+#if RDTSC
+#define BEGIN_CYCLE_COUNTER(ID) u64 StartCycleCount_##ID = __rdtsc();
+#define END_CYCLE_COUNTER(ID) debug_global_memory->cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCount_##ID; ++debug_global_memory->cycle_counters[DebugCycleCounter_##ID].hit_count;
+#else
+#define BEGIN_CYCLE_COUNTER(ID)
+#define END_CYCLE_COUNTER(ID)
+#endif
 
 
 typedef struct GameMemory{
@@ -243,6 +289,8 @@ typedef struct GameMemory{
     ReadEntireFile *read_entire_file;
     WriteEntireFile *write_entire_file;
     FreeFileMemory *free_file_memory;
+
+    DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 } GameMemory;
 
 #define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Clock *clock)

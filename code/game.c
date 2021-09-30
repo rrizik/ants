@@ -1,15 +1,110 @@
+/*
+struct EntityHandle
+{
+    uint32_t index;
+    uint32_t generation;
+};
+
+bool IsNull(EntityHandle handle)
+{
+    return handle.index == 0;
+}
+
+struct Entity
+{
+    bool in_use;
+    uint32_t generation;
+    float position[2];
+};
+
+size_t entity_count;
+Entity entities[4096];
+
+Entity *EntityFromHandle(EntityHandle handle)
+{
+    Entity *result = nullptr;
+    if (handle.index < entity_count)
+    {
+        Entity *e = &entities[handle.index];
+        if (e->generation == handle.generation)
+        {
+            result = e;
+        }
+    }
+    return result;
+}
+
+EntityHandle HandleFromEntity(Entity *e)
+{
+    EntityHandle result = {};
+    if (e >= &entities[0] & e < &entities[entity_count])
+    {
+        result.index = (uint32_t)(e - entities);
+        result.generation = e->generation;
+    }
+    return result;
+}
+
+EntityHandle CreateEntity()
+{
+    EntityHandle result = {}; // index = 0 indicates a null handle, the first slot of the entity array is not used
+    for (size_t i = 0; i < entity_count; i += 1) // this is a bit of an awful loop, it's just for the sake of demonstration
+    {
+        Entity *e = &entities[i];
+        if (!e->in_use) // more likely indicated by an entity type enum or something
+        {
+            e->in_use = true;
+
+            result.index = i;
+            result.generation = e->handle.generation;
+
+            result.handle = result;
+        }
+    }
+}
+
+void DeleteEntity(EntityHandle handle)
+{
+    Entity *e = EntityFromHandle(handle);
+    if (!e) return;
+
+    Assert(e->in_use);
+    e->in_use = false;
+
+    e->generation += 1; // by bumping the generation on the entity, any old handle to this entity will have a different generation
+}
+
+void main()
+{
+    EntityHandle handle = CreateEntity();
+
+    {
+        Entity *e = EntityFromHandle(handle);
+        // we have an entity, let's do something fun with it
+        
+        // now I'm bored of the entity, goodbye
+        DeleteEntity(handle);
+    }
+
+    {
+        Entity *e = EntityFromHandle(handle);
+        Assert(e == nullptr); // this entity is deleted, so we will get back null
+    }
+}
+ 
+ */
 #include "game.h"
 
-#define RDTSC 0
-#define TICKS 1
-// figure out why when nothing is being drawn, we still get a lot of cycles in draw_commands
-// ant logic can be simplified dramatically
-// try having ants change direction only after they have completed a rotation
-// get cycles again
+//#define RDTSC 1
+#define TICKS 0
+// 12 cores.
+// 63,333,333 cycles 60 frames 1 second 1 core. 1,520,000,000 cycles 12 core.
+// 126,666,666 cycles 30 frames 1 second 1 core. 760,000,000 cycles 12 core.
 // threads
 // whats the value of {}
-// entity handles (done?)
 
+// 133,930,677
+// 120,170,098
 static void
 draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
     void* at = commands->base;
@@ -77,10 +172,13 @@ draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
     }
 }
 
+GameMemory *debug_global_memory;
 MAIN_GAME_LOOP(main_game_loop){
+    debug_global_memory = memory;
 #if RDTSC
+    BEGIN_CYCLE_COUNTER(frame);
     clock->cpu_now = __rdtsc();
-    f32 frame_cycles = get_cpu_cycles_elapsed(clock->cpu_now, clock->cpu_prev);
+    f32 frame_cycles = get_cycles_elapsed(clock->cpu_now, clock->cpu_prev);
     clock->cpu_prev = clock->cpu_now;
 #endif
     assert(sizeof(GameState) <= memory->permanent_storage_size);
@@ -107,9 +205,7 @@ MAIN_GAME_LOOP(main_game_loop){
     v4 BLACK =   {0.0f, 0.0f, 0.0f,  1.0f};
 
     if(!memory->initialized){
-#if RDTSC
-        u64 init_cpu_length = __rdtsc();
-#endif
+        BEGIN_CYCLE_COUNTER(init)
 #if TICKS
         u64 init_ticks_length = clock->get_ticks();
 #endif
@@ -132,8 +228,13 @@ MAIN_GAME_LOOP(main_game_loop){
         state->screen_width = render_buffer->width;
         state->screen_height = render_buffer->height;
 
-        //seed_random(time(NULL), 0);
+#if DEBUG
         seed_random(1, 0);
+        print("1\n");
+#else
+        seed_random(time(NULL), 0);
+        print("2\n");
+#endif
 
         state->cell_row_count = 16;
         state->cell_width = render_buffer->width / state->cell_row_count;
@@ -144,9 +245,8 @@ MAIN_GAME_LOOP(main_game_loop){
         //state->ants_count = 100;
         //state->ants_count = 10;
         //state->ants_count = 1;
-        state->entities_size = 110000;
-        state->free_entities_size = 110000;
-        state->free_entities_at = state->free_entities_size - 1;
+        //state->free_entities_size = 110000;
+        state->free_entities_at = array_count(state->free_entities) - 1;
 
         Entity *zero_entity = add_entity(state, EntityType_None);
 
@@ -155,11 +255,12 @@ MAIN_GAME_LOOP(main_game_loop){
         state->image = load_bitmap(memory, "image.bmp");
 
         // setup free entities array
-        for(i32 i = state->free_entities_size - 1; i >= 0; --i){
-            state->free_entities[i] = state->free_entities_size - 1 - i;
+        for(i32 i = array_count(state->free_entities) - 1; i >= 0; --i){
+            state->free_entities[i] = array_count(state->free_entities) - 1 - i;
         }
 
         state->colony = add_colony(state, vec2(render_buffer->width/2, 100), 25, DGRAY, true);
+        //state->colony = add_colony(state, vec2(render_buffer->width/2, render_buffer->height/2), 25, DGRAY, true);
         // add ants
         for(u32 i=0; i < state->ants_count; ++i){
             Entity* ant = add_ant(state, state->colony->position, 2, LGRAY, true);
@@ -185,23 +286,18 @@ MAIN_GAME_LOOP(main_game_loop){
 		state->draw_depositing_ants = true;
 		state->draw_wondering_ants = true;
         memory->initialized = true;
-#if RDTSC
-        f32 cycles = get_cpu_cycles_elapsed(__rdtsc(), init_cpu_length);
-        print("init_cycles: %0.0f\n", cycles);
-#endif
+        END_CYCLE_COUNTER(init)
 #if TICKS
         f32 ticks = clock->get_ms_elapsed(init_ticks_length, clock->get_ticks());
         print("init_ticks: %0.0f\n", ticks);
 #endif
     }
 
-#if RDTSC
-    u64 cpu_start = __rdtsc();
-#endif
 #if TICKS
     u64 ticks_start = clock->get_ticks();
 #endif
 
+    BEGIN_CYCLE_COUNTER(reset_sentinels)
     // reset LL
     reset_LL_sentinel(&state->ants);
     reset_LL_sentinel(&state->misc);
@@ -214,11 +310,7 @@ MAIN_GAME_LOOP(main_game_loop){
         }
     }
     transient_state->LL_buffer->used_bytes = 0;
-#if RDTSC
-    f32 reset_sentinel_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(reset_sentinels)
 #if TICKS
     f32 reset_sentinel_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
 
@@ -226,9 +318,10 @@ MAIN_GAME_LOOP(main_game_loop){
 #endif
 
     //print("free_entities: %i\n", state->free_entities_at);
+    BEGIN_CYCLE_COUNTER(LL_setup)
     // setup LL
     state->food_count = 0;
-    for(u32 entity_index = 0; entity_index < state->entities_size; ++entity_index){
+    for(u32 entity_index = 0; entity_index < array_count(state->entities); ++entity_index){
         Entity *e = state->entities + entity_index;
         switch(e->type){
             case EntityType_Box:{
@@ -288,14 +381,12 @@ MAIN_GAME_LOOP(main_game_loop){
             }break;
         }
     }
-#if RDTSC
-    f32 LL_setup_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(LL_setup)
 #if TICKS
     f32 LL_setup_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     ticks_start = clock->get_ticks();
 #endif
+    BEGIN_CYCLE_COUNTER(events)
     // keyboard/controller/mouse events
     for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
@@ -340,15 +431,13 @@ MAIN_GAME_LOOP(main_game_loop){
             }
         }
     }
-#if RDTSC
-    f32 events_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(events)
 #if TICKS
     f32 events_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     ticks_start = clock->get_ticks();
 #endif
 
+    BEGIN_CYCLE_COUNTER(controller)
 	if(state->controller.up){ state->player->position.y += state->player->speed * clock->dt;}
 	if(state->controller.down){ state->player->position.y -= state->player->speed * clock->dt;}
 	if(state->controller.right){ state->player->position.x += state->player->speed * clock->dt;}
@@ -380,15 +469,13 @@ MAIN_GAME_LOOP(main_game_loop){
     else{
         state->add_food = false;
     }
+    END_CYCLE_COUNTER(controller)
 
-#if RDTSC
-    f32 controller_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    cpu_start = __rdtsc();
-#endif
 #if TICKS
     f32 controller_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     ticks_start = clock->get_ticks();
 #endif
+    BEGIN_CYCLE_COUNTER(degrade_pher)
     // pheromone degradation
     for(i32 y=0; y<state->cell_row_count; ++y){
         for(i32 x=0; x<state->cell_row_count; ++x){
@@ -422,18 +509,16 @@ MAIN_GAME_LOOP(main_game_loop){
             }
         }
     }
-#if RDTSC
-    f32 pher_degredation_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(degrade_pher)
 #if TICKS
     f32 pher_degredation_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     ticks_start = clock->get_ticks();
 #endif
 
+    BEGIN_CYCLE_COUNTER(behavior)
     // ant behavior
     for(LinkedList* node=state->ants.next; node != &state->ants; node=node->next){
-        u64 behavior_none_stated_cycles = __rdtsc();
+        BEGIN_CYCLE_COUNTER(state_none)
         u64 behavior_none_stated_ticks = clock->get_ticks();
 
         Entity *ant = (Entity*)node->data;
@@ -540,22 +625,22 @@ MAIN_GAME_LOOP(main_game_loop){
         Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
         Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
 
-        state->behavior_none_stated_cycles += get_cpu_cycles_elapsed(__rdtsc(), behavior_none_stated_cycles);
+        END_CYCLE_COUNTER(state_none)
         state->behavior_none_stated_ticks += clock->get_ms_elapsed(behavior_none_stated_ticks, clock->get_ticks());
-        u64 wondering_cycles = __rdtsc();
+        BEGIN_CYCLE_COUNTER(state_wondering)
         u64 wondering_ticks = clock->get_ticks();
         if(ant->ant_state == AntState_Wondering){
-            u64 wondering_search_cycles = __rdtsc();
             u64 wondering_search_ticks = clock->get_ticks();
 
+            BEGIN_CYCLE_COUNTER(wondering_search)
             Entity *food = NULL;
             Entity *pher = NULL;
             for(i32 y=bottom_left_cell_coord.y; y<=center_cell_coord.y+1; ++y){
                 for(i32 x=bottom_left_cell_coord.x; x<=center_cell_coord.x+1; ++x){
                     if(x >= 0 && x < state->cell_row_count && y >= 0 && y < state->cell_row_count){
                         //add_box(state, vec2(state->cell_width * x, state->cell_height * y), vec2(state->cell_width, state->cell_height), ORANGE);
-                        u64 wondering_food_search_cycles = __rdtsc();
                         u64 wondering_food_search_ticks = clock->get_ticks();
+                        BEGIN_CYCLE_COUNTER(wondering_search_food)
                         LinkedList* food_cell = &state->food_cells[y][x];
                         for(LinkedList* node=food_cell->next; node != food_cell; node=node->next){
                             food = node->data;
@@ -570,17 +655,17 @@ MAIN_GAME_LOOP(main_game_loop){
 
                                     ant->target_direction = direction(ant->position, food->position);
                                     ant->rot_percent = 0.0f;
-                                    state->wondering_food_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_food_search_cycles);
+                                    END_CYCLE_COUNTER(wondering_search_food)
                                     state->wondering_food_search_ticks += clock->get_ms_elapsed(wondering_food_search_ticks, clock->get_ticks());
                                     goto end_of_behavior;
                                 }
                             }
                         }
-                        state->wondering_food_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_food_search_cycles);
+                        END_CYCLE_COUNTER(wondering_search_food)
 						state->wondering_food_search_ticks += clock->get_ms_elapsed(wondering_food_search_ticks, clock->get_ticks());
 
-                        u64 wondering_pher_search_cycles = __rdtsc();
                         u64 wondering_pher_search_ticks = clock->get_ticks();
+                        BEGIN_CYCLE_COUNTER(wondering_search_pher)
                         LinkedList* pher_cell = &state->pher_food_cells[y][x];
                         for(LinkedList *node=pher_cell->next; node != pher_cell; node=node->next){
                             pher = node->data;
@@ -594,12 +679,12 @@ MAIN_GAME_LOOP(main_game_loop){
                                 ant->left_sensor_density += pher->color.a;
                             }
                         }
-                        state->wondering_pher_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_pher_search_cycles);
+                        END_CYCLE_COUNTER(wondering_search_pher)
                         state->wondering_pher_search_ticks += clock->get_ms_elapsed(wondering_pher_search_ticks, clock->get_ticks());
                     }
                 }
             }
-            state->wondering_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_search_cycles);
+            END_CYCLE_COUNTER(wondering_search)
 			state->wondering_search_ticks += clock->get_ms_elapsed(wondering_search_ticks, clock->get_ticks());
 
             if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
@@ -635,19 +720,20 @@ MAIN_GAME_LOOP(main_game_loop){
                 // random target_direction on timer
                 f32 seconds_elapsed = clock->get_seconds_elapsed(ant->direction_change_timer, clock->get_ticks());
                 if(seconds_elapsed >= ant->direction_change_timer_max){
-                    ant->random_vector.x = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
-                    ant->random_vector.y = (((i32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                    ant->random_vector.x = ((i32)(random_range(201)-100)/100.0f);
+                    ant->random_vector.y = ((i32)(random_range(201)-100)/100.0f);
                     ant->rot_percent = 0.0f;
                     ant->direction_change_timer_max = (random_range(3) + 1);
                     ant->direction_change_timer = clock->get_ticks();
                     ant->target_direction = ant->random_vector;
                 }
             }
-            state->wondering_cycles += get_cpu_cycles_elapsed(__rdtsc(), wondering_cycles);
+            END_CYCLE_COUNTER(state_wondering)
             state->wondering_ticks += clock->get_ms_elapsed(wondering_ticks, clock->get_ticks());
         }
 
         else if(ant->ant_state == AntState_Collecting){
+            BEGIN_CYCLE_COUNTER(state_collecting)
             u64 collecting_cycles = __rdtsc();
             u64 collecting_ticks = clock->get_ticks();
 
@@ -666,12 +752,12 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->direction_change_timer = clock->get_ticks();
                 ant->color = RED;
             }
-            state->collecting_cycles += get_cpu_cycles_elapsed(__rdtsc(), collecting_cycles);
             state->collecting_ticks += clock->get_ms_elapsed(collecting_ticks, clock->get_ticks());
+            END_CYCLE_COUNTER(state_collecting)
         }
 
         else if(ant->ant_state == AntState_Depositing){
-            u64 depositing_cycles = __rdtsc();
+            BEGIN_CYCLE_COUNTER(state_depositing)
             u64 depositing_ticks = clock->get_ticks();
 
             Entity* collected_food = entity_from_handle(state, ant->ant_food);
@@ -679,8 +765,8 @@ MAIN_GAME_LOOP(main_game_loop){
             collected_food->position.y = ant->position.y + (5 * ant->direction.y);
 
             if(!ant->colony_targeted){
-                u64 depositing_search_cycles = __rdtsc();
                 u64 depositing_search_ticks = clock->get_ticks();
+                BEGIN_CYCLE_COUNTER(depositing_search)
                 Entity *pher = NULL;
                 for(i32 y=bottom_left_cell_coord.y; y<=center_cell_coord.y+1; ++y){
                     for(i32 x=bottom_left_cell_coord.x; x<=center_cell_coord.x+1; ++x){
@@ -701,7 +787,7 @@ MAIN_GAME_LOOP(main_game_loop){
                         }
                     }
                 }
-                state->depositing_search_cycles += get_cpu_cycles_elapsed(__rdtsc(), depositing_search_cycles);
+                END_CYCLE_COUNTER(depositing_search)
                 state->depositing_search_ticks += clock->get_ms_elapsed(depositing_search_ticks, clock->get_ticks());
 
                 if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
@@ -774,35 +860,12 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->ant_food = zero_entity_handle();
                 ant->color = LGRAY;
             }
-            state->depositing_cycles += get_cpu_cycles_elapsed(__rdtsc(), depositing_cycles);
+            END_CYCLE_COUNTER(state_depositing)
             state->depositing_ticks += clock->get_ms_elapsed(depositing_ticks, clock->get_ticks());
         }
         end_of_behavior:;
     }
-
-#if RDTSC
-    f32 ant_behavior_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-
-    print("-----------------------------------------\n");
-    print("frame_cycles:               %0.05f\n", frame_cycles);
-    print("reset_sentinels_cycles:     %0.05f\n", reset_sentinel_cycles);
-    print("setup_sentinels_cycles:     %0.05f\n", LL_setup_cycles);
-    print("events_cycles:              %0.05f\n", events_cycles);
-    print("controller_cycles:          %0.05f\n", controller_cycles);
-    print("pher_degredate_cycles:      %0.05f\n", pher_degredation_cycles);
-    print("ant_behavior_cycles:        %0.05f\n", ant_behavior_cycles);
-    print("     none_stated_cycles:    %0.05f\n", state->behavior_none_stated_cycles);
-    print("     wondering_cycles:      %0.05f\n", state->wondering_cycles);
-    print("         food+pher_cycles:  %0.05f\n", state->wondering_search_cycles);
-    print("         food_cycles:       %0.05f\n", state->wondering_food_search_cycles);
-    print("         pher_home_cycles:  %0.05f\n", state->wondering_pher_search_cycles);
-    print("     collecting_cycles:     %0.05f\n", state->collecting_cycles);
-    print("     depositing_cycles:     %0.05f\n", state->depositing_cycles);
-    print("         pher_food_cycles:  %0.05f\n", state->depositing_search_cycles);
-    state->behavior_none_stated = 0; state->wondering_cycles = 0; state->wondering_search_cycles = 0; state->wondering_food_search_cycles = 0; state->wondering_pher_search_cycles = 0; state->collecting_cycles = 0; state->depositing_cycles = 0; state->depositing_search_cycles = 0;
-
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(behavior)
 #if TICKS
     f32 ant_behavior_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
 
@@ -827,9 +890,10 @@ MAIN_GAME_LOOP(main_game_loop){
     ticks_start = clock->get_ticks();
 #endif
 
+    BEGIN_CYCLE_COUNTER(allocate_commands)
     transient_state->render_commands_buffer->used_bytes = 0;
     allocate_clear_color(transient_state->render_commands_buffer, BLACK);
-    for(u32 entity_index = 0; entity_index <= state->entities_size; ++entity_index){
+    for(u32 entity_index = 0; entity_index <= array_count(state->entities); ++entity_index){
         Entity *e = state->entities + entity_index;
         switch(e->type){
             case EntityType_Player:{
@@ -943,28 +1007,22 @@ MAIN_GAME_LOOP(main_game_loop){
             }break;
         }
     }
-#if RDTSC
-    f32 push_draw_commands_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    print("allocate_commands_cycles:      %0.05f\n", push_draw_commands_cycles);
-
-    cpu_start = __rdtsc();
-#endif
+    END_CYCLE_COUNTER(allocate_commands)
 #if TICKS
     f32 push_draw_commands_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     print("allocate_commands_ticks:       MS: %0.02f\n", push_draw_commands_ticks);
 
     ticks_start = clock->get_ticks();
 #endif
+    BEGIN_CYCLE_COUNTER(draw)
     draw_commands(render_buffer, transient_state->render_commands_buffer);
-#if RDTSC
-    f32 draw_cycles = get_cpu_cycles_elapsed(__rdtsc(), cpu_start);
-    print("draw_cycles:                   %0.05f\n", draw_cycles);
-#endif
+    END_CYCLE_COUNTER(draw)
 #if TICKS
     f32 draw_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
     print("draw_ticks:                    MS: %0.02f\n", draw_ticks);
 #endif
     state->frame_index++;
-    print("used_bytes: %i\n", transient_state->render_commands_buffer->used_bytes);
+    //print("used_bytes: %i\n", transient_state->render_commands_buffer->used_bytes);
     //print("-----------------------------------\n");
+    END_CYCLE_COUNTER(frame);
 }

@@ -660,6 +660,20 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
     return(result);
 }
 
+static void
+handle_debug_cycle_counters(GameMemory *memory){
+    //for(i32 i=0; i < DebugCycleCounters_count; ++i){
+    print("Debug Cycle Counters:\n");
+    for(i32 counter_index=0; counter_index < (i32)array_size(memory->cycle_counters); ++counter_index){
+        DebugCycleCounter *counter = memory->cycle_counters + counter_index;
+        if(counter->hit_count){
+            print("    %i: %ucy %uh %ucy/h %utotal\n", counter_index, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count), (counter->cycle_count * counter->hit_count));
+            counter->cycle_count = 0;
+            counter->hit_count = 0;
+        }
+    }
+}
+
 // FUTURE: think about using int main (int argc, char *argv[]){}
 // being consistant with all your C programs could be helpfull later
 // this will give you access to a console more easily if you wanted it
@@ -796,8 +810,11 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                     clock.cpu_prev = __rdtsc();
                     while(global_running){
                         win_clock.end = get_ticks();
+#if DEBUG
                         clock.dt = 1.0f/60.0f;
-                        //clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
+#else
+                        clock.dt = get_seconds_elapsed(win_clock.start, win_clock.end);
+#endif
 
                         FILETIME current_write_time = WIN_get_file_write_time(gamecode_dll);
                         if((CompareFileTime(&current_write_time, &gamecode.write_time)) != 0){
@@ -849,6 +866,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                             }
                             if(gamecode.main_game_loop){
                                 gamecode.main_game_loop(&game_memory, &render_buffer, &events, &clock);
+                                handle_debug_cycle_counters(&game_memory);
                                 if(!game_memory.running){
                                     global_running = game_memory.running;
                                 }
@@ -859,8 +877,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
 
                             f32 MSPF = 1000 * get_seconds_elapsed(win_clock.start, get_ticks());
                             f32 FPS = ((f32)win_clock.frequency / (f32)(get_ticks() - win_clock.start));
-                            f32 CPUCYCLES = (f32)(__rdtsc() - win_clock.cpu_start) / (1000 * 1000);
-                            //print("MSPF: %.05fms - FPS: %.02f - CPU: %.02f\n", MSPF, FPS, CPUCYCLES);
+                            u64 CPUCYCLES = (__rdtsc() - win_clock.cpu_start);
+                            print("MSPF: %.05fms - FPS: %.02f - CPU: %u\n", MSPF, FPS, CPUCYCLES);
 
                             WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
                             WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);

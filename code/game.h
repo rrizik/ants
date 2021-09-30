@@ -80,9 +80,9 @@ allocate_size_(MemoryArena *arena, size_t size){
     return(result);
 }
 
-typedef enum EntityFlags {EntityFlag_Movable} EntityFlags;
-typedef enum EntityType {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
-typedef enum AntState {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
+typedef enum {EntityFlag_Movable} EntityFlags;
+typedef enum {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
+typedef enum {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
 
 typedef struct EntityHandle{
     u32 index;
@@ -210,15 +210,6 @@ typedef struct GameState{
     f32 depositing_ticks;
     f32 depositing_search_ticks;
 
-    f32 behavior_none_stated_cycles;
-    f32 wondering_food_search_cycles;
-    f32 wondering_search_cycles;
-    f32 wondering_pher_search_cycles;
-    f32 wondering_cycles;
-    f32 collecting_cycles;
-    f32 depositing_cycles;
-    f32 depositing_search_cycles;
-
     u64 start;
     bool added;
 
@@ -240,13 +231,11 @@ typedef struct GameState{
     LinkedList pher_home_cells[16][16];
 
     u32 free_entities[110000];
-    u32 free_entities_size;
     i32 free_entities_at;
 
     u32 generation[110000];
 
     Entity entities[110000];
-    u32 entities_size;
 
     Entity* colony;
     Entity* player;
@@ -273,7 +262,7 @@ zero_entity_handle(){
 static Entity*
 entity_from_handle(GameState* state, EntityHandle handle){
     Entity *result = NULL;
-    if(handle.index < state->entities_size){
+    if(handle.index < array_count(state->entities)){
         Entity *e = state->entities + handle.index;
         if(e->generation == handle.generation){
             result = e;
@@ -286,7 +275,7 @@ static EntityHandle
 handle_from_entity(GameState* state, Entity *e){
     assert(e != NULL);
     EntityHandle result = {0};
-    if((e >= (state->entities + 0)) && (e < (state->entities + state->entities_size))){
+    if((e >= (state->entities + 0)) && (e < (state->entities + array_count(state->entities)))){
         result.index = e->index;
         result.generation = e->generation;
     }
@@ -473,8 +462,11 @@ add_ant(GameState *state, v2 pos, u8 rad, v4 color, bool fill){
     e->direction_change_timer_max = 0;
     e->pheromone_spawn_timer_max = 0.25f;
     e->rot_percent = 1.0f;
-    //e->speed = 40.0f; // variable dt
+#if DEBUG
     e->speed = 140.0f; // constant dt
+#else
+    e->speed = 80.0f; // variable dt
+#endif
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
     e->sensor_angle = 60;
