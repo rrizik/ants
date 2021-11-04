@@ -141,72 +141,37 @@ typedef struct BitmapCommand{
     Bitmap image;
 } BitmapCommand;
 
-typedef struct RenderCommandBuffer{
-    size_t max_bytes;
-    size_t used_bytes;
-    void* base;
-} RenderCommandBuffer;
-
-typedef struct LinkedListBuffer{
-    size_t max_bytes;
-    size_t used_bytes;
-    void* base;
-} LinkedListBuffer;
-
-static RenderCommandBuffer*
-allocate_render_commands_buffer(MemoryArena *arena, size_t max_bytes){
-    RenderCommandBuffer* result = allocate_struct(arena, RenderCommandBuffer);
-    result->base = allocate_size(arena, max_bytes);
-    result->max_bytes = max_bytes;
+static Arena*
+allocate_arena(Arena *arena, size_t size){
+    Arena* result = allocate_struct(arena, Arena);
+    result->base = allocate_size(arena, size);
+    result->size = size;
     return(result);
 }
 
-static LinkedListBuffer*
-allocate_LL_buffer(MemoryArena *arena, size_t max_bytes){
-    LinkedListBuffer* result = allocate_struct(arena, LinkedListBuffer);
-    result->base = allocate_size(arena, max_bytes);
-    result->max_bytes = max_bytes;
+static LinkedList*
+allocate_LL_node(Arena* arena){
+    LinkedList* result = allocate_struct(arena, LinkedList);
     return(result);
-}
-
-static void*
-allocate_LL_node(LinkedListBuffer* buffer){
-    void* result = (char*)buffer->base + buffer->used_bytes;
-    buffer->used_bytes += sizeof(LinkedList);
-    assert(buffer->used_bytes < buffer->max_bytes);
-    return(result);
-}
-
-#define allocate_command(commands, type) (type*)allocate_command_(commands, sizeof(type))
-static void*
-allocate_command_(RenderCommandBuffer* commands, size_t size){
-    void* command = (char*)commands->base + commands->used_bytes;
-    commands->used_bytes += size;
-    assert(commands->used_bytes < commands->max_bytes);
-    return(command);
 }
 
 static void
-allocate_clear_color(RenderCommandBuffer *commands, v4 color){
-    void* command = (char*)commands->base + commands->used_bytes;
-    commands->used_bytes += sizeof(ClearColorCommand);
-    assert(commands->used_bytes < commands->max_bytes);
-
-    ClearColorCommand* new_command = command;
+allocate_clear_color(Arena *arena, v4 color){
+    ClearColorCommand* new_command = allocate_struct(arena, ClearColorCommand);
     new_command->base.color = color;
 }
 
 static void
-allocate_pixel(RenderCommandBuffer *commands, v2 position, v4 color){
-    PixelCommand* command = allocate_command(commands, PixelCommand);
+allocate_pixel(Arena *arena, v2 position, v4 color){
+    PixelCommand* command = allocate_struct(arena, PixelCommand);
     command->base.type = RenderCommand_Pixel;
     command->base.position = position;
     command->base.color = color;
 }
 
 static void
-allocate_segment(RenderCommandBuffer *commands, v2 p0, v2 p1, v4 color){
-    SegmentCommand* command = allocate_command(commands, SegmentCommand);
+allocate_segment(Arena *arena, v2 p0, v2 p1, v4 color){
+    SegmentCommand* command = allocate_struct(arena, SegmentCommand);
     command->base.type = RenderCommand_Segment;
     command->base.color = color;
     command->p0 = p0;
@@ -214,8 +179,8 @@ allocate_segment(RenderCommandBuffer *commands, v2 p0, v2 p1, v4 color){
 }
 
 static void
-allocate_ray(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color){
-    RayCommand* command = allocate_command(commands, RayCommand);
+allocate_ray(Arena *arena, v2 position, v2 direction, v4 color){
+    RayCommand* command = allocate_struct(arena, RayCommand);
     command->base.type = RenderCommand_Ray;
     command->base.position = position;
     command->base.color = color;
@@ -223,8 +188,8 @@ allocate_ray(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color)
 }
 
 static void
-allocate_line(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color){
-    LineCommand* command = allocate_command(commands, LineCommand);
+allocate_line(Arena *arena, v2 position, v2 direction, v4 color){
+    LineCommand* command = allocate_struct(arena, LineCommand);
     command->base.type = RenderCommand_Line;
     command->base.position = position;
     command->base.color = color;
@@ -232,8 +197,8 @@ allocate_line(RenderCommandBuffer *commands, v2 position, v2 direction, v4 color
 }
 
 static void
-allocate_rect(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color){
-    RectCommand* command = allocate_command(commands, RectCommand);
+allocate_rect(Arena *arena, v2 position, v2 dimension, v4 color){
+    RectCommand* command = allocate_struct(arena, RectCommand);
     command->base.type = RenderCommand_Rect;
     command->base.color = color;
     command->base.position = position;
@@ -241,8 +206,8 @@ allocate_rect(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color
 }
 
 static void
-allocate_box(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color){
-    BoxCommand* command = allocate_command(commands, BoxCommand);
+allocate_box(Arena *arena, v2 position, v2 dimension, v4 color){
+    BoxCommand* command = allocate_struct(arena, BoxCommand);
     command->base.type = RenderCommand_Box;
     command->base.color = color;
     command->base.position = position;
@@ -250,8 +215,8 @@ allocate_box(RenderCommandBuffer *commands, v2 position, v2 dimension, v4 color)
 }
 
 static void
-allocate_quad(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
-    QuadCommand* command = allocate_command(commands, QuadCommand);
+allocate_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
+    QuadCommand* command = allocate_struct(arena, QuadCommand);
     command->base.type = RenderCommand_Quad;
     command->base.color = color;
     command->base.fill = fill;
@@ -262,8 +227,8 @@ allocate_quad(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v2 p3, v4 colo
 }
 
 static void
-allocate_triangle(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
-    TriangleCommand* command = allocate_command(commands, TriangleCommand);
+allocate_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
+    TriangleCommand* command = allocate_struct(arena, TriangleCommand);
     command->base.type = RenderCommand_Triangle;
     command->base.color = color;
     command->base.fill = fill;
@@ -273,8 +238,8 @@ allocate_triangle(RenderCommandBuffer *commands, v2 p0, v2 p1, v2 p2, v4 color, 
 }
 
 static void
-allocate_circle(RenderCommandBuffer *commands, v2 pos, u8 rad, v4 color, bool fill){
-    CircleCommand* command = allocate_command(commands, CircleCommand);
+allocate_circle(Arena *arena, v2 pos, u8 rad, v4 color, bool fill){
+    CircleCommand* command = allocate_struct(arena, CircleCommand);
     command->base.type = RenderCommand_Circle;
     command->base.position = pos;
     command->base.color = color;
@@ -283,8 +248,8 @@ allocate_circle(RenderCommandBuffer *commands, v2 pos, u8 rad, v4 color, bool fi
 }
 
 static void
-allocate_bitmap(RenderCommandBuffer *commands, v2 position, Bitmap image){
-    BitmapCommand* command = allocate_command(commands, BitmapCommand);
+allocate_bitmap(Arena *arena, v2 position, Bitmap image){
+    BitmapCommand* command = allocate_struct(arena, BitmapCommand);
     command->base.type = RenderCommand_Bitmap;
     command->base.position = position;
     command->image = image;

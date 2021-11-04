@@ -8,8 +8,8 @@ LinkedList{
 
 static void
 LL_push(LinkedList *sentinel, LinkedList *node){
-    node->next = sentinel->next;
     node->prev = sentinel;
+    node->next = sentinel->next;
     node->next->prev = node;
     node->prev->next = node;
     sentinel->count++;

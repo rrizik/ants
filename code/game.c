@@ -1,114 +1,20 @@
-/*
-struct EntityHandle
-{
-    uint32_t index;
-    uint32_t generation;
-};
-
-bool IsNull(EntityHandle handle)
-{
-    return handle.index == 0;
-}
-
-struct Entity
-{
-    bool in_use;
-    uint32_t generation;
-    float position[2];
-};
-
-size_t entity_count;
-Entity entities[4096];
-
-Entity *EntityFromHandle(EntityHandle handle)
-{
-    Entity *result = nullptr;
-    if (handle.index < entity_count)
-    {
-        Entity *e = &entities[handle.index];
-        if (e->generation == handle.generation)
-        {
-            result = e;
-        }
-    }
-    return result;
-}
-
-EntityHandle HandleFromEntity(Entity *e)
-{
-    EntityHandle result = {};
-    if (e >= &entities[0] & e < &entities[entity_count])
-    {
-        result.index = (uint32_t)(e - entities);
-        result.generation = e->generation;
-    }
-    return result;
-}
-
-EntityHandle CreateEntity()
-{
-    EntityHandle result = {}; // index = 0 indicates a null handle, the first slot of the entity array is not used
-    for (size_t i = 0; i < entity_count; i += 1) // this is a bit of an awful loop, it's just for the sake of demonstration
-    {
-        Entity *e = &entities[i];
-        if (!e->in_use) // more likely indicated by an entity type enum or something
-        {
-            e->in_use = true;
-
-            result.index = i;
-            result.generation = e->handle.generation;
-
-            result.handle = result;
-        }
-    }
-}
-
-void DeleteEntity(EntityHandle handle)
-{
-    Entity *e = EntityFromHandle(handle);
-    if (!e) return;
-
-    Assert(e->in_use);
-    e->in_use = false;
-
-    e->generation += 1; // by bumping the generation on the entity, any old handle to this entity will have a different generation
-}
-
-void main()
-{
-    EntityHandle handle = CreateEntity();
-
-    {
-        Entity *e = EntityFromHandle(handle);
-        // we have an entity, let's do something fun with it
-        
-        // now I'm bored of the entity, goodbye
-        DeleteEntity(handle);
-    }
-
-    {
-        Entity *e = EntityFromHandle(handle);
-        Assert(e == nullptr); // this entity is deleted, so we will get back null
-    }
-}
- 
- */
-#include "game.h"
-
-//#define RDTSC 1
-#define TICKS 0
+// 3,800,000,000 cycles per frame
 // 12 cores.
 // 63,333,333 cycles 60 frames 1 second 1 core. 1,520,000,000 cycles 12 core.
 // 126,666,666 cycles 30 frames 1 second 1 core. 760,000,000 cycles 12 core.
 // threads
 // whats the value of {}
 
+// 160,000,000 11fps
 // 133,930,677
 // 120,170,098
+
+#include "game.h"
+
 static void
-draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
+draw_commands(RenderBuffer *render_buffer, Arena *commands){
     void* at = commands->base;
-    void* end = (char*)commands->base + commands->used_bytes;
+    void* end = (char*)commands->base + commands->used;
     while(at != end){
         BaseCommand* base_command = (BaseCommand*)at;
 
@@ -175,16 +81,17 @@ draw_commands(RenderBuffer *render_buffer, RenderCommandBuffer *commands){
 GameMemory *debug_global_memory;
 MAIN_GAME_LOOP(main_game_loop){
     debug_global_memory = memory;
-#if RDTSC
     BEGIN_CYCLE_COUNTER(frame);
+    BEGIN_TICK_COUNTER(frame);
+#if RDTSC
     clock->cpu_now = __rdtsc();
     f32 frame_cycles = get_cycles_elapsed(clock->cpu_now, clock->cpu_prev);
     clock->cpu_prev = clock->cpu_now;
 #endif
-    assert(sizeof(GameState) <= memory->permanent_storage_size);
-    assert(sizeof(TranState) <= memory->transient_storage_size);
-    GameState *state = (GameState *)memory->permanent_storage;
-    TranState *transient_state = (TranState *)memory->transient_storage;
+    assert(sizeof(PermanentState) <= memory->permanent_storage_size);
+    assert(sizeof(TransientState) <= memory->transient_storage_size);
+    PermanentState *state = (PermanentState *)memory->permanent_storage;
+    TransientState *transient_state = (TransientState *)memory->transient_storage;
 #if TICKS
     state->frame_ticks_now = clock->get_ticks();
     f32 frame_ticks = clock->get_ms_elapsed(state->frame_ticks_prev, state->frame_ticks_now); 
@@ -205,21 +112,20 @@ MAIN_GAME_LOOP(main_game_loop){
     v4 BLACK =   {0.0f, 0.0f, 0.0f,  1.0f};
 
     if(!memory->initialized){
-        BEGIN_CYCLE_COUNTER(init)
-#if TICKS
-        u64 init_ticks_length = clock->get_ticks();
-#endif
-        initialize_arena(&state->permanent_arena,
-                         (u8*)memory->permanent_storage + sizeof(GameState),
-                         memory->permanent_storage_size - sizeof(GameState));
-        initialize_arena(&transient_state->transient_arena,
-                         (u8*)memory->transient_storage + sizeof(TranState),
-                         memory->transient_storage_size - sizeof(TranState));
+        BEGIN_CYCLE_COUNTER(init);
+        BEGIN_TICK_COUNTER(init);
 
-        transient_state->render_commands_buffer = allocate_render_commands_buffer(
+        initialize_arena(&state->permanent_arena,
+                         (u8*)memory->permanent_storage + sizeof(PermanentState),
+                         memory->permanent_storage_size - sizeof(PermanentState));
+        initialize_arena(&transient_state->transient_arena,
+                         (u8*)memory->transient_storage + sizeof(TransientState),
+                         memory->transient_storage_size - sizeof(TransientState));
+
+        transient_state->render_commands_arena = allocate_arena(
                                                        &transient_state->transient_arena,
                                                        Megabytes(16));
-        transient_state->LL_buffer = allocate_LL_buffer(
+        transient_state->LL_arena = allocate_arena(
                                         &transient_state->transient_arena,
                                         Megabytes(800));
 
@@ -286,18 +192,12 @@ MAIN_GAME_LOOP(main_game_loop){
 		state->draw_depositing_ants = true;
 		state->draw_wondering_ants = true;
         memory->initialized = true;
-        END_CYCLE_COUNTER(init)
-#if TICKS
-        f32 ticks = clock->get_ms_elapsed(init_ticks_length, clock->get_ticks());
-        print("init_ticks: %0.0f\n", ticks);
-#endif
+        END_TICK_COUNTER(init);
+        END_CYCLE_COUNTER(init);
     }
 
-#if TICKS
-    u64 ticks_start = clock->get_ticks();
-#endif
-
-    BEGIN_CYCLE_COUNTER(reset_sentinels)
+    BEGIN_CYCLE_COUNTER(reset_sentinels);
+    BEGIN_TICK_COUNTER(reset_sentinels);
     // reset LL
     reset_LL_sentinel(&state->ants);
     reset_LL_sentinel(&state->misc);
@@ -309,18 +209,14 @@ MAIN_GAME_LOOP(main_game_loop){
             reset_LL_sentinel(&state->pher_home_cells[j][k]);
         }
     }
-    transient_state->LL_buffer->used_bytes = 0;
-    END_CYCLE_COUNTER(reset_sentinels)
-#if TICKS
-    f32 reset_sentinel_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-
-    ticks_start = clock->get_ticks();
-#endif
+    transient_state->LL_arena->used = 0;
+    END_TICK_COUNTER(reset_sentinels);
+    END_CYCLE_COUNTER(reset_sentinels);
 
     //print("free_entities: %i\n", state->free_entities_at);
-    BEGIN_CYCLE_COUNTER(LL_setup)
+    BEGIN_CYCLE_COUNTER(LL_setup);
+    BEGIN_TICK_COUNTER(LL_setup);
     // setup LL
-    state->food_count = 0;
     for(u32 entity_index = 0; entity_index < array_count(state->entities); ++entity_index){
         Entity *e = state->entities + entity_index;
         switch(e->type){
@@ -328,12 +224,12 @@ MAIN_GAME_LOOP(main_game_loop){
                 remove_entity(state, e);
             }break;
             case EntityType_Segment:{
-                LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* node = allocate_LL_node(transient_state->LL_arena);
                 node->data = e;
                 LL_push(&state->misc, node);
             }break;
             case EntityType_Ant:{
-                LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* node = allocate_LL_node(transient_state->LL_arena);
                 node->data = e;
                 LL_push(&state->ants, node);
             }break;
@@ -343,10 +239,9 @@ MAIN_GAME_LOOP(main_game_loop){
                     cell_coord.x = clamp_f32(0, cell_coord.x, state->cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, state->cell_row_count - 1);
                     LinkedList* cell = &state->food_cells[(i32)cell_coord.y][(i32)cell_coord.x];
-                    LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                    LinkedList* node = allocate_LL_node(transient_state->LL_arena);
                     node->data = e;
                     LL_push(cell, node);
-                    state->food_count++;
                 }
             }break;
             case EntityType_ToHomePheromone:{
@@ -355,12 +250,12 @@ MAIN_GAME_LOOP(main_game_loop){
                 cell_coord.y = clamp_f32(0, cell_coord.y, state->cell_row_count - 1);
 
                 LinkedList* cell = &state->pher_home_cells[(i32)cell_coord.y][(i32)cell_coord.x];
-                LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* node = allocate_LL_node(transient_state->LL_arena);
                 node->data = e;
                 LL_push(cell, node);
 
                 LinkedList* pher_cell = &state->pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
-                LinkedList* pher_node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* pher_node = allocate_LL_node(transient_state->LL_arena);
                 pher_node->data = e;
                 LL_push(pher_cell, pher_node);
             }break;
@@ -370,23 +265,21 @@ MAIN_GAME_LOOP(main_game_loop){
                 cell_coord.y = clamp_f32(0, cell_coord.y, state->cell_row_count - 1);
 
                 LinkedList* cell = &state->pher_food_cells[(i32)cell_coord.y][(i32)cell_coord.x];
-                LinkedList* node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* node = allocate_LL_node(transient_state->LL_arena);
                 node->data = e;
                 LL_push(cell, node);
 
                 LinkedList* pher_cell = &state->pher_cells[(i32)cell_coord.y][(i32)cell_coord.x];
-                LinkedList* pher_node = allocate_LL_node(transient_state->LL_buffer);
+                LinkedList* pher_node = allocate_LL_node(transient_state->LL_arena);
                 pher_node->data = e;
                 LL_push(pher_cell, pher_node);
             }break;
         }
     }
-    END_CYCLE_COUNTER(LL_setup)
-#if TICKS
-    f32 LL_setup_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    ticks_start = clock->get_ticks();
-#endif
-    BEGIN_CYCLE_COUNTER(events)
+    END_TICK_COUNTER(LL_setup);
+    END_CYCLE_COUNTER(LL_setup);
+    BEGIN_CYCLE_COUNTER(events);
+    BEGIN_TICK_COUNTER(events);
     // keyboard/controller/mouse events
     for(u32 i=0; i < events->index; ++i){
         Event *event = &events->event[i];
@@ -431,13 +324,11 @@ MAIN_GAME_LOOP(main_game_loop){
             }
         }
     }
-    END_CYCLE_COUNTER(events)
-#if TICKS
-    f32 events_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    ticks_start = clock->get_ticks();
-#endif
+    END_TICK_COUNTER(events);
+    END_CYCLE_COUNTER(events);
 
-    BEGIN_CYCLE_COUNTER(controller)
+    BEGIN_CYCLE_COUNTER(controller);
+    BEGIN_TICK_COUNTER(controller);
 	if(state->controller.up){ state->player->position.y += state->player->speed * clock->dt;}
 	if(state->controller.down){ state->player->position.y -= state->player->speed * clock->dt;}
 	if(state->controller.right){ state->player->position.x += state->player->speed * clock->dt;}
@@ -469,13 +360,11 @@ MAIN_GAME_LOOP(main_game_loop){
     else{
         state->add_food = false;
     }
-    END_CYCLE_COUNTER(controller)
+    END_TICK_COUNTER(controller);
+    END_CYCLE_COUNTER(controller);
 
-#if TICKS
-    f32 controller_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    ticks_start = clock->get_ticks();
-#endif
-    BEGIN_CYCLE_COUNTER(degrade_pher)
+    BEGIN_CYCLE_COUNTER(degrade_pher);
+    BEGIN_TICK_COUNTER(degrade_pher);
     // pheromone degradation
     for(i32 y=0; y<state->cell_row_count; ++y){
         for(i32 x=0; x<state->cell_row_count; ++x){
@@ -509,16 +398,15 @@ MAIN_GAME_LOOP(main_game_loop){
             }
         }
     }
-    END_CYCLE_COUNTER(degrade_pher)
-#if TICKS
-    f32 pher_degredation_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    ticks_start = clock->get_ticks();
-#endif
+    END_TICK_COUNTER(degrade_pher);
+    END_CYCLE_COUNTER(degrade_pher);
 
-    BEGIN_CYCLE_COUNTER(behavior)
+    BEGIN_CYCLE_COUNTER(behavior);
+    BEGIN_TICK_COUNTER(behavior);
     // ant behavior
     for(LinkedList* node=state->ants.next; node != &state->ants; node=node->next){
-        BEGIN_CYCLE_COUNTER(state_none)
+        BEGIN_CYCLE_COUNTER(state_none);
+        BEGIN_TICK_COUNTER(state_none);
         u64 behavior_none_stated_ticks = clock->get_ticks();
 
         Entity *ant = (Entity*)node->data;
@@ -625,22 +513,22 @@ MAIN_GAME_LOOP(main_game_loop){
         Rect mid_rect = rect(vec2(ant->mid_sensor.x - ant->sensor_radius, ant->mid_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
         Rect left_rect = rect(vec2(ant->left_sensor.x - ant->sensor_radius, ant->left_sensor.y - ant->sensor_radius), vec2(ant->sensor_radius * 2, ant->sensor_radius * 2));
 
-        END_CYCLE_COUNTER(state_none)
-        state->behavior_none_stated_ticks += clock->get_ms_elapsed(behavior_none_stated_ticks, clock->get_ticks());
-        BEGIN_CYCLE_COUNTER(state_wondering)
-        u64 wondering_ticks = clock->get_ticks();
+        END_TICK_COUNTER(state_none);
+        END_CYCLE_COUNTER(state_none);
+        BEGIN_CYCLE_COUNTER(state_wondering);
+        BEGIN_TICK_COUNTER(state_wondering);
         if(ant->ant_state == AntState_Wondering){
-            u64 wondering_search_ticks = clock->get_ticks();
 
-            BEGIN_CYCLE_COUNTER(wondering_search)
+            BEGIN_CYCLE_COUNTER(wondering_search);
+            BEGIN_TICK_COUNTER(wondering_search);
             Entity *food = NULL;
             Entity *pher = NULL;
             for(i32 y=bottom_left_cell_coord.y; y<=center_cell_coord.y+1; ++y){
                 for(i32 x=bottom_left_cell_coord.x; x<=center_cell_coord.x+1; ++x){
                     if(x >= 0 && x < state->cell_row_count && y >= 0 && y < state->cell_row_count){
                         //add_box(state, vec2(state->cell_width * x, state->cell_height * y), vec2(state->cell_width, state->cell_height), ORANGE);
-                        u64 wondering_food_search_ticks = clock->get_ticks();
-                        BEGIN_CYCLE_COUNTER(wondering_search_food)
+                        BEGIN_CYCLE_COUNTER(wondering_search_food);
+                        BEGIN_TICK_COUNTER(wondering_search_food);
                         LinkedList* food_cell = &state->food_cells[y][x];
                         for(LinkedList* node=food_cell->next; node != food_cell; node=node->next){
                             food = node->data;
@@ -655,17 +543,17 @@ MAIN_GAME_LOOP(main_game_loop){
 
                                     ant->target_direction = direction(ant->position, food->position);
                                     ant->rot_percent = 0.0f;
-                                    END_CYCLE_COUNTER(wondering_search_food)
-                                    state->wondering_food_search_ticks += clock->get_ms_elapsed(wondering_food_search_ticks, clock->get_ticks());
+                                    END_TICK_COUNTER(wondering_search_food);
+                                    END_CYCLE_COUNTER(wondering_search_food);
                                     goto end_of_behavior;
                                 }
                             }
                         }
-                        END_CYCLE_COUNTER(wondering_search_food)
-						state->wondering_food_search_ticks += clock->get_ms_elapsed(wondering_food_search_ticks, clock->get_ticks());
+                        END_TICK_COUNTER(wondering_search_food);
+                        END_CYCLE_COUNTER(wondering_search_food);
 
-                        u64 wondering_pher_search_ticks = clock->get_ticks();
-                        BEGIN_CYCLE_COUNTER(wondering_search_pher)
+                        BEGIN_CYCLE_COUNTER(wondering_search_pher);
+                        BEGIN_TICK_COUNTER(wondering_search_pher);
                         LinkedList* pher_cell = &state->pher_food_cells[y][x];
                         for(LinkedList *node=pher_cell->next; node != pher_cell; node=node->next){
                             pher = node->data;
@@ -679,13 +567,13 @@ MAIN_GAME_LOOP(main_game_loop){
                                 ant->left_sensor_density += pher->color.a;
                             }
                         }
-                        END_CYCLE_COUNTER(wondering_search_pher)
-                        state->wondering_pher_search_ticks += clock->get_ms_elapsed(wondering_pher_search_ticks, clock->get_ticks());
+                        END_TICK_COUNTER(wondering_search_pher);
+                        END_CYCLE_COUNTER(wondering_search_pher);
                     }
                 }
             }
-            END_CYCLE_COUNTER(wondering_search)
-			state->wondering_search_ticks += clock->get_ms_elapsed(wondering_search_ticks, clock->get_ticks());
+            END_TICK_COUNTER(wondering_search);
+            END_CYCLE_COUNTER(wondering_search);
 
             if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
                 if(ant->forward_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
@@ -728,14 +616,13 @@ MAIN_GAME_LOOP(main_game_loop){
                     ant->target_direction = ant->random_vector;
                 }
             }
-            END_CYCLE_COUNTER(state_wondering)
-            state->wondering_ticks += clock->get_ms_elapsed(wondering_ticks, clock->get_ticks());
+            END_TICK_COUNTER(state_wondering);
+            END_CYCLE_COUNTER(state_wondering);
         }
 
         else if(ant->ant_state == AntState_Collecting){
-            BEGIN_CYCLE_COUNTER(state_collecting)
-            u64 collecting_cycles = __rdtsc();
-            u64 collecting_ticks = clock->get_ticks();
+            BEGIN_CYCLE_COUNTER(state_collecting);
+            BEGIN_TICK_COUNTER(state_collecting);
 
             Entity* targeted_food = entity_from_handle(state, ant->ant_food);
             ant->target_direction = direction(ant->position, targeted_food->position);
@@ -752,21 +639,21 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->direction_change_timer = clock->get_ticks();
                 ant->color = RED;
             }
-            state->collecting_ticks += clock->get_ms_elapsed(collecting_ticks, clock->get_ticks());
-            END_CYCLE_COUNTER(state_collecting)
+            END_TICK_COUNTER(state_collecting);
+            END_CYCLE_COUNTER(state_collecting);
         }
 
         else if(ant->ant_state == AntState_Depositing){
-            BEGIN_CYCLE_COUNTER(state_depositing)
-            u64 depositing_ticks = clock->get_ticks();
+            BEGIN_CYCLE_COUNTER(state_depositing);
+            BEGIN_TICK_COUNTER(state_depositing);
 
             Entity* collected_food = entity_from_handle(state, ant->ant_food);
             collected_food->position.x = ant->position.x + (5 * ant->direction.x);
             collected_food->position.y = ant->position.y + (5 * ant->direction.y);
 
             if(!ant->colony_targeted){
-                u64 depositing_search_ticks = clock->get_ticks();
-                BEGIN_CYCLE_COUNTER(depositing_search)
+                BEGIN_CYCLE_COUNTER(depositing_search);
+                BEGIN_TICK_COUNTER(depositing_search);
                 Entity *pher = NULL;
                 for(i32 y=bottom_left_cell_coord.y; y<=center_cell_coord.y+1; ++y){
                     for(i32 x=bottom_left_cell_coord.x; x<=center_cell_coord.x+1; ++x){
@@ -787,8 +674,8 @@ MAIN_GAME_LOOP(main_game_loop){
                         }
                     }
                 }
-                END_CYCLE_COUNTER(depositing_search)
-                state->depositing_search_ticks += clock->get_ms_elapsed(depositing_search_ticks, clock->get_ticks());
+                END_TICK_COUNTER(depositing_search);
+                END_CYCLE_COUNTER(depositing_search);
 
                 if(ant->right_sensor_density > 0 || ant->forward_sensor_density > 0 || ant->left_sensor_density > 0){
                     if(ant->forward_sensor_density > MAXf32(ant->right_sensor_density, ant->left_sensor_density)){
@@ -860,84 +747,63 @@ MAIN_GAME_LOOP(main_game_loop){
                 ant->ant_food = zero_entity_handle();
                 ant->color = LGRAY;
             }
-            END_CYCLE_COUNTER(state_depositing)
-            state->depositing_ticks += clock->get_ms_elapsed(depositing_ticks, clock->get_ticks());
+            END_TICK_COUNTER(state_depositing);
+            END_CYCLE_COUNTER(state_depositing);
         }
         end_of_behavior:;
     }
-    END_CYCLE_COUNTER(behavior)
-#if TICKS
-    f32 ant_behavior_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
+    END_TICK_COUNTER(behavior);
+    END_CYCLE_COUNTER(behavior);
 
-    print("-----------------------------------------\n");
-    print("frame_ticks:                   MS: %0.02f\n", frame_ticks);
-    print("reset_sentinels_ticks:         MS: %0.02f\n", reset_sentinel_ticks);
-    print("setup_sentinels_ticks:         MS: %0.02f\n", LL_setup_ticks);
-    print("events_ticks:                  MS: %0.02f\n", events_ticks);
-    print("controller_ticks:              MS: %0.02f\n", controller_ticks);
-    print("pher_degredate_ticks:          MS: %0.02f\n", pher_degredation_ticks);
-    print("ant_behavior_ticks:            MS: %0.02f\n", ant_behavior_ticks);
-    print("     none_stated_ticks:        MS: %0.02f\n", state->behavior_none_stated_ticks);
-    print("     wondering_ticks:          MS: %0.02f\n", state->wondering_ticks);
-    print("         search:               MS: %0.02f\n", state->wondering_search_ticks);
-    print("             food_ticks:       MS: %0.02f\n", state->wondering_food_search_ticks);
-    print("             pher_home_ticks:  MS: %0.02f\n", state->wondering_pher_search_ticks);
-    print("     collecting_ticks:         MS: %0.02f\n", state->collecting_ticks);
-    print("     depositing_ticks:         MS: %0.02f\n", state->depositing_ticks);
-    print("         pher_food_ticks:      MS: %0.02f\n", state->depositing_search_ticks);
-    state->behavior_none_stated_ticks = 0; state->wondering_ticks = 0; state->wondering_search_ticks = 0; state->wondering_food_search_ticks = 0; state->wondering_pher_search_ticks = 0; state->collecting_ticks = 0; state->depositing_ticks = 0; state->depositing_search_ticks = 0;
-
-    ticks_start = clock->get_ticks();
-#endif
-
-    BEGIN_CYCLE_COUNTER(allocate_commands)
-    transient_state->render_commands_buffer->used_bytes = 0;
-    allocate_clear_color(transient_state->render_commands_buffer, BLACK);
+    BEGIN_CYCLE_COUNTER(allocate_commands);
+    BEGIN_TICK_COUNTER(allocate_commands);
+    transient_state->render_commands_arena->used = 0;
+    allocate_clear_color(transient_state->render_commands_arena, BLACK);
     for(u32 entity_index = 0; entity_index <= array_count(state->entities); ++entity_index){
         Entity *e = state->entities + entity_index;
         switch(e->type){
             case EntityType_Player:{
-                //allocate_bitmap(transient_state->render_commands_buffer, e->position, e->image);
+                //allocate_bitmap(transient_state->render_commands_arena, e->position, e->image);
                 //if(e->draw_bounding_box){
-                //    allocate_box(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
+                //    allocate_box(transient_state->render_commands_arena, e->position, e->dimension, e->color);
                 //}
-                //allocate_rect(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
-                allocate_box(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
+                //allocate_rect(transient_state->render_commands_arena, e->position, e->dimension, e->color);
+                allocate_box(transient_state->render_commands_arena, e->position, e->dimension, e->color);
             }break;
             case EntityType_Pixel:{
-                allocate_pixel(transient_state->render_commands_buffer, e->position, e->color);
+                allocate_pixel(transient_state->render_commands_arena, e->position, e->color);
             }break;
             case EntityType_Segment:{
-                allocate_segment(transient_state->render_commands_buffer, e->p0, e->p1, e->color);
+                allocate_segment(transient_state->render_commands_arena, e->p0, e->p1, e->color);
             }break;
             case EntityType_Line:{
-                allocate_line(transient_state->render_commands_buffer, e->position, e->direction, e->color);
+                allocate_line(transient_state->render_commands_arena, e->position, e->direction, e->color);
             }break;
             case EntityType_Ray:{
-                allocate_ray(transient_state->render_commands_buffer, e->position, e->direction, e->color);
+                allocate_ray(transient_state->render_commands_arena, e->position, e->direction, e->color);
             }break;
             case EntityType_Rect:{
-                allocate_rect(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
+                allocate_rect(transient_state->render_commands_arena, e->position, e->dimension, e->color);
             }break;
             case EntityType_Box:{
-                allocate_box(transient_state->render_commands_buffer, e->position, e->dimension, e->color);
+                allocate_box(transient_state->render_commands_arena, e->position, e->dimension, e->color);
             }break;
             case EntityType_Quad:{
-                allocate_quad(transient_state->render_commands_buffer, e->p0, e->p1, e->p2, e->p3, e->color, e->fill);
+                allocate_quad(transient_state->render_commands_arena, e->p0, e->p1, e->p2, e->p3, e->color, e->fill);
             }break;
             case EntityType_Triangle:{
-                allocate_triangle(transient_state->render_commands_buffer, e->p0, e->p1, e->p2, e->color, e->fill);
+                allocate_triangle(transient_state->render_commands_arena, e->p0, e->p1, e->p2, e->color, e->fill);
             }break;
             case EntityType_Circle:{
-                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+                allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
                 v2 dimenstion = vec2(e->rad*2, e->rad*2);
                 v2 position = vec2(e->position.x - e->rad, e->position.y - e->rad);
                 if(e->draw_bounding_box){
-                    allocate_box(transient_state->render_commands_buffer, position, dimenstion, e->color);
+                    allocate_box(transient_state->render_commands_arena, position, dimenstion, e->color);
                 }
             }break;
             case EntityType_Bitmap:{
-                allocate_bitmap(transient_state->render_commands_buffer, e->position, e->image);
+                allocate_bitmap(transient_state->render_commands_arena, e->position, e->image);
             }break;
             case EntityType_None:{
             }break;
@@ -945,23 +811,23 @@ MAIN_GAME_LOOP(main_game_loop){
             }break;
             case EntityType_Food:{
                 if(!e->food_collected){
-                    allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+                    allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
                 }
                 if(state->draw_depositing_ants){
                     if(e->food_collected){
-                        allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+                        allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
                     }
                 }
             }break;
             case EntityType_Ant:{
 				if(state->draw_wondering_ants && equal4(e->color, LGRAY)){
-					allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+					allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
 				}
                 if(state->draw_depositing_ants && equal4(e->color, RED)){
-					allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+					allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
 				}
                 if(equal4(e->color, ORANGE)){
-					allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+					allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
                 }
 
                 f32 forward_rad = dir_to_rad(e->direction);
@@ -979,50 +845,44 @@ MAIN_GAME_LOOP(main_game_loop){
                 Rect mid_rect = rect(vec2(e->mid_sensor.x - e->sensor_radius, e->mid_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
                 Rect left_rect = rect(vec2(e->left_sensor.x - e->sensor_radius, e->left_sensor.y - e->sensor_radius), vec2(e->sensor_radius * 2, e->sensor_radius * 2));
 
-                //allocate_box(transient_state->render_commands_buffer, right_rect.position, right_rect.dimension, YELLOW);
-                //allocate_box(transient_state->render_commands_buffer, mid_rect.position, mid_rect.dimension, GREEN);
-                //allocate_box(transient_state->render_commands_buffer, left_rect.position, left_rect.dimension, ORANGE);
+                //allocate_box(transient_state->render_commands_arena, right_rect.position, right_rect.dimension, YELLOW);
+                //allocate_box(transient_state->render_commands_arena, mid_rect.position, mid_rect.dimension, GREEN);
+                //allocate_box(transient_state->render_commands_arena, left_rect.position, left_rect.dimension, ORANGE);
 
-                //allocate_circle(transient_state->render_commands_buffer, e->right_sensor, e->sensor_radius, YELLOW, false);
-                //allocate_circle(transient_state->render_commands_buffer, e->mid_sensor, e->sensor_radius, GREEN, false);
-                //allocate_circle(transient_state->render_commands_buffer, e->left_sensor, e->sensor_radius, ORANGE, false);
+                //allocate_circle(transient_state->render_commands_arena, e->right_sensor, e->sensor_radius, YELLOW, false);
+                //allocate_circle(transient_state->render_commands_arena, e->mid_sensor, e->sensor_radius, GREEN, false);
+                //allocate_circle(transient_state->render_commands_arena, e->left_sensor, e->sensor_radius, ORANGE, false);
 
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->right_sensor, YELLOW);
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->mid_sensor, GREEN);
-                //allocate_segment(transient_state->render_commands_buffer, e->position, e->left_sensor, ORANGE);
-                //allocate_ray(transient_state->render_commands_buffer, e->position, e->target_direction, BLUE);
+                //allocate_segment(transient_state->render_commands_arena, e->position, e->right_sensor, YELLOW);
+                //allocate_segment(transient_state->render_commands_arena, e->position, e->mid_sensor, GREEN);
+                //allocate_segment(transient_state->render_commands_arena, e->position, e->left_sensor, ORANGE);
+                //allocate_ray(transient_state->render_commands_arena, e->position, e->target_direction, BLUE);
             }break;
             case EntityType_Colony:{
-                allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, e->fill);
+                allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, e->fill);
             }break;
             case EntityType_ToHomePheromone:{
                 if(state->draw_home_phers){
-                    allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, true);
+                    allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, true);
                 }
             }break;
             case EntityType_ToFoodPheromone:{
                 if(state->draw_food_phers){
-                    allocate_circle(transient_state->render_commands_buffer, e->position, e->rad, e->color, true);
+                    allocate_circle(transient_state->render_commands_arena, e->position, e->rad, e->color, true);
                 }
             }break;
         }
     }
-    END_CYCLE_COUNTER(allocate_commands)
-#if TICKS
-    f32 push_draw_commands_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    print("allocate_commands_ticks:       MS: %0.02f\n", push_draw_commands_ticks);
-
-    ticks_start = clock->get_ticks();
-#endif
-    BEGIN_CYCLE_COUNTER(draw)
-    draw_commands(render_buffer, transient_state->render_commands_buffer);
-    END_CYCLE_COUNTER(draw)
-#if TICKS
-    f32 draw_ticks = clock->get_ms_elapsed(ticks_start, clock->get_ticks());
-    print("draw_ticks:                    MS: %0.02f\n", draw_ticks);
-#endif
+    END_TICK_COUNTER(allocate_commands);
+    END_CYCLE_COUNTER(allocate_commands);
+    BEGIN_CYCLE_COUNTER(draw);
+    BEGIN_TICK_COUNTER(draw);
+    draw_commands(render_buffer, transient_state->render_commands_arena);
+    END_TICK_COUNTER(draw);
+    END_CYCLE_COUNTER(draw);
     state->frame_index++;
-    //print("used_bytes: %i\n", transient_state->render_commands_buffer->used_bytes);
+    //print("used_bytes: %i\n", transient_state->render_commands_arena->used_bytes);
     //print("-----------------------------------\n");
+    END_TICK_COUNTER(frame);
     END_CYCLE_COUNTER(frame);
 }

@@ -517,7 +517,7 @@ WIN_GET_MS_ELAPSED(get_ms_elapsed){
     f32 result;
     result = ((f32)(end - start) / ((f32)win_clock.frequency));
 
-    return(1000*result);
+    return(result);
 }
 
 static void
@@ -661,14 +661,24 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 }
 
 static void
-handle_debug_cycle_counters(GameMemory *memory){
-    //for(i32 i=0; i < DebugCycleCounters_count; ++i){
+handle_debug_counters(GameMemory *memory){
     print("Debug Cycle Counters:\n");
+    print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
     for(i32 counter_index=0; counter_index < (i32)array_size(memory->cycle_counters); ++counter_index){
         DebugCycleCounter *counter = memory->cycle_counters + counter_index;
         if(counter->hit_count){
-            print("    %i: %ucy %uh %ucy/h %utotal\n", counter_index, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count), (counter->cycle_count * counter->hit_count));
+            print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
             counter->cycle_count = 0;
+            counter->hit_count = 0;
+        }
+    }
+    print("Debug Tick Counters:\n");
+    print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
+    for(i32 counter_index=0; counter_index < (i32)array_size(memory->tick_counters); ++counter_index){
+        DebugTickCounter *counter = memory->tick_counters + counter_index;
+        if(counter->hit_count){
+            print("    %-23s %-10f %-8u %0.02f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
+            counter->tick_count = 0;
             counter->hit_count = 0;
         }
     }
@@ -749,15 +759,15 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                 // this allows you to use higher/lower resolution sprites and so on to support
                 // what may or may not be available
                 GameMemory game_memory = {0};
-                game_memory.running = true;
-                //game_memory.permanent_storage_size = Megabytes(64);
-                game_memory.permanent_storage_size = Megabytes(500);
-                game_memory.transient_storage_size = Gigabytes(1);
-
+                
                 game_memory.read_entire_file = read_entire_file;
                 game_memory.write_entire_file = write_entire_file;
                 game_memory.free_file_memory = free_file_memory;
+                game_memory.running = true;
 
+                //game_memory.permanent_storage_size = Megabytes(64);
+                game_memory.permanent_storage_size = Megabytes(500);
+                game_memory.transient_storage_size = Gigabytes(1);
                 game_memory.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
                 game_memory.total_storage = VirtualAlloc(base_address, (size_t)game_memory.total_size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
                 game_memory.permanent_storage = game_memory.total_storage;
@@ -866,7 +876,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                             }
                             if(gamecode.main_game_loop){
                                 gamecode.main_game_loop(&game_memory, &render_buffer, &events, &clock);
-                                handle_debug_cycle_counters(&game_memory);
+                                handle_debug_counters(&game_memory);
                                 if(!game_memory.running){
                                     global_running = game_memory.running;
                                 }
@@ -878,7 +888,9 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
                             f32 MSPF = 1000 * get_seconds_elapsed(win_clock.start, get_ticks());
                             f32 FPS = ((f32)win_clock.frequency / (f32)(get_ticks() - win_clock.start));
                             u64 CPUCYCLES = (__rdtsc() - win_clock.cpu_start);
-                            print("MSPF: %.05fms - FPS: %.02f - CPU: %u\n", MSPF, FPS, CPUCYCLES);
+#if TIC || DTSC
+                            print("MSPF: %fms - FPS: %f - CPU: %u\n", MSPF, FPS, CPUCYCLES);
+#endif
 
                             WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
                             WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);

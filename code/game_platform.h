@@ -40,6 +40,8 @@ typedef double f64;
 #define local_static static
 #define global static
 
+#define RDTSC 1
+#define TICKS 1
 
 typedef enum EventMouse{MOUSE_NONE, MOUSE_LBUTTON, MOUSE_RBUTTON, MOUSE_MBUTTON, MOUSE_XBUTTON1, MOUSE_XBUTTON2, MOUSE_WHEEL} EventMouse;
 typedef enum EventPad{PAD_NONE, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BACK} EventPad;
@@ -254,20 +256,57 @@ enum{
     DebugCycleCounter_count,
 };
 
+enum{
+    DebugTickCounter_frame,
+    DebugTickCounter_init,
+    DebugTickCounter_reset_sentinels,
+    DebugTickCounter_LL_setup,
+    DebugTickCounter_events,
+    DebugTickCounter_controller,
+    DebugTickCounter_degrade_pher,
+    DebugTickCounter_behavior,
+    DebugTickCounter_state_none,
+    DebugTickCounter_state_wondering,
+    DebugTickCounter_wondering,
+    DebugTickCounter_wondering_search,
+    DebugTickCounter_wondering_search_food,
+    DebugTickCounter_wondering_search_pher,
+    DebugTickCounter_state_collecting,
+    DebugTickCounter_state_depositing,
+    DebugTickCounter_depositing_search,
+    DebugTickCounter_allocate_commands,
+    DebugTickCounter_draw,
+    DebugTickCounter_count,
+};
+
 typedef struct DebugCycleCounter{
     u64 cycle_count;
     u32 hit_count;
+    char *name;
 } DebugCycleCounter;
+
+typedef struct DebugTickCounter{
+    f32 tick_count;
+    u32 hit_count;
+    char *name;
+} DebugTickCounter;
 
 struct GameMemory *debug_global_memory;
 
-#define RDTSC 1
+
 #if RDTSC
-#define BEGIN_CYCLE_COUNTER(ID) u64 StartCycleCount_##ID = __rdtsc();
-#define END_CYCLE_COUNTER(ID) debug_global_memory->cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCount_##ID; ++debug_global_memory->cycle_counters[DebugCycleCounter_##ID].hit_count;
+#define BEGIN_CYCLE_COUNTER(ID) u64 StartCycleCounter_##ID = __rdtsc();
+#define END_CYCLE_COUNTER(ID) debug_global_memory->cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++debug_global_memory->cycle_counters[DebugCycleCounter_##ID].hit_count; debug_global_memory->cycle_counters[DebugCycleCounter_##ID].name = #ID;
 #else
 #define BEGIN_CYCLE_COUNTER(ID)
 #define END_CYCLE_COUNTER(ID)
+#endif
+#if TICKS
+#define BEGIN_TICK_COUNTER(ID) u64 StartTickCounter_##ID = clock->get_ticks()
+#define END_TICK_COUNTER(ID) debug_global_memory->tick_counters[DebugTickCounter_##ID].tick_count += ((f32)(clock->get_ticks() - StartTickCounter_##ID) / ((f32)clock->frequency)); ++debug_global_memory->tick_counters[DebugTickCounter_##ID].hit_count; debug_global_memory->tick_counters[DebugTickCounter_##ID].name = #ID;
+#else
+#define BEGIN_TICK_COUNTER(ID)
+#define END_TICK_COUNTER(ID)
 #endif
 
 
@@ -291,6 +330,7 @@ typedef struct GameMemory{
     FreeFileMemory *free_file_memory;
 
     DebugCycleCounter cycle_counters[DebugCycleCounter_count];
+    DebugTickCounter tick_counters[DebugTickCounter_count];
 } GameMemory;
 
 #define MAIN_GAME_LOOP(name) void name(GameMemory *memory, RenderBuffer *render_buffer, Events *events, Clock *clock)
