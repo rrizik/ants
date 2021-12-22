@@ -377,9 +377,12 @@ WIN_init_render_buffer(WIN_RenderBuffer *buffer, i32 width, i32 height){
 
 static void
 WIN_update_window(WIN_RenderBuffer buffer, HDC DC, i32 width, i32 height){
+    //NOTE: Shift off of (0,0) so that you can see top and left side of window clearly.
     i32 x_offset = 10;
     i32 y_offset = 10;
 
+    //TODO: This is just to paint the outside portion of the relavent screen white, 
+    // to indicate what is in and out of visual scope.
     PatBlt(DC, 0, 0, width, y_offset, WHITENESS);
     PatBlt(DC, 0, 0, x_offset, height, WHITENESS);
     PatBlt(DC, x_offset + buffer.width, 0, width, height, WHITENESS);
@@ -388,7 +391,7 @@ WIN_update_window(WIN_RenderBuffer buffer, HDC DC, i32 width, i32 height){
     StretchDIBits(DC,
                   //0, 0, width, height,
                   x_offset, y_offset, buffer.width, buffer.height,
-                  0, 0, buffer.width, buffer.height,
+                  0,        0,        buffer.width, buffer.height,
                   buffer.memory, &buffer.info, DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -507,23 +510,23 @@ WIN_GET_CLOCK(get_ticks){
 }
 
 WIN_GET_SECONDS_ELAPSED(get_seconds_elapsed){
-    f32 result;
-    result = ((f32)(end - start) / ((f32)win_clock.frequency));
+    f64 result;
+    result = ((f64)(end - start) / ((f64)win_clock.frequency));
 
     return(result);
 }
 
 WIN_GET_MS_ELAPSED(get_ms_elapsed){
-    f32 result;
-    result = ((f32)(end - start) / ((f32)win_clock.frequency));
+    f64 result;
+    result = (1000 * ((f64)(end - start) / ((f64)win_clock.frequency)));
 
     return(result);
 }
 
 static void
 WIN_sync_framerate(void){
-    u64 time_stamp = get_ticks();
-    f32 seconds_elapsed = get_seconds_elapsed(win_clock.start, time_stamp);
+    s64 time_stamp = get_ticks();
+    f64 seconds_elapsed = get_seconds_elapsed(win_clock.start, time_stamp);
     if(seconds_elapsed < win_clock.target_seconds_per_frame){
         if(win_clock.sleep_granularity_set){
             DWORD sleep_ms = (DWORD)(1000.0f * (win_clock.target_seconds_per_frame - seconds_elapsed));
@@ -642,14 +645,14 @@ Win32WindowCallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
         {
             OutputDebugStringA("WM_ACTIVATEAPP\n");
         } break;
-        case WM_PAINT:
-        {
-            PAINTSTRUCT paint;
-            HDC DC = BeginPaint(window, &paint);
-            WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
-            WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
-            EndPaint(window, &paint);
-        } break;
+        //case WM_PAINT:
+        //{
+        //    PAINTSTRUCT paint;
+        //    HDC DC = BeginPaint(window, &paint);
+        //    WIN_WindowDimensions wd = WIN_get_window_dimensions(window);
+        //    WIN_update_window(offscreen_render_buffer, DC, wd.width, wd.height);
+        //    EndPaint(window, &paint);
+        //} break;
 
         default:
         {
@@ -695,7 +698,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
     WIN_init_render_buffer(&offscreen_render_buffer, 1024, 768);
 
     WNDCLASSA window_class = {0};
-    window_class.style = CS_VREDRAW|CS_HREDRAW|CS_OWNDC;
+    window_class.style = CS_VREDRAW|CS_HREDRAW;
     window_class.lpfnWndProc = Win32WindowCallback;
     window_class.hInstance = instance;
     window_class.lpszClassName = "window class";
@@ -885,7 +888,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, i32 show_cm
 
                             WIN_sync_framerate();
 
-                            f32 MSPF = 1000 * get_seconds_elapsed(win_clock.start, get_ticks());
+                            f64 MSPF = 1000 * get_seconds_elapsed(win_clock.start, get_ticks());
                             f32 FPS = ((f32)win_clock.frequency / (f32)(get_ticks() - win_clock.start));
                             u64 CPUCYCLES = (__rdtsc() - win_clock.cpu_start);
 #if TIC || DTSC

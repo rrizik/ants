@@ -19,9 +19,9 @@ typedef struct WIN_WindowDimensions{
 } WIN_WindowDimensions;
 
 typedef struct WIN_Clock{
-    u64 start;
-    u64 end;
-    u64 frequency;
+    i64 start;
+    i64 end;
+    i64 frequency;
     u64 cpu_start;
     u64 cpu_end;
 

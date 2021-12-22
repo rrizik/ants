@@ -94,7 +94,7 @@ MAIN_GAME_LOOP(main_game_loop){
     TransientState *transient_state = (TransientState *)memory->transient_storage;
 #if TICKS
     state->frame_ticks_now = clock->get_ticks();
-    f32 frame_ticks = clock->get_ms_elapsed(state->frame_ticks_prev, state->frame_ticks_now); 
+    f64 frame_ticks = clock->get_ms_elapsed(state->frame_ticks_prev, state->frame_ticks_now); 
     state->frame_ticks_prev = state->frame_ticks_now;
 #endif
 

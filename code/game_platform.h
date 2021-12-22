@@ -9,6 +9,7 @@ typedef int8_t i8;
 typedef int16_t i16; 
 typedef int32_t i32;
 typedef int64_t i64;
+typedef int64_t s64;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -95,10 +96,10 @@ typedef struct Controller{
     v2 mouse_pos;
 } Controller;
 
-#define WIN_GET_CLOCK(name) u64 name(void)
-typedef WIN_GET_CLOCK(GetTicks);
+#define WIN_GET_TICKS(name) i64 name(void)
+typedef WIN_GET_TICKS(GetTicks);
 
-#define WIN_GET_SECONDS_ELAPSED(name) f32 name(u64 start, u64 end)
+#define WIN_GET_SECONDS_ELAPSED(name) f32 name(i64 start, i64 end)
 typedef WIN_GET_SECONDS_ELAPSED(GetSecondsElapsed);
 
 #define WIN_GET_MS_ELAPSED(name) f32 name(u64 start, u64 end)
@@ -108,7 +109,7 @@ typedef struct Clock{
     GetTicks *get_ticks;
     GetSecondsElapsed *get_seconds_elapsed;
     GetMsElapsed *get_ms_elapsed;
-    u64 frequency;
+    i64 frequency;
     f32 dt;
 
     u64 cpu_prev;
@@ -121,9 +122,9 @@ typedef struct Clock{
 //    return(result);
 //}
 
-static f32 
+static f64 
 get_cycles_elapsed(u64 end, u64 start){
-    f32 result = (f32)(end - start);
+    f64 result = (f64)(end - start);
     return(result);
 }
 

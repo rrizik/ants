@@ -120,8 +120,8 @@ typedef struct Entity{
     EntityHandle food_ant;
 
     v2 random_vector;
-    u64 direction_change_timer;
-    f32 direction_change_timer_max;
+    i64 direction_change_timer;
+    f64 direction_change_timer_max;
 	f32 rot_percent;
     f32 rotate_speed;
     bool rotation_complete;
@@ -135,9 +135,9 @@ typedef struct Entity{
     u8 sensor_radius;
     f32 sensor_angle;
     f32 sensor_distance;
-    u64 pheromone_spawn_timer;
-    f32 pheromone_spawn_timer_max;
-	f32 pheromone_alpha_start;
+    i64 pheromone_spawn_timer;
+    f64 pheromone_spawn_timer_max;
+	f64 pheromone_alpha_start;
 
     f32 right_sensor_density;
     f32 forward_sensor_density;
@@ -192,8 +192,8 @@ typedef struct TransientState{
 } TransientState;
 
 typedef struct PermanentState{
-    u64 frame_ticks_now;
-    u64 frame_ticks_prev;
+    i64 frame_ticks_now;
+    i64 frame_ticks_prev;
     Arena permanent_arena;
 
     f32 screen_width;
