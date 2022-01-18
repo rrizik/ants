@@ -502,7 +502,7 @@ WIN_play_input(WIN_State *state, GameMemory *game_memory, Events *events){
     }
 }
 
-WIN_GET_CLOCK(get_ticks){
+WIN_GET_TICKS(get_ticks){
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
 
