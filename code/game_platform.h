@@ -20,7 +20,7 @@ typedef float f32;
 typedef double f64;
 
 
-#define assert(expresion) if(!(expresion)) __debugbreak();
+#define assert(expresion) if(!(expresion)) __debugbreak()
 #define array_count(value) (sizeof(value)/sizeof(value[0]))
 #define array_length(value) (sizeof(value)/sizeof(value[0]))
 #define array_size(value) (sizeof(value)/sizeof(value[0]))
