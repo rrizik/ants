@@ -1,7 +1,7 @@
-// 3,800,000,000 cycles per frame
+// 3,800,000,000 cycles per frame (I THINK THIS IS WRONG. I THINK THIS IS SUPPOSED TO BE "PER SECOND", MAYBE NOT IDK NOW THAT I THINK ABOUT IT)
 // 12 cores.
-// 63,333,333 cycles 60 frames 1 second 1 core. 1,520,000,000 cycles 12 core.
-// 126,666,666 cycles 30 frames 1 second 1 core. 760,000,000 cycles 12 core.
+// 63,333,333 cycles per 60 frames 1 second 1 core. 1,520,000,000 cycles 12 core.
+// 126,666,666 cycles per 30 frames 1 second 1 core. 760,000,000 cycles 12 core.
 // threads
 // whats the value of {}
 

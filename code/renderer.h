@@ -141,20 +141,6 @@ typedef struct BitmapCommand{
     Bitmap image;
 } BitmapCommand;
 
-static Arena*
-allocate_arena(Arena *arena, size_t size){
-    Arena* result = allocate_struct(arena, Arena);
-    result->base = allocate_size(arena, size);
-    result->size = size;
-    return(result);
-}
-
-static LinkedList*
-allocate_LL_node(Arena* arena){
-    LinkedList* result = allocate_struct(arena, LinkedList);
-    return(result);
-}
-
 static void
 allocate_clear_color(Arena *arena, v4 color){
     ClearColorCommand* new_command = allocate_struct(arena, ClearColorCommand);

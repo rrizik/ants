@@ -6,6 +6,12 @@ LinkedList{
     u32 count;
 } LinkedList;
 
+static LinkedList*
+allocate_LL_node(Arena* arena){
+    LinkedList* result = allocate_struct(arena, LinkedList);
+    return(result);
+}
+
 static void
 LL_push(LinkedList *sentinel, LinkedList *node){
     node->prev = sentinel;
@@ -30,3 +36,4 @@ LL_remove(LinkedList *sentinel, LinkedList *node){
     node->prev->next = node->next;
     sentinel->count--;
 }
+

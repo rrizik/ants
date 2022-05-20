@@ -4,6 +4,7 @@
 #include "game_platform.h"
 #include "random.h"
 #include <time.h>
+#include "arena.h"
 #include "vectors.h"
 #include "linked_list.h"
 #include "math.h"
@@ -53,31 +54,6 @@ typedef struct Bitmap{
 	u32  height;
     u32 *pixels;
 } Bitmap;
-
-
-typedef struct Arena {
-    void *base;
-    size_t size;
-    size_t used;
-} Arena;
-
-static void
-initialize_arena(Arena *arena, void *base, size_t size){
-    arena->base = base;
-    arena->size = size;
-    arena->used = 0;
-}
-
-#define allocate_array(arena, count, type) (type *)allocate_size_(arena, count * sizeof(type));
-#define allocate_struct(arena, type) (type *)allocate_size_(arena, sizeof(type));
-#define allocate_size(arena, size) allocate_size_(arena, size);
-static void*
-allocate_size_(Arena *arena, size_t size){
-    void *result = (u8*)arena->base + arena->used;
-    arena->used += size;
-    assert(arena->used < arena->size);
-    return(result);
-}
 
 typedef enum {EntityFlag_Movable} EntityFlags;
 typedef enum {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
