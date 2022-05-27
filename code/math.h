@@ -2,33 +2,6 @@
 
 #include <math.h>
 
-//lerp(0, 100, .5) 50
-//0 + .5(100 - 0)
-//a + t(2 * (b - a))
-//a + t(b - a)
-
-static f32
-MAXf32(f32 a, f32 b){
-    if(a > b){
-        return(a);
-    }
-    return(b);
-}
-
-static void
-swapf(f32 *a, f32 *b){
-    f32 t = *a;
-    *a = *b;
-    *b = t;
-}
-
-static v2
-ceil_v2(v2 value){
-    v2 result = {0};
-    result.x = (f32)ceil(value.x);
-    result.y = (f32)ceil(value.y);
-    return(result);
-}
 
 static v2
 round_v2(v2 value){
@@ -75,19 +48,19 @@ floor_fi32(f32 value){
 }
 
 static f32
-Sin(f32 angle){
+sin(f32 angle){
     f32 result = sinf(angle);
     return(result);
 }
 
 static f32
-Cos(f32 angle){
+cos(f32 angle){
     f32 result = cosf(angle);
     return(result);
 }
 
 static f32
-Atan(f32 y, f32 x){
+atan(f32 y, f32 x){
     f32 result = atan2f(y, x);
     return(result);
 }
@@ -109,6 +82,7 @@ dir_to_rad(v2 dir){
     return atan2f(dir.y, dir.x);
 }
 
+// NOTE: idk wtf is going on here, probably copy pasta from www.bullshit.com
 static f32 
 lerp_rad(f32 a, f32 b, f32 t) {
     float difference = fmodf(b - a, 2*PI),
@@ -116,11 +90,6 @@ lerp_rad(f32 a, f32 b, f32 t) {
     return a + distance * t;
 }
 
-static f32 lerp(f32 a, f32 b, f32 t){
-    f32 clamped_t = clamp_f32(0.0f, t, 1.0f); 
-    f32 result = a + (clamped_t * (b - a));
-    return(result);
-}
 
 static v2
 calc_center(v2 *p, u32 count){
@@ -142,7 +111,8 @@ calc_center(v2 *p, u32 count){
 static void
 translate(v2 *p, u32 count, v2 translation){
     for(u32 i=0; i<count; ++i){
-        *p = add2(*p, translation);
+        //*p = add2(*p, translation);
+        *p = *p + translation;
         p++;
     }
     p -= count;
@@ -151,7 +121,8 @@ translate(v2 *p, u32 count, v2 translation){
 static void
 scale(v2 *p, u32 count, f32 scalar, v2 origin){
     for(u32 i=0; i<count; ++i){
-        *p = add2(scale2(sub2(*p, origin), scalar), origin);
+        //*p = add2(scale2(sub2(*p, origin), scalar), origin);
+        *p = ((*p - origin) * scalar) + origin;
         p++;
     }
     p -= count;
@@ -160,8 +131,8 @@ scale(v2 *p, u32 count, f32 scalar, v2 origin){
 static v2
 rotate_pt(v2 p, f32 angle, v2 origin){
     v2 result = {0};
-    result.x = (p.x - origin.x) * Cos(angle * 3.14f/180.0f) - (p.y - origin.y) * Sin(angle * 3.14f/180.0f) + origin.x;
-    result.y = (p.x - origin.x) * Sin(angle * 3.14f/180.0f) + (p.y - origin.y) * Cos(angle * 3.14f/180.0f) + origin.y;
+    result.x = (p.x - origin.x) * cos(angle * 3.14f/180.0f) - (p.y - origin.y) * sin(angle * 3.14f/180.0f) + origin.x;
+    result.y = (p.x - origin.x) * sin(angle * 3.14f/180.0f) + (p.y - origin.y) * cos(angle * 3.14f/180.0f) + origin.y;
     return(result);
 }
 
@@ -187,6 +158,136 @@ convert_u32_v4_normalized(u32 value){
     return result;
 }
 
+static void
+swap_v2(v2 *a, v2 *b){
+    v2 t = *a;
+    *a = *b;
+    *b = t;
+}
+
+
+// INCOMPLETE: LOOK AT SIZE_T VS INT DIFFERENCES
+static void
+scale_pts(v2 *p, size_t count, f32 s){
+    for(i32 i=0; i < (int)count; ++i){
+        //*p = scale2(*p, s);
+        *p = (*p * s);
+        p++;
+    }
+}
+
+static bool
+cmp2(v2 a, v2 b){
+    bool result = false;
+    if(a.x == b.x && a.y == b.y){
+        result = true;
+    }
+    return(result);
+}
+
+static f32
+dot2(v2 a, v2 b){
+    return((a.x * b.x) + (a.y * b.y));
+}
+
+static f32
+magnitude2(v2 a){
+    return(sqrtf((a.x * a.x) + (a.y * a.y)));
+}
+
+static f32
+magnitude_sq2(v2 a){
+    return((a.x * a.x) + (a.y * a.y));
+}
+
+static void
+normalize2(v2 *a){
+    f32 mag = magnitude2(*a);
+    a->x = (a->x / mag);
+    a->y = (a->y / mag);
+}
+
+static v2
+get_normalized2(v2 a){
+    v2 result = {0};
+
+    f32 mag = magnitude2(a);
+    result.x = (a.x / mag);
+    result.y = (a.y / mag);
+
+    return(result);
+}
+
+static v2
+direction2(v2 a, v2 b){
+    v2 result = {0};
+    result.x = b.x - a.x;
+    result.y = b.y - a.y;
+    normalize2(&result);
+    return(result);
+}
+
+static v2
+direction(v2 a, v2 b){
+    v2 result = {0};
+    result.x = b.x - a.x;
+    result.y = b.y - a.y;
+    normalize2(&result);
+    return(result);
+}
+
+static f32
+distance2(v2 a, v2 b){
+    //v2 result = sub2(a, b);
+    v2 result = a - b;
+    return(magnitude2(result));
+}
+
+static f32
+angle2(v2 a, v2 b){
+    f32 result = 0;
+
+    f32 mag = sqrtf(magnitude_sq2(a) * magnitude_sq2(b));
+    result = (f32)acos(dot2(a, b) / mag);
+
+    return(result);
+}
+
+static f32
+full_angle2(v2 dir){
+    return(atan2(dir.y, dir.x));
+}
+
+static v2
+project2(v2 a, v2 b){
+    v2 result = {0};
+
+    f32 n = dot2(a, b);
+    f32 d = magnitude_sq2(a);
+    //result = scale2(b, (n/d));
+    result = (b * (n/d));
+
+    return(result);
+}
+
+static v2
+perpendicular2(v2 a, v2 b){
+    v2 result = {0};
+
+    result = (a - project2(a, b));
+    return(result);
+}
+
+static v2
+reflection2(v2 vec, v2 normal){
+    v2 result = {0};
+
+    f32 d = dot2(vec, normal);
+    result.x = vec.x - normal.x * (d * 2.0f);
+    result.y = vec.y - normal.y * (d * 2.0f);
+    
+    return(result);
+}
 
 #define MATH_H
 #endif

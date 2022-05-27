@@ -1,8 +1,39 @@
 #if !defined(RENDERER_H)
 
+#pragma pack(push, 1)
+typedef struct BitmapHeader {
+    u16 file_type;
+	u32 file_size;
+	u16 reserved1;
+	u16 reserved2;
+	u32 bitmap_offset;
+	u32 header_size;
+	i32  width;
+	i32  height;
+	u16 planes;
+	u16 bits_per_pixel;
+    u32 Compression;
+	u32 SizeOfBitmap;
+	i32  HorzResolution;
+	i32  VertResolution;
+	u32 ColorsUsed;
+	u32 ColorsImportant;
+//    u32 RedMask;
+//    u32 GreenMask;
+//    u32 BlueMask;
+} BitmapHeader;
+#pragma pack(pop)
+
+typedef struct Bitmap{
+    BitmapHeader *header; //maybe i dont want this here?
+	u32  width;
+	u32  height;
+    u32 *pixels;
+} Bitmap;
+
 typedef struct Rect{
-    v2 position;
-    v2 dimension;
+    v2 pos;
+    v2 dim;
     f32 x; 
     f32 y;
     f32 w; 
@@ -14,8 +45,8 @@ typedef struct Rect{
 static Rect
 rect(v2 pos, v2 dim){
     Rect result = {0};
-    result.position = pos;
-    result.dimension = dim;
+    result.pos = pos;
+    result.dim = dim;
     result.x = pos.x;
     result.y = pos.y;
     result.w = dim.x;
@@ -72,52 +103,53 @@ typedef enum RenderCommandType{
     RenderCommand_Bitmap,
 } RenderCommandType;
 
-typedef struct BaseCommand{
+typedef struct CommandHeader{
     RenderCommandType type;
     v2 position;
     v4 color;
     v4 clip_region;
     bool fill;
-} BaseCommand;
+    size_t arena_used;
+} CommandHeader;
 
 typedef struct ClearColorCommand{
-    BaseCommand base;
+    CommandHeader header;
 } ClearColorCommand;
 
 typedef struct PixelCommand{
-    BaseCommand base;
+    CommandHeader header;
     f32 x;
     f32 y;
 } PixelCommand;
 
 typedef struct SegmentCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 p0;
     v2 p1;
 } SegmentCommand;
 
 typedef struct RayCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 direction;
 } RayCommand;
 
 typedef struct LineCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 direction;
 } LineCommand;
 
 typedef struct RectCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 dimension;
 } RectCommand;
 
 typedef struct BoxCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 dimension;
 } BoxCommand;
 
 typedef struct QuadCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 p0;
     v2 p1;
     v2 p2;
@@ -125,41 +157,45 @@ typedef struct QuadCommand{
 } QuadCommand;
 
 typedef struct TriangleCommand{
-    BaseCommand base;
+    CommandHeader header;
     v2 p0;
     v2 p1;
     v2 p2;
 } TriangleCommand;
 
 typedef struct CircleCommand{
-    BaseCommand base;
+    CommandHeader header;
     u8 rad;
 } CircleCommand;
 
 typedef struct BitmapCommand{
-    BaseCommand base;
+    CommandHeader header;
     Bitmap image;
 } BitmapCommand;
 
 static void
 allocate_clear_color(Arena *arena, v4 color){
-    ClearColorCommand* new_command = allocate_struct(arena, ClearColorCommand);
-    new_command->base.color = color;
+    ClearColorCommand* command = allocate_struct(arena, ClearColorCommand);
+    command->header.type = RenderCommand_ClearColor,
+    command->header.color = color;
+    command->header.arena_used = arena->used;
 }
 
 static void
 allocate_pixel(Arena *arena, v2 position, v4 color){
     PixelCommand* command = allocate_struct(arena, PixelCommand);
-    command->base.type = RenderCommand_Pixel;
-    command->base.position = position;
-    command->base.color = color;
+    command->header.type = RenderCommand_Pixel;
+    command->header.arena_used = arena->used;
+    command->header.position = position;
+    command->header.color = color;
 }
 
 static void
 allocate_segment(Arena *arena, v2 p0, v2 p1, v4 color){
     SegmentCommand* command = allocate_struct(arena, SegmentCommand);
-    command->base.type = RenderCommand_Segment;
-    command->base.color = color;
+    command->header.type = RenderCommand_Segment;
+    command->header.arena_used = arena->used;
+    command->header.color = color;
     command->p0 = p0;
     command->p1 = p1;
 }
@@ -167,45 +203,50 @@ allocate_segment(Arena *arena, v2 p0, v2 p1, v4 color){
 static void
 allocate_ray(Arena *arena, v2 position, v2 direction, v4 color){
     RayCommand* command = allocate_struct(arena, RayCommand);
-    command->base.type = RenderCommand_Ray;
-    command->base.position = position;
-    command->base.color = color;
+    command->header.type = RenderCommand_Ray;
+    command->header.arena_used = arena->used;
+    command->header.position = position;
+    command->header.color = color;
     command->direction = direction;
 }
 
 static void
 allocate_line(Arena *arena, v2 position, v2 direction, v4 color){
     LineCommand* command = allocate_struct(arena, LineCommand);
-    command->base.type = RenderCommand_Line;
-    command->base.position = position;
-    command->base.color = color;
+    command->header.type = RenderCommand_Line;
+    command->header.arena_used = arena->used;
+    command->header.position = position;
+    command->header.color = color;
     command->direction = direction;
 }
 
 static void
 allocate_rect(Arena *arena, v2 position, v2 dimension, v4 color){
     RectCommand* command = allocate_struct(arena, RectCommand);
-    command->base.type = RenderCommand_Rect;
-    command->base.color = color;
-    command->base.position = position;
+    command->header.type = RenderCommand_Rect;
+    command->header.arena_used = arena->used;
+    command->header.color = color;
+    command->header.position = position;
     command->dimension = dimension;
 }
 
 static void
 allocate_box(Arena *arena, v2 position, v2 dimension, v4 color){
     BoxCommand* command = allocate_struct(arena, BoxCommand);
-    command->base.type = RenderCommand_Box;
-    command->base.color = color;
-    command->base.position = position;
+    command->header.type = RenderCommand_Box;
+    command->header.arena_used = arena->used;
+    command->header.color = color;
+    command->header.position = position;
     command->dimension = dimension;
 }
 
 static void
 allocate_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
     QuadCommand* command = allocate_struct(arena, QuadCommand);
-    command->base.type = RenderCommand_Quad;
-    command->base.color = color;
-    command->base.fill = fill;
+    command->header.type = RenderCommand_Quad;
+    command->header.arena_used = arena->used;
+    command->header.color = color;
+    command->header.fill = fill;
     command->p0 = p0;
     command->p1 = p1;
     command->p2 = p2;
@@ -215,9 +256,10 @@ allocate_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
 static void
 allocate_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
     TriangleCommand* command = allocate_struct(arena, TriangleCommand);
-    command->base.type = RenderCommand_Triangle;
-    command->base.color = color;
-    command->base.fill = fill;
+    command->header.type = RenderCommand_Triangle;
+    command->header.arena_used = arena->used;
+    command->header.color = color;
+    command->header.fill = fill;
     command->p0 = p0;
     command->p1 = p1;
     command->p2 = p2;
@@ -226,18 +268,20 @@ allocate_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
 static void
 allocate_circle(Arena *arena, v2 pos, u8 rad, v4 color, bool fill){
     CircleCommand* command = allocate_struct(arena, CircleCommand);
-    command->base.type = RenderCommand_Circle;
-    command->base.position = pos;
-    command->base.color = color;
-    command->base.fill = fill;
+    command->header.type = RenderCommand_Circle;
+    command->header.arena_used = arena->used;
+    command->header.position = pos;
+    command->header.color = color;
+    command->header.fill = fill;
     command->rad = rad;
 }
 
 static void
 allocate_bitmap(Arena *arena, v2 position, Bitmap image){
     BitmapCommand* command = allocate_struct(arena, BitmapCommand);
-    command->base.type = RenderCommand_Bitmap;
-    command->base.position = position;
+    command->header.type = RenderCommand_Bitmap;
+    command->header.arena_used = arena->used;
+    command->header.position = position;
     command->image = image;
 }
 
@@ -247,8 +291,8 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
     i32 y = round_fi32(float_y);
 
     if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
-        u8 *row = (u8 *)buffer->memory +
-                   ((buffer->height - y - 1) * buffer->pitch) +
+        u8 *row = (u8 *)buffer->base +
+                   ((buffer->height - y - 1) * buffer->stride) +
                    (x * buffer->bytes_per_pixel);
 
         u32 *pixel = (u32 *)row;
@@ -480,7 +524,7 @@ draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
 static void
 clear(RenderBuffer *buffer, v4 c){
     for(i32 i=0; i < (buffer->width * buffer->height); ++i){
-        u32 *pixel = (u32 *)((u8 *)(buffer->memory) + (i * buffer->bytes_per_pixel));
+        u32 *pixel = (u32 *)((u8 *)(buffer->base) + (i * buffer->bytes_per_pixel));
         u32 new_color = (round_fi32(c.a * 255.0f) << 24 | round_fi32(c.r*255.0f) << 16 | round_fi32(c.g*255.0f) << 8 | round_fi32(c.b*255.0f) << 0);
         *pixel = new_color;
     }
@@ -488,8 +532,9 @@ clear(RenderBuffer *buffer, v4 c){
 
 static void
 draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region){
-    v4 cr = {100, 300, 200, 200};
-    if(equal4(clip_region, vec4(0,0,0,0))){
+    //v4 cr = {100, 300, 200, 200};
+    Rect cr = rect(vec2(100, 300), vec2(200, 200));
+    if(clip_region == vec4(0,0,0,0)){
         f32 rounded_x = round_ff(position.x);
         f32 rounded_y = round_ff(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
@@ -500,35 +545,36 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
         }
     }
     else{
-        v4 result = {position.x, position.y, image.width, image.height};
+        //v4 result = {position.x, position.y, image.width, image.height};
+        Rect result = rect(position, vec2(image.width, image.height));
 
-        if(position.x < cr.x){
-            result.x = cr.x;
-            result.w = image.width - (cr.x - position.x);
+        if(position.x < cr.pos.x){
+            result.pos.x = cr.pos.x;
+            result.dim.w = image.width - (cr.pos.x - position.x);
         }
-        if((result.x + result.w) > (cr.x + cr.w)){
-            result.w = result.w - ((result.x + result.w) - (cr.x + cr.w));
-        }
-
-        if(position.y < cr.y){
-            result.y = cr.y;
-            result.h = image.height - (cr.y - position.y);
-        }
-        if((result.y + result.h) > (cr.y + cr.h)){
-            result.h = result.h - ((result.y + result.h) - (cr.y + cr.h));
+        if((result.pos.x + result.dim.w) > (cr.pos.x + cr.dim.w)){
+            result.dim.w = result.dim.w - ((result.pos.x + result.dim.w) - (cr.pos.x + cr.dim.w));
         }
 
-        u32 rounded_x = round_fu32(result.x);
-        u32 rounded_y = round_fu32(result.y);
+        if(position.y < cr.pos.y){
+            result.pos.y = cr.pos.y;
+            result.dim.h = image.height - (cr.pos.y - position.y);
+        }
+        if((result.pos.y + result.dim.h) > (cr.pos.y + cr.dim.h)){
+            result.dim.h = result.dim.h - ((result.pos.y + result.dim.h) - (cr.pos.y + cr.dim.h));
+        }
+
+        u32 rounded_x = round_fu32(result.pos.x);
+        u32 rounded_y = round_fu32(result.pos.y);
 
         // clamp is wrong here, was 1 n 0 now 0 n 1
-        u32 x_shift = (u32)clamp_f32(0, (cr.x - position.x), 100000);
-        u32 y_shift = (u32)clamp_f32(0, (cr.y - position.y), 100000);
+        u32 x_shift = (u32)clamp_f32(0, (cr.pos.x - position.x), 100000);
+        u32 y_shift = (u32)clamp_f32(0, (cr.pos.y - position.y), 100000);
 
         u32 iy = 0;
-        for(u32 y = rounded_y; y < rounded_y + result.h; ++y){
+        for(u32 y = rounded_y; y < rounded_y + result.dim.h; ++y){
             u32 ix = 0;
-            for(u32 x = rounded_x; x < rounded_x + result.w; ++x){
+            for(u32 x = rounded_x; x < rounded_x + result.dim.w; ++x){
                 u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
                 u32 *c = (u32 *)byte;
                 v4 color = convert_u32_v4_normalized(*c);
