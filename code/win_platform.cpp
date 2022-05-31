@@ -16,6 +16,7 @@ typedef struct Clock{
 
 typedef struct Button{
     bool pressed;
+    bool held;
 } Button;
 
 typedef struct Controller{
@@ -23,6 +24,14 @@ typedef struct Controller{
     Button down;
     Button left;
     Button right;
+    Button one;
+    Button two;
+    Button three;
+    Button four;
+    Button m1;
+    Button m2;
+    Button m3;
+    v2 mouse_pos;
 } Controller;
 
 typedef struct RenderBuffer{
@@ -155,6 +164,57 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
             OutputDebugStringA("quiting\n");
             global_running = false;
         } break;
+        case WM_MOUSEMOVE: {
+            //QUESTION: ask about this being 8bytes but behaving like 4bytes
+            controller.mouse_pos.x = (i32)(l_param & 0xFFFF);
+            controller.mouse_pos.y = render_buffer.height - (i32)(l_param >> 16);
+        } break;
+            // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizet
+        case WM_LBUTTONUP:{
+            controller.m1.held = false;
+            //print("left - up\n");
+        } break;
+        case WM_MBUTTONUP:{
+            controller.m2.held = false;
+            //print("rigth - up\n");
+        } break;
+        case WM_RBUTTONUP:{
+            controller.m3.held = false;
+            //print("middle - up\n");
+        } break;
+        case WM_LBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_RBUTTONDOWN:{
+            switch(w_param){
+                case MK_LBUTTON:{
+                    controller.m1.held = true;
+                    controller.m1.pressed = true;
+                    //print("left - down\n");
+                } break;
+                case MK_RBUTTON:{
+                    controller.m2.held = true;
+                    controller.m2.pressed = true;
+                    //print("right - down\n");
+                } break;
+                case MK_MBUTTON:{
+                    controller.m3.held = true;
+                    controller.m3.pressed = true;
+                    //print("middle - down\n");
+                } break;
+            }
+            bool was_down = ((l_param & (1 << 30)) != 0);
+            bool is_down = ((l_param & (1 << 31)) == 0);
+            //print("is_down: %i  - was_down: %i\n", is_down, was_down);
+            //print("c_held: %i  - c_pressed: %i\n", controller.one.held, controller.one.pressed);
+            //print("----------------------------\n");
+
+            //Event e = {0};
+            //e.type = wParam ? EVENT_MOUSEDOWN : EVENT_MOUSEUP;
+            //e.mouse = eventmouse_mapping[message];
+            //e.mouse_x = (i32)(lParam & 0xFFFF);
+            //e.mouse_y = (i32)(lParam >> 16);
+            //events.event[events.index++] = e;
+		} break;
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -164,16 +224,36 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
             if(is_down != was_down){
                 switch(w_param){
                     case 'W':{
+                        controller.up.held = is_down;
                         controller.up.pressed = is_down;
                     } break;
                     case 'S':{
+                        controller.down.held = is_down;
                         controller.down.pressed = is_down;
                     } break;
                     case 'A':{
+                        controller.left.held = is_down;
                         controller.left.pressed = is_down;
                     } break;
                     case 'D':{
+                        controller.right.held = is_down;
                         controller.right.pressed = is_down;
+                    } break;
+                    case '1':{
+                        controller.one.held = is_down;
+                        controller.one.pressed = is_down;
+                    } break;
+                    case '2':{
+                        controller.two.held = is_down;
+                        controller.two.pressed = is_down;
+                    } break;
+                    case '3':{
+                        controller.three.held = is_down;
+                        controller.three.pressed = is_down;
+                    } break;
+                    case '4':{
+                        controller.four.held = is_down;
+                        controller.four.pressed = is_down;
                     } break;
                     case VK_ESCAPE:{
                         OutputDebugStringA("quiting\n");
@@ -217,6 +297,20 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     update_game(&memory, &render_buffer, &controller, &clock);
                     //update_game(&memory, &render_buffer, &sound, &controller, &clock, &threads);
                     update_window(window, render_buffer);
+                    //print("m_held: %i - m_pressed: %i\n", controller.m1.held, controller.m1.pressed);
+                    controller.up.pressed = false;
+                    controller.down.pressed = false;
+                    controller.left.pressed = false;
+                    controller.right.pressed = false;
+                    controller.one.pressed = false;
+                    controller.two.pressed = false;
+                    controller.three.pressed = false;
+                    controller.four.pressed = false;
+                    controller.m1.pressed = false;
+                    controller.m2.pressed = false;
+                    controller.m3.pressed = false;
+                    //print("x: %f - y: %f\n", controller.mouse_pos.x, controller.mouse_pos.y);
+                    
                 }
             }
             else{
