@@ -5,11 +5,51 @@
 #include <stdbool.h>
 
 ///////////////////////////////
+// NOTE: Context
+///////////////////////////////
+
+// Compiler
+#if defined(__clang__)
+# define COMPILER_CLANG 1
+#elif defined(__GNUC__)
+# define COMPILER_GCC 1
+#elif defined(_MSC_VER)
+# define COMPILER_CL 1
+#endif
+
+// OS
+#if defined(_WIN32)
+# define OS_WIN 1
+#elif defined(__APPLE_) && defined(__MACH__)
+# define OS_MAC 1
+#elif defined(__gnu_linux__)
+# define OS_LINUX 1
+#elif defined(_MSC_VER)
+# define COMPILER_CL 1
+#endif
+
+// Archatecture
+#if defined(_M_AMD64) || defined(__amd64__)
+# define ARCH_AMD64 1
+#elif defined(_M_I86) || defined(__i386)
+# define ARCH_X86
+#elif defined(_M_ARM) || defined(__arm__)
+# define ARCH_ARM
+#endif
+
+// C/C++
+#if defined(__cplusplus)
+# define STANDARD_CPP 1
+#else
+# define STANDARD_C 1
+#endif
+
+
+///////////////////////////////
 // NOTE: Helper Macros
 ///////////////////////////////
 
 #define ENABLE_ASSERT 1
-
 #if ENABLE_ASSERT
 # define Assert(x) if(!(x)) __debugbreak()
 #else
@@ -35,10 +75,11 @@
 #define GB(x) (MB(x) * 1024LL)
 #define TB(x) (GB(x) * 1024LL)
 
-#define Thousand(x) ((x) * 1000)
-#define Million(x) ((x) * 1000000llu)
-#define Billion(x) ((x) * 1000000000llu)
-#define Trillion(x) ((x) * 1000000000000llu)
+#define HUNDRED(x) ((x) * 100)
+#define THOUSAND(x) ((x) * 1000)
+#define MILLION(x) ((x) * 1000000llu)
+#define BILLION(x) ((x) * 1000000000llu)
+#define TRILLION(x) ((x) * 1000000000000llu)
 
 #define global static
 #define local static
@@ -65,6 +106,8 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+
+typedef wchar_t wchar;
 
 typedef float f32;
 typedef double f64;
@@ -157,19 +200,19 @@ typedef union v2{
     struct{ f32 x; f32 y; };
     struct{ f32 w; f32 h; };
     f32 v[2];
-} v2;
+} v2, V2;
 
 typedef union v3{
     struct{ f32 x; f32 y; f32 z; };
     struct{ f32 r; f32 g; f32 b; };
     f32 v[3];
-} v3;
+} v3, V3;
 
 typedef union v4{
     struct{ f32 x; f32 y; f32 z; f32 w; };
     struct{ f32 r; f32 g; f32 b; f32 a; };
     f32 v[4];
-} v4;
+} v4, V4;
 
 typedef union v2s32{
     struct{ s32 x; s32 y; };
@@ -287,33 +330,48 @@ static v4 operator*(const f32& a, const v4& b){
 }
 
 static bool operator==(const v2s32& a, const v2s32& b){
-    if((a.x == b.x) && (a.y == b.y)){
-        return(true);
-    }
-    return(false);
+    return((a.x == b.x) && (a.y == b.y));
 }
 
 static bool operator==(const v2& a, const v2& b){
-    if((a.x == b.x) && (a.y == b.y)){
-        return(true);
-    }
-    return(false);
+    return((a.x == b.x) && (a.y == b.y));
 }
 
 static bool operator==(const v3& a, const v3& b){
-    if((a.x == b.x) && (a.y == b.y) && (a.z == b.z)){
-        return(true);
-    }
-    return(false);
+    return((a.x == b.x) && (a.y == b.y) && (a.z == b.z));
 }
 
 static bool operator==(const v4& a, const v4& b){
-    if((a.x == b.x) && (a.y == b.y && (a.z == b.z) && (a.w == b.w))){
+    return((a.x == b.x) && (a.y == b.y && (a.z == b.z) && (a.w == b.w)));
+}
+
+static bool operator!=(const v2s32& a, const v2s32& b){
+    if(!(a == b)){
         return(true);
     }
     return(false);
 }
 
+static bool operator!=(const v2& a, const v2& b){
+    if(!(a == b)){
+        return(true);
+    }
+    return(false);
+}
+
+static bool operator!=(const v3& a, const v3& b){
+    if(!(a == b)){
+        return(true);
+    }
+    return(false);
+}
+
+static bool operator!=(const v4& a, const v4& b){
+    if(!(a == b)){
+        return(true);
+    }
+    return(false);
+}
 ///////////////////////////////
 // NOTE: Arena Functions
 ///////////////////////////////
@@ -324,20 +382,10 @@ typedef struct Arena{
     size_t used;
 } Arena;
 
-typedef struct ScratchArena{
-    Arena* arena;
-    size_t used;
-    ScratchArena() {};
-    ScratchArena(Arena* a) { arena = a; used = a->used; }
-    //ScratchArena() { arena = &transient_memory->arena; used = transient_memory->arena.used; }
-    //CONSIDER: This might not be good for a base, since some scratch you dont want to deallocate at end of scope maybe?
-    ~ScratchArena() { arena->used = used; }
-} ScratchArena;
-
-#define allocate_array(arena, type, count) (type*)allocate_size_aligned(arena, count * sizeof(type), _Alignof(type))
-#define allocate_struct(arena, type) (type*)allocate_size_aligned(arena, sizeof(type), _Alignof(type))
-#define allocate_size(arena, size) allocate_size_aligned(arena, size, _Alignof(s32))
-static void* allocate_size_aligned(Arena* arena, size_t size, size_t align){
+#define push_array(arena, type, count) (type*)push_size_aligned(arena, count * sizeof(type), _Alignof(type))
+#define push_struct(arena, type) (type*)push_size_aligned(arena, sizeof(type), _Alignof(type))
+#define push_size(arena, size) push_size_aligned(arena, size, _Alignof(s64))
+static void* push_size_aligned(Arena* arena, size_t size, size_t align){
     size_t used_aligned = AlignUpPow2(arena->used, align);
     Assert(used_aligned + size <= arena->size);
     void* result = (u8*)arena->base + used_aligned;
@@ -345,9 +393,9 @@ static void* allocate_size_aligned(Arena* arena, size_t size, size_t align){
     return(result);
 }
 
-static Arena* allocate_arena(Arena *arena, size_t size){
-    Arena* result = allocate_struct(arena, Arena);
-    result->base = allocate_size(arena, size);
+static Arena* push_arena(Arena *arena, size_t size){
+    Arena* result = push_struct(arena, Arena);
+    result->base = push_size(arena, size);
     result->size = size;
     result->used = 0;
     return(result);
@@ -363,14 +411,66 @@ static void arena_free(Arena* arena){
     arena->used = 0;
 }
 
-static ScratchArena allocate_scratch(Arena* arena){
+typedef struct ScratchArena{
+    Arena* arena;
+    size_t used;
+} ScratchArena;
+
+#define DEFAULT_RESERVE_SIZE GB(1)            
+#define SCRATCH_POOL_COUNT 2
+__thread Arena* scratch_pool[SCRATCH_POOL_COUNT] = {};
+
+static ScratchArena get_scratch(Arena* arena){
     ScratchArena result;
     result.arena = arena;
     result.used = arena->used;
     return(result);
 }
 
-static void free_scratch(ScratchArena scratch){
+static Arena*
+allocate_arena(size_t size){
+    void* memory = calloc(size, 1);
+    Arena* result = (Arena*)memory;
+    result->base = (u8*)memory + sizeof(Arena);
+    result->size = size - sizeof(Arena);
+    result->used = 0;
+    return(result);
+}
+
+// mostly copy paste, but I understand it
+static ScratchArena
+begin_scratch(Arena **conflict_array, u32 count){
+    // init on first time
+    if (scratch_pool[0] == 0){
+        Arena **scratch_slot = scratch_pool;
+        for (u64 i=0; i < SCRATCH_POOL_COUNT; ++i, scratch_slot +=1){
+            Arena* arena = allocate_arena(DEFAULT_RESERVE_SIZE);
+            *scratch_slot = arena;
+        }
+    }
+    
+    // get non-conflicting arena
+    ScratchArena result = {};
+    Arena **scratch_slot = scratch_pool;
+    for (u64 i=0; i < SCRATCH_POOL_COUNT; ++i, scratch_slot += 1){
+        bool is_non_conflict = true;
+        Arena **conflict_ptr = conflict_array;
+        for (u32 j = 0; j < count; ++j, conflict_ptr += 1){
+            if (*scratch_slot == *conflict_ptr){
+                is_non_conflict = false;
+                break;
+            }
+        }
+        if (is_non_conflict){
+            result = get_scratch(*scratch_slot);
+            break;
+        }
+    }
+    
+    return(result);
+}
+
+static void end_scratch(ScratchArena scratch){
     scratch.arena->used = scratch.used;
 }
 
@@ -388,10 +488,10 @@ typedef struct Node{
     struct Node* prev;
     void* data;
     u32 count;
-} SLL, DLL, Node;
+} Node, Sentinel, SLL, DLL, LinkedList;
 
-static Node* allocate_node(Arena* arena){
-    Node* result = allocate_struct(arena, Node);
+static Node* push_node(Arena* arena){
+    Node* result = push_struct(arena, Node);
     return(result);
 }
 
@@ -513,33 +613,54 @@ typedef enum DayOfWeek{
 
 typedef struct String8{
     u8* str;
-    u32 size;
+    u32 length;
 } String8;
 
 typedef struct String16{
     u16* str;
-    u32 size;
+    u32 length;
 } String16;
 
-#define str8_litteral(x) str8_create_((u8*)x, (sizeof(x) - 1))
-#define str8(x, size) str8_create_((u8*)x, size)
-static String8 str8_create_(u8* str, u32 size){
-    String8 result = {str, size};
+typedef struct String32{
+        u32* str;
+        u32 length;
+    } String32;
+
+#define str8_literal(str) str8_create_((u8*)str, (sizeof(str) - 1))
+#define str8(str, length) str8_create_((u8*)str, length)
+    static String8 str8_create_(u8* str, u32 length){
+        String8 result = {str, length};
     return(result);
 }
 
-#define str16_litteral(x) str16_((u16*)x, (sizeof(x) - 1))
-#define str16(x, size) str16_((u16*)x, size)
-static String16 str16_(u16* str, u32 size){
-    String16 result = {str, size};
+#define str16(str, length) str16_((u16*)str, length)
+static String16 str16_(u16* str, u32 length){
+    String16 result = {str, length};
     return(result);
 }
-// NOTE: make a String32 and experiment with it please
 
+#define str32(str, length) str32_((u32*)str, length)
+static String32 str32_(u32* str, u32 length){
+    String32 result = {str, length};
+    return(result);
+}
+
+static String8
+str8_concatenate(Arena* arena, String8 left, String8 right){
+    u8* str = (u8*)push_size(arena, (left.length + right.length));
+    String8 result = {str, (left.length + right.length)};
+
+    for(s32 i = 0; i < left.length; ++i){
+        *str++ = *left.str++;
+    }
+    for(s32 i = 0; i < right.length; ++i){
+        *str++ = *right.str++;
+    }
+
+    return(result);
+}
 
 // copy str8
-// copy str16
-// str_length:
 // str_in:
 // char_in:
 // char_replace:

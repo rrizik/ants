@@ -8,14 +8,14 @@ typedef struct BitmapHeader {
 	u16 reserved2;
 	u32 bitmap_offset;
 	u32 header_size;
-	i32  width;
-	i32  height;
+	i32 width;
+	i32 height;
 	u16 planes;
 	u16 bits_per_pixel;
     u32 Compression;
 	u32 SizeOfBitmap;
-	i32  HorzResolution;
-	i32  VertResolution;
+	i32 HorzResolution;
+	i32 VertResolution;
 	u32 ColorsUsed;
 	u32 ColorsImportant;
 //    u32 RedMask;
@@ -25,11 +25,29 @@ typedef struct BitmapHeader {
 #pragma pack(pop)
 
 typedef struct Bitmap{
-    BitmapHeader *header; //maybe i dont want this here?
+    BitmapHeader* header; //maybe i dont want this here?
 	u32  width;
 	u32  height;
     u32 *pixels;
 } Bitmap;
+
+// UNTESTED: test this again, changed how os_file_read() works
+static Bitmap
+load_bitmap(Arena *arena, String8 dir, String8 file_name){
+    Bitmap result = {0};
+
+    FileData bitmap_file = os_file_read(arena, dir, file_name);
+    if(bitmap_file.size > 0){
+        BitmapHeader *header = (BitmapHeader *)bitmap_file.base;
+        result.pixels = (u32 *)((u8 *)bitmap_file.base + header->bitmap_offset);
+        result.width = header->width;
+        result.height = header->height;
+        result.header = header;
+        // IMPORTANT: depending on compression type you might have to re order the bytes to make it AA RR GG BB
+        // as well as consider the masks for each color included in the header
+    }
+    return(result);
+}
 
 typedef struct Rect{
     v2 pos;
@@ -175,7 +193,7 @@ typedef struct BitmapCommand{
 
 static void
 allocate_clear_color(Arena *arena, v4 color){
-    ClearColorCommand* command = allocate_struct(arena, ClearColorCommand);
+    ClearColorCommand* command = push_struct(arena, ClearColorCommand);
     command->header.type = RenderCommand_ClearColor,
     command->header.color = color;
     command->header.arena_used = arena->used;
@@ -183,7 +201,7 @@ allocate_clear_color(Arena *arena, v4 color){
 
 static void
 allocate_pixel(Arena *arena, v2 position, v4 color){
-    PixelCommand* command = allocate_struct(arena, PixelCommand);
+    PixelCommand* command = push_struct(arena, PixelCommand);
     command->header.type = RenderCommand_Pixel;
     command->header.arena_used = arena->used;
     command->header.position = position;
@@ -192,7 +210,7 @@ allocate_pixel(Arena *arena, v2 position, v4 color){
 
 static void
 allocate_segment(Arena *arena, v2 p0, v2 p1, v4 color){
-    SegmentCommand* command = allocate_struct(arena, SegmentCommand);
+    SegmentCommand* command = push_struct(arena, SegmentCommand);
     command->header.type = RenderCommand_Segment;
     command->header.arena_used = arena->used;
     command->header.color = color;
@@ -202,7 +220,7 @@ allocate_segment(Arena *arena, v2 p0, v2 p1, v4 color){
 
 static void
 allocate_ray(Arena *arena, v2 position, v2 direction, v4 color){
-    RayCommand* command = allocate_struct(arena, RayCommand);
+    RayCommand* command = push_struct(arena, RayCommand);
     command->header.type = RenderCommand_Ray;
     command->header.arena_used = arena->used;
     command->header.position = position;
@@ -212,7 +230,7 @@ allocate_ray(Arena *arena, v2 position, v2 direction, v4 color){
 
 static void
 allocate_line(Arena *arena, v2 position, v2 direction, v4 color){
-    LineCommand* command = allocate_struct(arena, LineCommand);
+    LineCommand* command = push_struct(arena, LineCommand);
     command->header.type = RenderCommand_Line;
     command->header.arena_used = arena->used;
     command->header.position = position;
@@ -222,7 +240,7 @@ allocate_line(Arena *arena, v2 position, v2 direction, v4 color){
 
 static void
 allocate_rect(Arena *arena, v2 position, v2 dimension, v4 color){
-    RectCommand* command = allocate_struct(arena, RectCommand);
+    RectCommand* command = push_struct(arena, RectCommand);
     command->header.type = RenderCommand_Rect;
     command->header.arena_used = arena->used;
     command->header.color = color;
@@ -232,7 +250,7 @@ allocate_rect(Arena *arena, v2 position, v2 dimension, v4 color){
 
 static void
 allocate_box(Arena *arena, v2 position, v2 dimension, v4 color){
-    BoxCommand* command = allocate_struct(arena, BoxCommand);
+    BoxCommand* command = push_struct(arena, BoxCommand);
     command->header.type = RenderCommand_Box;
     command->header.arena_used = arena->used;
     command->header.color = color;
@@ -242,7 +260,7 @@ allocate_box(Arena *arena, v2 position, v2 dimension, v4 color){
 
 static void
 allocate_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
-    QuadCommand* command = allocate_struct(arena, QuadCommand);
+    QuadCommand* command = push_struct(arena, QuadCommand);
     command->header.type = RenderCommand_Quad;
     command->header.arena_used = arena->used;
     command->header.color = color;
@@ -255,7 +273,7 @@ allocate_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
 
 static void
 allocate_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
-    TriangleCommand* command = allocate_struct(arena, TriangleCommand);
+    TriangleCommand* command = push_struct(arena, TriangleCommand);
     command->header.type = RenderCommand_Triangle;
     command->header.arena_used = arena->used;
     command->header.color = color;
@@ -267,7 +285,7 @@ allocate_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
 
 static void
 allocate_circle(Arena *arena, v2 pos, u8 rad, v4 color, bool fill){
-    CircleCommand* command = allocate_struct(arena, CircleCommand);
+    CircleCommand* command = push_struct(arena, CircleCommand);
     command->header.type = RenderCommand_Circle;
     command->header.arena_used = arena->used;
     command->header.position = pos;
@@ -278,7 +296,7 @@ allocate_circle(Arena *arena, v2 pos, u8 rad, v4 color, bool fill){
 
 static void
 allocate_bitmap(Arena *arena, v2 position, Bitmap image){
-    BitmapCommand* command = allocate_struct(arena, BitmapCommand);
+    BitmapCommand* command = push_struct(arena, BitmapCommand);
     command->header.type = RenderCommand_Bitmap;
     command->header.arena_used = arena->used;
     command->header.position = position;
@@ -287,18 +305,17 @@ allocate_bitmap(Arena *arena, v2 position, Bitmap image){
 
 static void
 draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
-    i32 x = round_fi32(float_x);
-    i32 y = round_fi32(float_y);
+    i32 x = round_f32_s32(float_x);
+    i32 y = round_f32_s32(float_y);
 
     if(x >= 0 && x < buffer->width && y >= 0 && y < buffer->height){
         u8 *row = (u8 *)buffer->base +
                    ((buffer->height - y - 1) * buffer->stride) +
                    (x * buffer->bytes_per_pixel);
-
         u32 *pixel = (u32 *)row;
 
         if(color.a == 1){
-            u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r*255.0f) << 16 | round_fi32(color.g*255.0f) << 8 | round_fi32(color.b*255.0f) << 0);
+            u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r*255.0f) << 16 | round_f32_s32(color.g*255.0f) << 8 | round_f32_s32(color.b*255.0f) << 0);
             *pixel = new_color;
         }
         else if(color.a > 0){
@@ -315,8 +332,8 @@ draw_pixel(RenderBuffer *buffer, f32 float_x, f32 float_y, v4 color){
             f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
             f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
-            //u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(color.r) << 16 | round_fi32(color.g) << 8 | round_fi32(color.b) << 0);
-            u32 new_color = (round_fi32(color.a * 255.0f) << 24 | round_fi32(new_r) << 16 | round_fi32(new_g) << 8 | round_fi32(new_b) << 0);
+            //u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r) << 16 | round_f32_s32(color.g) << 8 | round_f32_s32(color.b) << 0);
+            u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(new_r) << 16 | round_f32_s32(new_g) << 8 | round_f32_s32(new_b) << 0);
             *pixel = new_color;
         }
     }
@@ -430,15 +447,17 @@ draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
     f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
-    i32 start_y = (int)round(p2.y);
-    i32 end_y = (int)round(p0.y);
+    //i32 start_y = (int)round(p2.y);
+    //i32 end_y = (int)round(p0.y);
+    s32 start_y = (s32)round_f32_s32(p2.y);
+    s32 end_y = (s32)round_f32_s32(p0.y);
 
-    for(i32 y=start_y; y < end_y; ++y){
+    for(s32 y=start_y; y < end_y; ++y){
         f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
         f32 x1 = right_slope * (y + 0.5f - p1.y) + p1.x;
-        i32 start_x = (int)ceil(x0 - 0.5f);
-        i32 end_x = (int)ceil(x1 - 0.5f);
-        for(i32 x=start_x; x < end_x; ++x){
+        s32 start_x = (s32)ceil(x0 - 0.5f);
+        s32 end_x = (s32)ceil(x1 - 0.5f);
+        for(s32 x=start_x; x < end_x; ++x){
             draw_pixel(buffer, (f32)x, (f32)y, c);
         }
     }
@@ -449,15 +468,17 @@ draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
     f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
 
-    i32 start_y = (int)round(p0.y);
-    i32 end_y = (int)round(p1.y);
+    //i32 start_y = (int)round(p0.y);
+    //i32 end_y = (int)round(p1.y);
+    s32 start_y = (s32)round_f32_s32(p0.y);
+    s32 end_y = (s32)round_f32_s32(p1.y);
 
-    for(i32 y=start_y; y >= end_y; --y){
+    for(s32 y=start_y; y >= end_y; --y){
         f32 x0 = left_slope * (y + 0.5f - p0.y) + p0.x;
         f32 x1 = right_slope * (y + 0.5f - p0.y) + p0.x;
-        i32 start_x = (int)ceil(x0 - 0.5f);
-        i32 end_x = (int)ceil(x1 - 0.5f);
-        for(i32 x=start_x; x < end_x; ++x){
+        s32 start_x = (s32)ceil(x0 - 0.5f);
+        s32 end_x = (s32)ceil(x1 - 0.5f);
+        for(s32 x=start_x; x < end_x; ++x){
             draw_pixel(buffer, (f32)x, (f32)y, c);
         }
     }
@@ -525,7 +546,7 @@ static void
 clear(RenderBuffer *buffer, v4 c){
     for(i32 i=0; i < (buffer->width * buffer->height); ++i){
         u32 *pixel = (u32 *)((u8 *)(buffer->base) + (i * buffer->bytes_per_pixel));
-        u32 new_color = (round_fi32(c.a * 255.0f) << 24 | round_fi32(c.r*255.0f) << 16 | round_fi32(c.g*255.0f) << 8 | round_fi32(c.b*255.0f) << 0);
+        u32 new_color = (round_f32_s32(c.a * 255.0f) << 24 | round_f32_s32(c.r*255.0f) << 16 | round_f32_s32(c.g*255.0f) << 8 | round_f32_s32(c.b*255.0f) << 0);
         *pixel = new_color;
     }
 }
@@ -535,11 +556,11 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
     //v4 cr = {100, 300, 200, 200};
     Rect cr = rect(vec2(100, 300), vec2(200, 200));
     if(clip_region == vec4(0,0,0,0)){
-        f32 rounded_x = round_ff(position.x);
-        f32 rounded_y = round_ff(position.y);
+        f32 rounded_x = round_f32(position.x);
+        f32 rounded_y = round_f32(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
             for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-                v4 color = convert_u32_v4_normalized(*image.pixels++);
+                v4 color = u32_to_rgba(*image.pixels++);
                 draw_pixel(buffer, x, y, color);
             }
         }
@@ -564,8 +585,8 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
             result.dim.h = result.dim.h - ((result.pos.y + result.dim.h) - (cr.pos.y + cr.dim.h));
         }
 
-        u32 rounded_x = round_fu32(result.pos.x);
-        u32 rounded_y = round_fu32(result.pos.y);
+        u32 rounded_x = round_f32_u32(result.pos.x);
+        u32 rounded_y = round_f32_u32(result.pos.y);
 
         // clamp is wrong here, was 1 n 0 now 0 n 1
         u32 x_shift = (u32)clamp_f32(0, (cr.pos.x - position.x), 100000);
@@ -577,7 +598,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
             for(u32 x = rounded_x; x < rounded_x + result.dim.w; ++x){
                 u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
                 u32 *c = (u32 *)byte;
-                v4 color = convert_u32_v4_normalized(*c);
+                v4 color = u32_to_rgba(*c);
                 draw_pixel(buffer, x, y, color);
                 ix++;
             }

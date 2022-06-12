@@ -1,7 +1,6 @@
-//#include "base_include.h"
-//#include "win32_base_include.h"
-#include "base.h"
 #include "win32_base.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 #if DEBUG
 
@@ -15,7 +14,7 @@ typedef struct DebugCycleCounter{
 } DebugCycleCounter;
 
 typedef struct DebugTickCounter{
-    f64 tick_count;
+    f32 tick_count;
     u32 hit_count;
     char *name;
 } DebugTickCounter;
@@ -23,13 +22,13 @@ typedef struct DebugTickCounter{
 #define BEGIN_CYCLE_COUNTER(ID) u64 StartCycleCounter_##ID = __rdtsc();
 #define END_CYCLE_COUNTER(ID) cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++cycle_counters[DebugCycleCounter_##ID].hit_count; cycle_counters[DebugCycleCounter_##ID].name = #ID;
 #define BEGIN_TICK_COUNTER(ID) u64 StartTickCounter_##ID = clock->get_ticks()
-#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_seconds_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_ms_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
 
 DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 DebugTickCounter tick_counters[DebugTickCounter_count];
 
-#define handle_debug_counters() handle_debug_counters_()
-static void handle_debug_counters_(){
+static void
+handle_debug_counters(){
     print("Debug Cycle Counters:\n");
     print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
     for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
@@ -57,7 +56,9 @@ static void handle_debug_counters_(){
 #define END_CYCLE_COUNTER(ID)
 #define BEGIN_TICK_COUNTER(ID)
 #define END_TICK_COUNTER(ID)
-#define handle_debug_counters()
+
+static void handle_debug_counters(){}
+
 #endif
 
 typedef i64 GetTicks(void);
@@ -227,7 +228,7 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
             controller.mouse_pos.x = (i32)(l_param & 0xFFFF);
             controller.mouse_pos.y = render_buffer.height - (i32)(l_param >> 16);
         } break;
-            // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizer
+            // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizet
         case WM_LBUTTONUP:{
             controller.m1.held = false;
         } break;
@@ -312,45 +313,40 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
 }
 
 i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 window_type){
-    WNDCLASSW window_class = {0};
+    WNDCLASS window_class = {0};
     window_class.style = CS_HREDRAW|CS_VREDRAW;
     window_class.lpfnWndProc = win_message_handler_callback;
     window_class.hInstance = instance;
-    window_class.lpszClassName = L"window class";
+    window_class.lpszClassName = "window class";
 
+#if DEBUG
+    print("debug\n");
+#else
+    print("no debug\n");
+#endif
     init_memory(&memory);
     init_clock(&clock);
     init_render_buffer(&render_buffer, 1024, 768);
 
-    if(RegisterClassW(&window_class)){
-        HWND window = CreateWindowW(window_class.lpszClassName, L"Title", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
+    if(RegisterClassA(&window_class)){
+        HWND window = CreateWindowA(window_class.lpszClassName, "Title", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
         if(window){
             if(SetWindowPos(window, HWND_TOP, 10, 10, 1054, 818, SWP_SHOWWINDOW)){
                 global_running = true;
-				
-				u64 prev_cycles = __rdtsc();
-                f32 prev_ticks = clock.get_ticks();
                 while(global_running){
-					u64 now_cycles = __rdtsc();
-                    f32 now_ticks = clock.get_ticks();
-					DebugCycleCounter frame_cycles = {(now_cycles - prev_cycles), 1, "frame"};
-                    DebugTickCounter frame_ticks = {clock.get_seconds_elapsed(prev_cycles, now_cycles), 1, "frame"};
-                    cycle_counters[DebugCycleCounter_frame] = frame_cycles;
-                    tick_counters[DebugTickCounter_frame] = frame_ticks;
 
                     MSG message;
-                    while(PeekMessageW(&message, window, 0, 0, PM_REMOVE)){
+                    while(PeekMessageA(&message, window, 0, 0, PM_REMOVE)){
                         TranslateMessage(&message);
                         DispatchMessage(&message);
                     }
 
                     //update_game(&memory, &render_buffer, &controller, &clock, &sound, &threads);
                     update_game(&memory, &render_buffer, &controller, &clock);
-
-                    // NOTE: Debug
+                    // NOTE: defined to nothing if not DEBUG, maybe put a #if DEBUG here but then it looks messy but now im
+                    // forced to jump here in execution to do nothing. idk
                     handle_debug_counters();
-
                     update_window(window, render_buffer);
                     controller.up.pressed = false;
                     controller.down.pressed = false;
@@ -363,21 +359,19 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     controller.m1.pressed = false;
                     controller.m2.pressed = false;
                     controller.m3.pressed = false;
-
-					prev_cycles = now_cycles;
-					prev_ticks = now_ticks;
+                    
                 }
             }
             else{
-                print("SetWindowPos failed\n");
+                OutputDebugStringA("SetWindowPos failed\n");
             }
         }
         else{
-            print("CreateWindowA failed\n");
+            OutputDebugStringA("CreateWindowA failed\n");
         }
     }
     else{
-        print("RegisterClassA failed\n");
+        OutputDebugStringA("RegisterClassA failed\n");
     }
     return(0);
 }
