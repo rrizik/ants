@@ -58,16 +58,6 @@ rotate_points(v2 *p, u32 count, f32 angle, v2 origin){
     p -= count;
 }
 
-static v4
-u32_to_rgba(u32 value){
-	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
-	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
-	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
-	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
-    v4 result = {red, green, blue, alpha};
-    return result;
-}
-
 static void
 swap_v2(v2 *a, v2 *b){
     v2 t = *a;

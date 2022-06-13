@@ -49,6 +49,16 @@ load_bitmap(Arena *arena, String8 dir, String8 file_name){
     return(result);
 }
 
+static v4
+u32_to_rgba(u32 value){
+	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
+	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
+	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
+	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
+    v4 result = {red, green, blue, alpha};
+    return result;
+}
+
 typedef struct Rect{
     v2 pos;
     v2 dim;
