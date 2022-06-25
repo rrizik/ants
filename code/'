@@ -1,7 +1,5 @@
 #if !defined(RENDERER_H)
 
-#include <emmintrin.h>
-
 #pragma pack(push, 1)
 typedef struct BitmapHeader {
     u16 file_type;
@@ -63,7 +61,7 @@ u32_to_rgba(u32 value){
 
 typedef struct Rect{
     v2 pos;
-    v2s32 dim;
+    v2 dim;
     f32 x; 
     f32 y;
     f32 w; 
@@ -73,7 +71,7 @@ typedef struct Rect{
 } Rect;
 
 static Rect
-rect(v2 pos, v2s32 dim){
+rect(v2 pos, v2 dim){
     Rect result = {0};
     result.pos = pos;
     result.dim = dim;
@@ -168,12 +166,12 @@ typedef struct LineCommand{
 
 typedef struct RectCommand{
     CommandHeader header;
-    v2s32 dimension;
+    v2 dimension;
 } RectCommand;
 
 typedef struct BoxCommand{
     CommandHeader header;
-    v2s32 dimension;
+    v2 dimension;
 } BoxCommand;
 
 typedef struct QuadCommand{
@@ -249,7 +247,7 @@ push_line(Arena *arena, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_rect(Arena *arena, v2 position, v2s32 dimension, v4 color){
+push_rect(Arena *arena, v2 position, v2 dimension, v4 color){
     RectCommand* command = push_struct(arena, RectCommand);
     command->header.type = RenderCommand_Rect;
     command->header.arena_used = arena->used;
@@ -259,7 +257,7 @@ push_rect(Arena *arena, v2 position, v2s32 dimension, v4 color){
 }
 
 static void
-push_box(Arena *arena, v2 position, v2s32 dimension, v4 color){
+push_box(Arena *arena, v2 position, v2 dimension, v4 color){
     BoxCommand* command = push_struct(arena, BoxCommand);
     command->header.type = RenderCommand_Box;
     command->header.arena_used = arena->used;
@@ -341,6 +339,7 @@ draw_pixel(RenderBuffer *buffer, v2 position, v4 color){
             f32 new_g = (1 - color.a) * current_g + (color.a * color.g);
             f32 new_b = (1 - color.a) * current_b + (color.a * color.b);
 
+            //u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r) << 16 | round_f32_s32(color.g) << 8 | round_f32_s32(color.b) << 0);
             u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(new_r) << 16 | round_f32_s32(new_g) << 8 | round_f32_s32(new_b) << 0);
             *pixel = new_color;
         }
@@ -562,7 +561,7 @@ clear(RenderBuffer *buffer, v4 c){
 static void
 draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region){
     //v4 cr = {100, 300, 200, 200};
-    Rect cr = rect((v2){100, 300}, (v2s32){200, 200});
+    Rect cr = rect(vec2(100, 300), vec2(200, 200));
     if(clip_region == vec4(0,0,0,0)){
         f32 rounded_x = round_f32(position.x);
         f32 rounded_y = round_f32(position.y);
@@ -575,7 +574,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
     }
     else{
         //v4 result = {position.x, position.y, image.width, image.height};
-        Rect result = rect(position, vec2s32(image.width, image.height));
+        Rect result = rect(position, vec2(image.width, image.height));
 
         if(position.x < cr.pos.x){
             result.pos.x = cr.pos.x;
@@ -621,131 +620,60 @@ draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
 }
 
 static void
-draw_rect_slow(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
-    v2 p0 = {position.x, position.y};
-    v2 p1 = {position.x + dimension.w, position.y};
-    v2 p2 = {position.x, position.y + dimension.h};
-    v2 p3 = {position.x + dimension.w, position.y + dimension.h};
+draw_rect(RenderBuffer *buffer, v2 position, v2 dimension, v4 color){
+    BEGIN_CYCLE_COUNTER(draw_rect);
+    v2s32 bottom_left = round_v2_v2s32((v2){position.x, position.y});
+    v2s32 bottom_right = round_v2_v2s32((v2){position.x + dimension.w, position.y});
+    v2s32 top_left = round_v2_v2s32((v2){position.x, position.y + dimension.h});
 
-    BEGIN_CYCLE_COUNTER(draw_rect_slow)
+    for(s32 y=bottom_left.y; y <= top_left.y; ++y){
+        for(s32 x=bottom_left.x; x <= bottom_right.x; x+=4){
+            u8 *row = (u8 *)buffer->base + 
+                      ((buffer->height - y - 1) * buffer->stride) + 
+                      (x * buffer->bytes_per_pixel);
+            u32 *pixel = (u32 *)row;
+            for(s32 i=0; i < 4; i+=1){
+                if((x + i) >= 0 && (x + i) < buffer->width && y >= 0 && y < buffer->height){
+                    v4 current_rgba;
+                    current_rgba.a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
+                    current_rgba.r =  (f32)((*pixel >> 16) & 0xFF);
+                    current_rgba.g =  (f32)((*pixel >> 8) & 0xFF);
+                    current_rgba.b =  (f32)((*pixel >> 0) & 0xFF);
+
+                    v4 new_rgba;
+                    new_rgba.r = (1 - color.a) * current_rgba.r + (color.a * (color.r * 255.0f));
+                    new_rgba.g = (1 - color.a) * current_rgba.g + (color.a * (color.g * 255.0f));
+                    new_rgba.b = (1 - color.a) * current_rgba.b + (color.a * (color.b * 255.0f));
+                    new_rgba.a = color.a * 255.0f;
+
+                    u32 new_color = (round_f32_s32(new_rgba.a) << 24 | 
+                                     round_f32_s32(new_rgba.r) << 16 | 
+                                     round_f32_s32(new_rgba.g) << 8 | 
+                                     round_f32_s32(new_rgba.b) << 0);
+                    *pixel++ = new_color;
+                }
+            }
+        }
+    }
+    END_CYCLE_COUNTER(draw_rect);
+}
+
+static void
+draw_rect_pts(RenderBuffer *buffer, v2 *p, v4 c){
+    v2 p0 = round_v2(*p++);
+    v2 p1 = round_v2(*p++);
+    v2 p2 = round_v2(*p++);
+    v2 p3 = round_v2(*p);
+
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
             draw_pixel(buffer, (v2){x, y}, c);
         }
     }
-    END_CYCLE_COUNTER(draw_rect_slow)
-}
-
-static void 
-draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
-    v2s32 bottom_left = round_v2_v2s32(position);
-    v2s32 bottom_right = {bottom_left.x + dimension.w, bottom_left.y};
-    v2s32 top_left = {bottom_left.x, bottom_left.y + dimension.h};
-
-    u8 *row = (u8 *)buffer->base + 
-              ((buffer->height - 1 - bottom_left.y) * buffer->stride) + 
-              (bottom_left.x * buffer->bytes_per_pixel);
-
-    __m128 one_4x = _mm_set_ps1(1.0f);
-    __m128 zero_4x = _mm_set_ps1(0.0f);
-    __m128 c_255_4x = _mm_set_ps1(255.0f);
-    __m128 half_increment = _mm_set_ps1(0.5f);
-
-    __m128 color_a_4x = _mm_set_ps1(color.a);
-    __m128 color_r_4x = _mm_set_ps1(color.r);
-    __m128 color_g_4x = _mm_set_ps1(color.g);
-    __m128 color_b_4x = _mm_set_ps1(color.b);
-
-    BEGIN_CYCLE_COUNTER(draw_rect_fast)
-    for(s32 y=bottom_left.y; y < top_left.y; ++y){
-        u32 *pixel = (u32 *)row;
-        for(s32 x=bottom_left.x; x < bottom_right.x; x+=4){
-            __m128 current_a_4x = _mm_set_ps1(0.0f);
-            __m128 current_r_4x = _mm_set_ps1(0.0f);
-            __m128 current_g_4x = _mm_set_ps1(0.0f);
-            __m128 current_b_4x = _mm_set_ps1(0.0f);
-
-            __m128 new_a_4x = _mm_set_ps1(0.0f);
-            __m128 new_r_4x = _mm_set_ps1(0.0f);
-            __m128 new_g_4x = _mm_set_ps1(0.0f);
-            __m128 new_b_4x = _mm_set_ps1(0.0f);
-
-            v4 current_rgba[4];
-            v4 new_rgba[4];
-            bool should_fill[4];
-
-            for(s32 i=0; i < 4; ++i){
-                should_fill[i] = (((x + i) >= 0) && ((x + i) < buffer->width) && (y >= 0) && (y < buffer->height));
-
-                if(should_fill[i]){
-                    current_a_4x[i] = ((f32)((*(pixel + i) >> 24) & 0xFF) / 255.0f);
-                    current_r_4x[i] =  (f32)((*(pixel + i) >> 16) & 0xFF);
-                    current_g_4x[i] =  (f32)((*(pixel + i) >> 8) & 0xFF);
-                    current_b_4x[i] =  (f32)((*(pixel + i) >> 0) & 0xFF);
-
-                    current_rgba[i].a = ((f32)((*pixel >> 24) & 0xFF) / 255.0f);
-                    current_rgba[i].r =  (f32)((*pixel >> 16) & 0xFF);
-                    current_rgba[i].g =  (f32)((*pixel >> 8) & 0xFF);
-                    current_rgba[i].b =  (f32)((*pixel >> 0) & 0xFF);
-                }
-            }
-            
-            __m128 current_r_percent_4x = _mm_sub_ps(one_4x, color_a_4x);
-            __m128 new_current_r_4x = _mm_mul_ps(current_r_percent_4x, current_r_4x);
-            __m128 expanded_color_r_4x = _mm_mul_ps(color_r_4x, c_255_4x);
-            __m128 new_color_r_4x = (color_a_4x * expanded_color_r_4x);
-            new_r_4x = _mm_add_ps(new_current_r_4x, new_color_r_4x);
-
-            __m128 current_g_percent_4x = _mm_sub_ps(one_4x, color_a_4x);
-            __m128 new_current_g_4x = _mm_mul_ps(current_g_percent_4x, current_g_4x);
-            __m128 expanded_color_g_4x = _mm_mul_ps(color_g_4x, c_255_4x);
-            __m128 new_color_g_4x = (color_a_4x * expanded_color_g_4x);
-            new_g_4x = _mm_add_ps(new_current_g_4x, new_color_g_4x);
-
-            __m128 current_b_percent_4x = _mm_sub_ps(one_4x, color_a_4x);
-            __m128 new_current_b_4x = _mm_mul_ps(current_b_percent_4x, current_b_4x);
-            __m128 expanded_color_b_4x = _mm_mul_ps(color_b_4x, c_255_4x);
-            __m128 new_color_b_4x = (color_a_4x * expanded_color_b_4x);
-            new_b_4x = _mm_add_ps(new_current_b_4x, new_color_b_4x);
-            new_a_4x = _mm_mul_ps(color_a_4x, c_255_4x);
-
-            // rounding here
-            __m128i rounded_a_4x = _mm_cvtps_epi32(_mm_add_ps(new_a_4x, half_increment));
-            __m128i rounded_r_4x = _mm_cvtps_epi32(_mm_add_ps(new_r_4x, half_increment));
-            __m128i rounded_g_4x = _mm_cvtps_epi32(_mm_add_ps(new_g_4x, half_increment));
-            __m128i rounded_b_4x = _mm_cvtps_epi32(_mm_add_ps(new_b_4x, half_increment));
-    //__m128 color_a_4x = _mm_set_ps1(color.a);
-    //__m128 color_r_4x = _mm_set_ps1(color.r);
-    //__m128 color_g_4x = _mm_set_ps1(color.g);
-    //__m128 color_b_4x = _mm_set_ps1(color.b);
-    
-            __m128i rounded_in_a = _mm_cvtps_epi32(_mm_add_ps(_mm_mul_ps(color_a_4x, c_255_4x), half_increment));
-            __m128i rounded_in_r = _mm_cvtps_epi32(_mm_add_ps(_mm_mul_ps(color_r_4x, c_255_4x), half_increment));
-            __m128i rounded_in_g = _mm_cvtps_epi32(_mm_add_ps(_mm_mul_ps(color_g_4x, c_255_4x), half_increment));
-            __m128i rounded_in_b = _mm_cvtps_epi32(_mm_add_ps(_mm_mul_ps(color_b_4x, c_255_4x), half_increment));
-
-
-            for(s32 i=0; i < 4; ++i){
-                if(should_fill[i]){
-                    *(pixel + i) = (rounded_in_a[i] << 24 | 
-                                    rounded_in_r[i] << 16 | 
-                                    rounded_in_g[i] << 8 | 
-                                    rounded_in_b[i] << 0);
-                    //*(pixel + i) = (rounded_a_4x[i] << 24 | 
-                    //                rounded_r_4x[i] << 16 | 
-                    //                rounded_g_4x[i] << 8 | 
-                    //                rounded_b_4x[i] << 0);
-                }
-            }
-            pixel += 4;
-        }
-        row -= buffer->stride;
-    }
-    END_CYCLE_COUNTER(draw_rect_fast)
 }
 
 static void
-draw_box(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
+draw_box(RenderBuffer *buffer, v2 position, v2 dimension, v4 c){
     v2 p0 = {position.x, position.y};
     v2 p1 = {position.x + dimension.w, position.y};
     v2 p2 = {position.x + dimension.w, position.y + dimension.h};

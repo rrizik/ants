@@ -1,10 +1,29 @@
+/*
+TODO
+WRONG
+FIXME
+
+@fixme
+
+INCOMPLETE
+STUDY
+QUESTION
+FUTURE
+CONSIDER
+UNCLEAR
+UNTESTED
+
+IMPORTANT
+NOTE
+*/
+
 #include "base_include.h"
 #include "win32_base_include.h"
 
 #if DEBUG
 
-enum{DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_degrade_pher, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
-enum{ DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_degrade_pher, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
+enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_degrade_pher, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
+enum{ DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_degrade_pher, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
 
 typedef struct DebugCycleCounter{
     u64 cycle_count;
@@ -19,9 +38,11 @@ typedef struct DebugTickCounter{
 } DebugTickCounter;
 
 #define BEGIN_CYCLE_COUNTER(ID) u64 StartCycleCounter_##ID = __rdtsc();
-#define END_CYCLE_COUNTER(ID) cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++cycle_counters[DebugCycleCounter_##ID].hit_count; cycle_counters[DebugCycleCounter_##ID].name = #ID;
 #define BEGIN_TICK_COUNTER(ID) u64 StartTickCounter_##ID = clock->get_ticks()
+#define BEGIN_TICK_COUNTER_L(ID) u64 StartTickCounter_##ID = clock.get_ticks()
+#define END_CYCLE_COUNTER(ID) cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++cycle_counters[DebugCycleCounter_##ID].hit_count; cycle_counters[DebugCycleCounter_##ID].name = #ID;
 #define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_seconds_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER_L(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock.get_seconds_elapsed(StartTickCounter_##ID, clock.get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
 
 DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 DebugTickCounter tick_counters[DebugTickCounter_count];
@@ -55,6 +76,8 @@ static void handle_debug_counters_(){
 #define END_CYCLE_COUNTER(ID)
 #define BEGIN_TICK_COUNTER(ID)
 #define END_TICK_COUNTER(ID)
+#define BEGIN_TICK_COUNTER_L(ID)
+#define END_TICK_COUNTER_L(ID)
 #define handle_debug_counters()
 #endif
 
@@ -318,24 +341,27 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
 
     init_memory(&memory);
     init_clock(&clock);
-    init_render_buffer(&render_buffer, 1024, 768);
+    init_render_buffer(&render_buffer, 1280, 720);
 
     if(RegisterClassW(&window_class)){
         HWND window = CreateWindowW(window_class.lpszClassName, L"Title", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
         if(window){
-            if(SetWindowPos(window, HWND_TOP, 10, 10, 1054, 818, SWP_SHOWWINDOW)){
+            // 30 50
+            if(SetWindowPos(window, HWND_TOP, 10, 10, render_buffer.width + 30, render_buffer.height + 50, SWP_SHOWWINDOW)){
                 global_running = true;
-				
+
 				u64 prev_cycles = __rdtsc();
                 f32 prev_ticks = clock.get_ticks();
                 while(global_running){
 					u64 now_cycles = __rdtsc();
                     f32 now_ticks = clock.get_ticks();
+#if DEBUG
 					DebugCycleCounter frame_cycles = {(now_cycles - prev_cycles), 1, "frame"};
                     DebugTickCounter frame_ticks = {clock.get_seconds_elapsed(prev_cycles, now_cycles), 1, "frame"};
                     cycle_counters[DebugCycleCounter_frame] = frame_cycles;
                     tick_counters[DebugTickCounter_frame] = frame_ticks;
+#endif
 
                     MSG message;
                     while(PeekMessageW(&message, window, 0, 0, PM_REMOVE)){
@@ -344,7 +370,11 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     }
 
                     //update_game(&memory, &render_buffer, &controller, &clock, &sound, &threads);
+                    //BEGIN_CYCLE_COUNTER(update);
+                    //BEGIN_TICK_COUNTER_L(update);
                     update_game(&memory, &render_buffer, &controller, &clock);
+                    //END_CYCLE_COUNTER(update);
+                    //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
                     handle_debug_counters();

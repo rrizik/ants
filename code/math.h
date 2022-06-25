@@ -143,7 +143,7 @@ project2(v2 a, v2 b){
 }
 
 static v2
-perpendicular2(v2 a, v2 b){
+perpendicular_v2(v2 a, v2 b){
     v2 result = {0};
 
     result = (a - project2(a, b));
