@@ -368,7 +368,7 @@ add_ant(PermanentMemory *pm, v2 pos, u8 rad, v4 color, bool fill){
 #if DEBUG
     e->speed = 140.0f; // constant dt
 #else
-    e->speed = 80.0f; // variable dt
+    e->speed = 40.0f; // variable dt
 #endif
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
@@ -457,8 +457,9 @@ draw_commands(RenderBuffer *render_buffer, Arena *commands){
                 if(command->header.color.g == 1.0f){
                     s32 i = 1;
                 }
-                draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
+                //draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
                 draw_rect_fast(render_buffer, command->header.position, command->dimension, command->header.color);
+                //draw_rect_fast_no_blend(render_buffer, command->header.position, command->dimension, command->header.color);
                 at = (u8*)commands->base + command->header.arena_used;
             } break;
             case RenderCommand_Box:{
@@ -760,7 +761,7 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
         ant->forward_sensor_density = 0.0f;
         ant->left_sensor_density = 0.0f;
 
-        // to home/food pheromones
+        // to home/to food pheromones
         f64 seconds_elapsed = clock->get_seconds_elapsed(ant->pheromone_spawn_timer, clock->get_ticks());
         if(seconds_elapsed >= ant->pheromone_spawn_timer_max){
             if(ant->ant_state == AntState_Wondering || ant->ant_state == AntState_Collecting){
@@ -1217,7 +1218,9 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     //END_TICK_COUNTER(allocate_commands);
     //END_CYCLE_COUNTER(allocate_commands);
 
-    //draw_rect(render_buffer, (v2){100, 100}, (v2s32){100, 100}, RED);
+    //draw_rect_slow(render_buffer, (v2){100, 100}, (v2s32){100, 100}, RED);
+    //draw_rect_fast_no_blend(render_buffer, (v2){220, 100}, (v2s32){100, 100}, RED);
+    //draw_rect_fast(render_buffer, (v2){340, 100}, (v2s32){100, 100}, RED);
 
     //BEGIN_CYCLE_COUNTER(draw);
     //BEGIN_TICK_COUNTER(draw);
