@@ -637,104 +637,56 @@ draw_rect_slow(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
 }
 
 static void 
-draw_rect_fast_no_blend(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
-    v2s32 bottom_left = round_v2_v2s32(position);
-    v2s32 bottom_right = {bottom_left.x + dimension.w, bottom_left.y};
-    v2s32 top_left = {bottom_left.x, bottom_left.y + dimension.h};
-
-    __m128 color_255_4x = _mm_set_ps1(255.0f);
-    __m128 half_increment = _mm_set_ps1(0.5f);
-
-    __m128 color_a_4x = _mm_set_ps1(color.a);
-    __m128 color_r_4x = _mm_set_ps1(color.r);
-    __m128 color_g_4x = _mm_set_ps1(color.g);
-    __m128 color_b_4x = _mm_set_ps1(color.b);
-
-    u8 *row = (u8 *)buffer->base + 
-              ((buffer->height - 1 - bottom_left.y) * buffer->stride) + 
-              (bottom_left.x * buffer->bytes_per_pixel);
-
-#define M(a, i) ((f32*)&(a))[i]
-#define MM(a, i) ((u32*)&(a))[i]
-
-    for(s32 y=bottom_left.y; y < top_left.y; ++y){
-        u32 *pixel = (u32 *)row;
-        for(s32 x=bottom_left.x; x < bottom_right.x; x+=4){
-            __m128 scaled_a_4x = _mm_mul_ps(color_a_4x, color_255_4x);
-            __m128 scaled_r_4x = _mm_mul_ps(color_r_4x, color_255_4x);
-            __m128 scaled_g_4x = _mm_mul_ps(color_g_4x, color_255_4x);
-            __m128 scaled_b_4x = _mm_mul_ps(color_b_4x, color_255_4x);
-
-            __m128 incremented_a_4x = _mm_min_ps(_mm_add_ps(scaled_a_4x, half_increment), color_255_4x);
-            __m128 incremented_r_4x = _mm_min_ps(_mm_add_ps(scaled_r_4x, half_increment), color_255_4x);
-            __m128 incremented_g_4x = _mm_min_ps(_mm_add_ps(scaled_g_4x, half_increment), color_255_4x);
-            __m128 incremented_b_4x = _mm_min_ps(_mm_add_ps(scaled_b_4x, half_increment), color_255_4x);
-
-            __m128i rounded_a_4x = _mm_cvtps_epi32(incremented_a_4x);
-            __m128i rounded_r_4x = _mm_cvtps_epi32(incremented_r_4x);
-            __m128i rounded_g_4x = _mm_cvtps_epi32(incremented_g_4x);
-            __m128i rounded_b_4x = _mm_cvtps_epi32(incremented_b_4x);
-
-            for(s32 i=0; i < 4; ++i){
-
-                //*(pixel + i) = (((u32)(M(incremented_a_4x, i) + 0.5f) << 24) |
-                //                ((u32)(M(incremented_r_4x, i) + 0.5f) << 16) |
-                //                ((u32)(M(incremented_g_4x, i) + 0.5f) << 8) |
-                //                ((u32)(M(incremented_b_4x, i) + 0.5f) << 0));
-
-                *(pixel + i) = (((u32)(MM(rounded_a_4x, i)) << 24) |
-                                ((u32)(MM(rounded_r_4x, i)) << 16) |
-                                ((u32)(MM(rounded_g_4x, i)) << 8) |
-                                ((u32)(MM(rounded_b_4x, i)) << 0));
-            }
-            pixel += 4;
-        }
-        row -= buffer->stride;
-    }
-}
-
-static void 
 draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
 #define MF(a, i) ((f32*)&(a))[i]
 #define MI(a, i) ((u32*)&(a))[i]
 
+    // round position
     v2s32 bottom_left = round_v2_v2s32(position);
 
+    // get min/max of rect
     s32 min_x = bottom_left.x;
     s32 max_x = bottom_left.x + dimension.w;
     s32 min_y = bottom_left.y;
     s32 max_y = bottom_left.y + dimension.h;
 
+    // clamp min/max of rect to buffer
     if(min_x < 0) { min_x = 0; }
     if(min_y < 0) { min_y = 0; }
-    if(max_x > buffer->width - 1) { min_x = buffer->width - 1; }
-    if(max_y > buffer->height - 1) { min_y = buffer->height - 1; }
+    if(max_x > buffer->width - 4) { max_x = buffer->width - 4; }
+    if(max_y > buffer->height - 4) { max_y = buffer->height - 4; }
 
-    v2s32 bottom_right = {bottom_left.x + dimension.w, bottom_left.y};
-    v2s32 top_left = {bottom_left.x, bottom_left.y + dimension.h};
+    // max 4x to compare for mask
+    __m128 max_x_4x = _mm_set_ps1(max_x);
+    __m128 max_y_4x = _mm_set_ps1(max_y);
 
+    // helper 4x variables
     __m128 color_255_4x = _mm_set_ps1(255.0f);
     __m128 color_one_4x = _mm_set_ps1(1.0f);
     __m128 color_zero_4x = _mm_set_ps1(0.0f);
 
+    // 4x of input color
     __m128 color_a_4x = _mm_set_ps1(color.a);
     __m128 color_r_4x = _mm_set_ps1(color.r);
     __m128 color_g_4x = _mm_set_ps1(color.g);
     __m128 color_b_4x = _mm_set_ps1(color.b);
 
-    //u8 *row = (u8 *)buffer->base + 
-    //          ((buffer->height - 1 - bottom_left.y) * buffer->stride) + 
-    //          (bottom_left.x * buffer->bytes_per_pixel);
+    // get row based of clamped min_x/min_y
     u8 *row = (u8 *)buffer->base + 
               ((buffer->height - 1 - min_y) * buffer->stride) + 
               (min_x * buffer->bytes_per_pixel);
 
     BEGIN_CYCLE_COUNTER(draw_rect_fast)
-    //for(s32 y=bottom_left.y; y < top_left.y; ++y){
+    // iterate over clamped min_x/min_y
     for(s32 y=min_y; y < max_y; ++y){
+        __m128 next_four_x = _mm_setr_ps((min_x - 4), (min_x - 3), (min_x - 2), (min_x - 1));
+        __m128 next_four_y = _mm_set_ps1(y);
+        __m128 y_less_max_4x = _mm_cmplt_ps(next_four_y, max_y_4x);
+
         u32 *pixel = (u32 *)row;
-        //for(s32 x=bottom_left.x; x < bottom_right.x; x+=4){
         for(s32 x=min_x; x < max_x; x+=4){
+
+            // initialize 4x current/new rgba variables
             __m128 current_a_4x = _mm_set_ps1(0.0f);
             __m128 current_r_4x = _mm_set_ps1(0.0f);
             __m128 current_g_4x = _mm_set_ps1(0.0f);
@@ -745,26 +697,35 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
             __m128 new_g_4x = _mm_set_ps1(0.0f);
             __m128 new_b_4x = _mm_set_ps1(0.0f);
 
-            bool should_fill[4];
-            __m128i loaded_current_4x = _mm_loadu_si128((__m128i * )pixel);
-            __m128i write_mask = _mm_set1_epi32(0);
+            // compute mask
+            next_four_x = _mm_add_ps(next_four_x, _mm_set_ps1(4));
+            //__m128 next_four_x = _mm_setr_ps((x + 0), (x + 1), (x + 2), (x + 3));
+            __m128 x_less_max_4x = _mm_cmplt_ps(next_four_x, max_x_4x);
+            __m128i write_mask = _mm_castps_si128(_mm_and_ps(x_less_max_4x, y_less_max_4x));
 
-            for(s32 i=0; i < 4; ++i){
-                should_fill[i] = (((x + i) >= 0) && 
-                                  ((x + i) < buffer->width) && 
-                                   (y >= 0) && 
-                                   (y < buffer->height));
+            __m128i current_argb_4x = _mm_loadu_si128((__m128i*)pixel);
 
-                if(should_fill[i]){
-                    MF(current_a_4x, i) = ((f32)((*(pixel + i) >> 24) & 0xFF) / 255.0f);
-                    MF(current_r_4x, i) =  (f32)((*(pixel + i) >> 16) & 0xFF);
-                    MF(current_g_4x, i) =  (f32)((*(pixel + i) >> 8)  & 0xFF);
-                    MF(current_b_4x, i) =  (f32)((*(pixel + i) >> 0)  & 0xFF);
+            MF(current_a_4x, 0) = ((f32)((*(pixel + 0) >> 24) & 0xFF) / 255.0f);
+            MF(current_r_4x, 0) =  (f32)((*(pixel + 0) >> 16) & 0xFF);
+            MF(current_g_4x, 0) =  (f32)((*(pixel + 0) >> 8)  & 0xFF);
+            MF(current_b_4x, 0) =  (f32)((*(pixel + 0) >> 0)  & 0xFF);
 
-                    MI(write_mask, i) = 0xFFFFFFFF;
-                }
-            }
-            
+            MF(current_a_4x, 1) = ((f32)((*(pixel + 1) >> 24) & 0xFF) / 255.0f);
+            MF(current_r_4x, 1) =  (f32)((*(pixel + 1) >> 16) & 0xFF);
+            MF(current_g_4x, 1) =  (f32)((*(pixel + 1) >> 8)  & 0xFF);
+            MF(current_b_4x, 1) =  (f32)((*(pixel + 1) >> 0)  & 0xFF);
+
+            MF(current_a_4x, 2) = ((f32)((*(pixel + 2) >> 24) & 0xFF) / 255.0f);
+            MF(current_r_4x, 2) =  (f32)((*(pixel + 2) >> 16) & 0xFF);
+            MF(current_g_4x, 2) =  (f32)((*(pixel + 2) >> 8)  & 0xFF);
+            MF(current_b_4x, 2) =  (f32)((*(pixel + 2) >> 0)  & 0xFF);
+
+            MF(current_a_4x, 3) = ((f32)((*(pixel + 3) >> 24) & 0xFF) / 255.0f);
+            MF(current_r_4x, 3) =  (f32)((*(pixel + 3) >> 16) & 0xFF);
+            MF(current_g_4x, 3) =  (f32)((*(pixel + 3) >> 8)  & 0xFF);
+            MF(current_b_4x, 3) =  (f32)((*(pixel + 3) >> 0)  & 0xFF);
+
+            // linear blend between current color and input color
             __m128 current_r_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
             __m128 current_g_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
             __m128 current_b_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
@@ -786,39 +747,34 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
             new_b_4x = _mm_add_ps(new_current_b_4x, new_color_b_4x);
             new_a_4x = _mm_mul_ps(color_a_4x, color_255_4x);
 
+            // clamp to range (0, 255) - not sure if necessary
             new_r_4x = _mm_min_ps(_mm_max_ps(new_r_4x, color_zero_4x), color_255_4x);
             new_g_4x = _mm_min_ps(_mm_max_ps(new_g_4x, color_zero_4x), color_255_4x);
             new_b_4x = _mm_min_ps(_mm_max_ps(new_b_4x, color_zero_4x), color_255_4x);
             new_a_4x = _mm_min_ps(_mm_max_ps(color_a_4x, color_255_4x), color_255_4x);
 
+            // convert to int, cvtps rounds to nearest. no need for +0.5f
             __m128i int_a_4x = _mm_cvtps_epi32(new_a_4x);
             __m128i int_r_4x = _mm_cvtps_epi32(new_r_4x);
             __m128i int_g_4x = _mm_cvtps_epi32(new_g_4x);
             __m128i int_b_4x = _mm_cvtps_epi32(new_b_4x);
 
+            // shift argb order
             __m128i shifted_int_a_4x = _mm_slli_epi32(int_a_4x, 24);
             __m128i shifted_int_r_4x = _mm_slli_epi32(int_r_4x, 16);
             __m128i shifted_int_g_4x = _mm_slli_epi32(int_g_4x, 8);
             __m128i shifted_int_b_4x = int_b_4x;
 
-            __m128i out = _mm_or_si128(shifted_int_a_4x,
-                          _mm_or_si128(shifted_int_r_4x,
-                          _mm_or_si128(shifted_int_g_4x, 
-                                       shifted_int_b_4x)));
-            
-            __m128i masked_out = _mm_or_si128(_mm_and_si128(write_mask, out),
-                                              _mm_andnot_si128(write_mask, loaded_current_4x));
-            
-            _mm_storeu_si128((__m128i * )pixel, masked_out);
+            // or everything together
+            __m128i output = _mm_or_si128(shifted_int_a_4x,
+                             _mm_or_si128(shifted_int_r_4x,
+                             _mm_or_si128(shifted_int_g_4x, 
+                                          shifted_int_b_4x)));
 
-            //for(s32 i=0; i < 4; ++i){
-            //    if(should_fill[i]){
-            //        *(pixel + i) = ((u32)MI(int_a_4x, i) << 24 |
-            //                        (u32)MI(int_r_4x, i) << 16 |
-            //                        (u32)MI(int_g_4x, i) << 8  |
-            //                        (u32)MI(int_b_4x, i) << 0  );
-            //    }
-            //}
+            __m128i output_masked = _mm_or_si128(_mm_and_si128(write_mask, output),
+                                              _mm_andnot_si128(write_mask, current_argb_4x));
+            _mm_storeu_si128((__m128i * )pixel, output_masked);
+
             pixel += 4;
         }
         row -= buffer->stride;

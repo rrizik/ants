@@ -368,7 +368,7 @@ add_ant(PermanentMemory *pm, v2 pos, u8 rad, v4 color, bool fill){
 #if DEBUG
     e->speed = 140.0f; // constant dt
 #else
-    e->speed = 40.0f; // variable dt
+    e->speed = 20.0f; // variable dt
 #endif
     e->draw_bounding_box = true;
     e->sensor_radius = 10;
@@ -457,9 +457,8 @@ draw_commands(RenderBuffer *render_buffer, Arena *commands){
                 if(command->header.color.g == 1.0f){
                     s32 i = 1;
                 }
-                //draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
+                draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
                 draw_rect_fast(render_buffer, command->header.position, command->dimension, command->header.color);
-                //draw_rect_fast_no_blend(render_buffer, command->header.position, command->dimension, command->header.color);
                 at = (u8*)commands->base + command->header.arena_used;
             } break;
             case RenderCommand_Box:{
@@ -558,9 +557,11 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
         }
 
         // add grid
-        for(i32 i=0; i <= pm->cell_row_count; ++i){
-            add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
+        for(i32 i=1; i < pm->cell_row_count; ++i){
+            // vertical
             add_segment(pm, {((f32)render_buffer->width - pm->cell_width * i), 0}, {((f32)render_buffer->width - pm->cell_width * i), (f32)render_buffer->height}, DGRAY);
+            // horizonal
+            add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
         }
 
         pm->border_size = 10;
@@ -694,8 +695,8 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
             cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
             i32 x_start = cell_coord.x * pm->cell_width;
             i32 y_start = cell_coord.y * pm->cell_height;
-            for(i32 x = x_start; x < (i32)(x_start + pm->cell_width); x+=3){
-                for(i32 y = y_start; y < (i32)(y_start + pm->cell_height); y+=3){
+            for(i32 x = x_start; x < (i32)(x_start + pm->cell_width); x+=4){
+                for(i32 y = y_start; y < (i32)(y_start + pm->cell_height); y+=4){
                     add_food(pm, vec2(x, y), 1, GREEN, true);
                 }
             }
@@ -704,7 +705,6 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     else{
         pm->food_added = false;
     }
-    print("free_entities: %d\n", pm->free_entities_at);
     //END_TICK_COUNTER(controller);
     //END_CYCLE_COUNTER(controller);
 
@@ -1156,23 +1156,23 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
             }break;
             case EntityType_Food:{
                 if(!e->food_collected){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
                 }
                 if(pm->draw_depositing_ants){
                     if(e->food_collected){
-                        push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
+                        push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
                     }
                 }
             }break;
             case EntityType_Ant:{
 				if(pm->draw_wondering_ants && (e->color == LGRAY)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
 				}
                 if(pm->draw_depositing_ants && (e->color == RED)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
 				}
                 if((e->color == ORANGE)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
                 }
 
                 //f32 forward_rad = dir_to_rad(e->direction);
@@ -1205,12 +1205,12 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
             }break;
             case EntityType_ToHomePheromone:{
                 if(pm->draw_home_phers){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
                 }
             }break;
             case EntityType_ToFoodPheromone:{
                 if(pm->draw_food_phers){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
                 }
             }break;
         }
@@ -1218,13 +1218,12 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     //END_TICK_COUNTER(allocate_commands);
     //END_CYCLE_COUNTER(allocate_commands);
 
-    //draw_rect_slow(render_buffer, (v2){100, 100}, (v2s32){100, 100}, RED);
-    //draw_rect_fast_no_blend(render_buffer, (v2){220, 100}, (v2s32){100, 100}, RED);
-    //draw_rect_fast(render_buffer, (v2){340, 100}, (v2s32){100, 100}, RED);
 
     //BEGIN_CYCLE_COUNTER(draw);
     //BEGIN_TICK_COUNTER(draw);
     draw_commands(render_buffer, tm->render_commands_arena);
+    //draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 100), (f32)render_buffer->width - 100}, (v2s32){200, 50}, GREEN);
+    //draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 100), 100}, (v2s32){1000, 50}, GREEN);
     //END_TICK_COUNTER(draw);
     //END_CYCLE_COUNTER(draw);
     pm->frame_index++;
