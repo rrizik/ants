@@ -656,7 +656,6 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
     if(max_x > buffer->width - 4) { max_x = buffer->width - 4; }
     if(max_y > buffer->height - 4) { max_y = buffer->height - 4; }
 
-    // max 4x to compare for mask
     __m128 max_x_4x = _mm_set_ps1(max_x);
     __m128 max_y_4x = _mm_set_ps1(max_y);
 
@@ -676,14 +675,17 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
               ((buffer->height - 1 - min_y) * buffer->stride) + 
               (min_x * buffer->bytes_per_pixel);
 
-    BEGIN_CYCLE_COUNTER(draw_rect_fast)
     // iterate over clamped min_x/min_y
+    u32 x0 = (min_x - 1);
+    u32 x1 = (min_x - 2);
+    u32 x2 = (min_x - 3);
+    u32 x3 = (min_x - 4);
+    BEGIN_CYCLE_COUNTER(draw_rect_fast)
     for(s32 y=min_y; y < max_y; ++y){
-        __m128 next_four_x = _mm_setr_ps((min_x - 4), (min_x - 3), (min_x - 2), (min_x - 1));
-        __m128 next_four_y = _mm_set_ps1(y);
-        __m128 y_less_max_4x = _mm_cmplt_ps(next_four_y, max_y_4x);
-
         u32 *pixel = (u32 *)row;
+        __m128 next_four_x = _mm_setr_ps(x3, x2, x1, x0);
+        __m128 next_four_y = _mm_set_ps1(y);
+        __m128 y_less_than_max_4x = _mm_cmplt_ps(next_four_y, max_y_4x);
         for(s32 x=min_x; x < max_x; x+=4){
 
             // initialize 4x current/new rgba variables
@@ -697,14 +699,14 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
             __m128 new_g_4x = _mm_set_ps1(0.0f);
             __m128 new_b_4x = _mm_set_ps1(0.0f);
 
-            // compute mask
-            next_four_x = _mm_add_ps(next_four_x, _mm_set_ps1(4));
-            //__m128 next_four_x = _mm_setr_ps((x + 0), (x + 1), (x + 2), (x + 3));
-            __m128 x_less_max_4x = _mm_cmplt_ps(next_four_x, max_x_4x);
-            __m128i write_mask = _mm_castps_si128(_mm_and_ps(x_less_max_4x, y_less_max_4x));
-
             __m128i current_argb_4x = _mm_loadu_si128((__m128i*)pixel);
+            next_four_x = _mm_add_ps(next_four_x, _mm_set_ps1(4));
+            __m128 x_less_than_max_4x = _mm_cmplt_ps(next_four_x, max_x_4x);
+            // adds an extra 45-50 cycles
+            //__m128i write_mask = _mm_castps_si128(_mm_and_ps(x_less_than_max_4x, y_less_than_max_4x));
+            __m128i write_mask = _mm_cvtps_epi32(_mm_and_ps(x_less_than_max_4x, y_less_than_max_4x));
 
+            // need to load from pixel i think
             MF(current_a_4x, 0) = ((f32)((*(pixel + 0) >> 24) & 0xFF) / 255.0f);
             MF(current_r_4x, 0) =  (f32)((*(pixel + 0) >> 16) & 0xFF);
             MF(current_g_4x, 0) =  (f32)((*(pixel + 0) >> 8)  & 0xFF);
