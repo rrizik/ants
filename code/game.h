@@ -1156,23 +1156,23 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
             }break;
             case EntityType_Food:{
                 if(!e->food_collected){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
                 }
                 if(pm->draw_depositing_ants){
                     if(e->food_collected){
-                        push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
+                        push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
                     }
                 }
             }break;
             case EntityType_Ant:{
 				if(pm->draw_wondering_ants && (e->color == LGRAY)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
 				}
                 if(pm->draw_depositing_ants && (e->color == RED)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
 				}
                 if((e->color == ORANGE)){
-					push_rect(tm->render_commands_arena, e->position, (v2s32){5, 5}, e->color);
+					push_rect(tm->render_commands_arena, e->position, (v2s32){8, 8}, e->color);
                 }
 
                 //f32 forward_rad = dir_to_rad(e->direction);
@@ -1205,12 +1205,12 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
             }break;
             case EntityType_ToHomePheromone:{
                 if(pm->draw_home_phers){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
                 }
             }break;
             case EntityType_ToFoodPheromone:{
                 if(pm->draw_food_phers){
-                    push_rect(tm->render_commands_arena, e->position, (v2s32){3, 3}, e->color);
+                    push_rect(tm->render_commands_arena, e->position, (v2s32){4, 4}, e->color);
                 }
             }break;
         }
@@ -1222,8 +1222,6 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     //BEGIN_CYCLE_COUNTER(draw);
     //BEGIN_TICK_COUNTER(draw);
     draw_commands(render_buffer, tm->render_commands_arena);
-    //draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 100), (f32)render_buffer->width - 100}, (v2s32){200, 50}, GREEN);
-    //draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 100), 100}, (v2s32){1000, 50}, GREEN);
     //END_TICK_COUNTER(draw);
     //END_CYCLE_COUNTER(draw);
     pm->frame_index++;

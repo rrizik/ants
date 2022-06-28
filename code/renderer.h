@@ -615,7 +615,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
     }
 }
 
-static void
+static void 
 draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
     draw_bitmap_clip(buffer, position, image, vec4(0,0,0,0));
 }
@@ -636,11 +636,7 @@ draw_rect_slow(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
     END_CYCLE_COUNTER(draw_rect_slow)
 }
 
-static void 
-draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
-#define MF(a, i) ((f32*)&(a))[i]
-#define MI(a, i) ((u32*)&(a))[i]
-
+static void draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
     // round position
     v2s32 bottom_left = round_v2_v2s32(position);
 
@@ -656,13 +652,13 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
     if(max_x > buffer->width - 4) { max_x = buffer->width - 4; }
     if(max_y > buffer->height - 4) { max_y = buffer->height - 4; }
 
+    // helper 4x variables
     __m128 max_x_4x = _mm_set_ps1(max_x);
     __m128 max_y_4x = _mm_set_ps1(max_y);
-
-    // helper 4x variables
     __m128 color_255_4x = _mm_set_ps1(255.0f);
     __m128 color_one_4x = _mm_set_ps1(1.0f);
     __m128 color_zero_4x = _mm_set_ps1(0.0f);
+    __m128 mask_FF = _mm_set1_epi32(0xFF);
 
     // 4x of input color
     __m128 color_a_4x = _mm_set_ps1(color.a);
@@ -676,65 +672,41 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
               (min_x * buffer->bytes_per_pixel);
 
     // iterate over clamped min_x/min_y
-    u32 x0 = (min_x - 1);
-    u32 x1 = (min_x - 2);
-    u32 x2 = (min_x - 3);
-    u32 x3 = (min_x - 4);
     BEGIN_CYCLE_COUNTER(draw_rect_fast)
     for(s32 y=min_y; y < max_y; ++y){
         u32 *pixel = (u32 *)row;
-        __m128 next_four_x = _mm_setr_ps(x3, x2, x1, x0);
+        // set next 4 x/y
+        __m128 next_four_x = _mm_setr_ps((min_x - 4), (min_x - 3), (min_x - 2), (min_x - 1));
         __m128 next_four_y = _mm_set_ps1(y);
+
+        // check if y's are less than max_y
         __m128 y_less_than_max_4x = _mm_cmplt_ps(next_four_y, max_y_4x);
         for(s32 x=min_x; x < max_x; x+=4){
-
-            // initialize 4x current/new rgba variables
-            __m128 current_a_4x = _mm_set_ps1(0.0f);
-            __m128 current_r_4x = _mm_set_ps1(0.0f);
-            __m128 current_g_4x = _mm_set_ps1(0.0f);
-            __m128 current_b_4x = _mm_set_ps1(0.0f);
-
-            __m128 new_a_4x = _mm_set_ps1(0.0f);
-            __m128 new_r_4x = _mm_set_ps1(0.0f);
-            __m128 new_g_4x = _mm_set_ps1(0.0f);
-            __m128 new_b_4x = _mm_set_ps1(0.0f);
-
-            __m128i current_argb_4x = _mm_loadu_si128((__m128i*)pixel);
+            // get next 4 x's
             next_four_x = _mm_add_ps(next_four_x, _mm_set_ps1(4));
+            // check if x's are less than max_x
             __m128 x_less_than_max_4x = _mm_cmplt_ps(next_four_x, max_x_4x);
-            // adds an extra 45-50 cycles
-            //__m128i write_mask = _mm_castps_si128(_mm_and_ps(x_less_than_max_4x, y_less_than_max_4x));
-            __m128i write_mask = _mm_cvtps_epi32(_mm_and_ps(x_less_than_max_4x, y_less_than_max_4x));
+            // get mask from & and cast to int
+            __m128 f32_mask = _mm_and_ps(x_less_than_max_4x, y_less_than_max_4x);
+            __m128i write_mask = _mm_castps_si128(f32_mask);
 
-            // need to load from pixel i think
-            MF(current_a_4x, 0) = ((f32)((*(pixel + 0) >> 24) & 0xFF) / 255.0f);
-            MF(current_r_4x, 0) =  (f32)((*(pixel + 0) >> 16) & 0xFF);
-            MF(current_g_4x, 0) =  (f32)((*(pixel + 0) >> 8)  & 0xFF);
-            MF(current_b_4x, 0) =  (f32)((*(pixel + 0) >> 0)  & 0xFF);
+            // get 4 wide 32bit pixels in argb-argb-argb-argb format
+            __m128i loaded_pixel_4x = _mm_loadu_si128((__m128i*)pixel);
 
-            MF(current_a_4x, 1) = ((f32)((*(pixel + 1) >> 24) & 0xFF) / 255.0f);
-            MF(current_r_4x, 1) =  (f32)((*(pixel + 1) >> 16) & 0xFF);
-            MF(current_g_4x, 1) =  (f32)((*(pixel + 1) >> 8)  & 0xFF);
-            MF(current_b_4x, 1) =  (f32)((*(pixel + 1) >> 0)  & 0xFF);
+            // load aaaa-aaaa-aaaa-aaaa rrrr-rrrr-rrrr-rrrr gggg bbbb from loaded_pixel_4x
+            __m128 loaded_a_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 24), mask_FF));
+            __m128 loaded_r_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 16), mask_FF));
+            __m128 loaded_g_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 8),  mask_FF));
+            __m128 loaded_b_4x = _mm_cvtepi32_ps(_mm_and_si128(loaded_pixel_4x, mask_FF));
 
-            MF(current_a_4x, 2) = ((f32)((*(pixel + 2) >> 24) & 0xFF) / 255.0f);
-            MF(current_r_4x, 2) =  (f32)((*(pixel + 2) >> 16) & 0xFF);
-            MF(current_g_4x, 2) =  (f32)((*(pixel + 2) >> 8)  & 0xFF);
-            MF(current_b_4x, 2) =  (f32)((*(pixel + 2) >> 0)  & 0xFF);
+            // linear blend between loaded color and input color
+            __m128 loaded_r_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
+            __m128 loaded_g_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
+            __m128 loaded_b_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
 
-            MF(current_a_4x, 3) = ((f32)((*(pixel + 3) >> 24) & 0xFF) / 255.0f);
-            MF(current_r_4x, 3) =  (f32)((*(pixel + 3) >> 16) & 0xFF);
-            MF(current_g_4x, 3) =  (f32)((*(pixel + 3) >> 8)  & 0xFF);
-            MF(current_b_4x, 3) =  (f32)((*(pixel + 3) >> 0)  & 0xFF);
-
-            // linear blend between current color and input color
-            __m128 current_r_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-            __m128 current_g_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-            __m128 current_b_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-
-            __m128 new_current_r_4x = _mm_mul_ps(current_r_percent_4x, current_r_4x);
-            __m128 new_current_g_4x = _mm_mul_ps(current_g_percent_4x, current_g_4x);
-            __m128 new_current_b_4x = _mm_mul_ps(current_b_percent_4x, current_b_4x);
+            __m128 new_loaded_r_4x = _mm_mul_ps(loaded_r_percent_4x, loaded_r_4x);
+            __m128 new_loaded_g_4x = _mm_mul_ps(loaded_g_percent_4x, loaded_g_4x);
+            __m128 new_loaded_b_4x = _mm_mul_ps(loaded_b_percent_4x, loaded_b_4x);
 
             __m128 scaled_color_r_4x = _mm_mul_ps(color_r_4x, color_255_4x);
             __m128 scaled_color_g_4x = _mm_mul_ps(color_g_4x, color_255_4x);
@@ -744,16 +716,10 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
             __m128 new_color_g_4x = (color_a_4x * scaled_color_g_4x);
             __m128 new_color_b_4x = (color_a_4x * scaled_color_b_4x);
 
-            new_r_4x = _mm_add_ps(new_current_r_4x, new_color_r_4x);
-            new_g_4x = _mm_add_ps(new_current_g_4x, new_color_g_4x);
-            new_b_4x = _mm_add_ps(new_current_b_4x, new_color_b_4x);
-            new_a_4x = _mm_mul_ps(color_a_4x, color_255_4x);
-
-            // clamp to range (0, 255) - not sure if necessary
-            new_r_4x = _mm_min_ps(_mm_max_ps(new_r_4x, color_zero_4x), color_255_4x);
-            new_g_4x = _mm_min_ps(_mm_max_ps(new_g_4x, color_zero_4x), color_255_4x);
-            new_b_4x = _mm_min_ps(_mm_max_ps(new_b_4x, color_zero_4x), color_255_4x);
-            new_a_4x = _mm_min_ps(_mm_max_ps(color_a_4x, color_255_4x), color_255_4x);
+            __m128 new_r_4x = _mm_add_ps(new_loaded_r_4x, new_color_r_4x);
+            __m128 new_g_4x = _mm_add_ps(new_loaded_g_4x, new_color_g_4x);
+            __m128 new_b_4x = _mm_add_ps(new_loaded_b_4x, new_color_b_4x);
+            __m128 new_a_4x = _mm_mul_ps(color_a_4x, color_255_4x);
 
             // convert to int, cvtps rounds to nearest. no need for +0.5f
             __m128i int_a_4x = _mm_cvtps_epi32(new_a_4x);
@@ -768,13 +734,13 @@ draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
             __m128i shifted_int_b_4x = int_b_4x;
 
             // or everything together
-            __m128i output = _mm_or_si128(shifted_int_a_4x,
-                             _mm_or_si128(shifted_int_r_4x,
-                             _mm_or_si128(shifted_int_g_4x, 
-                                          shifted_int_b_4x)));
+            __m128i output_pixel_4x = _mm_or_si128(shifted_int_a_4x,
+                                      _mm_or_si128(shifted_int_r_4x,
+                                      _mm_or_si128(shifted_int_g_4x, 
+                                                   shifted_int_b_4x)));
 
-            __m128i output_masked = _mm_or_si128(_mm_and_si128(write_mask, output),
-                                              _mm_andnot_si128(write_mask, current_argb_4x));
+            __m128i output_masked = _mm_or_si128(_mm_and_si128(write_mask, output_pixel_4x),
+                                              _mm_andnot_si128(write_mask, loaded_pixel_4x));
             _mm_storeu_si128((__m128i * )pixel, output_masked);
 
             pixel += 4;
