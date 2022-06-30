@@ -457,7 +457,7 @@ draw_commands(RenderBuffer *render_buffer, Arena *commands){
                 if(command->header.color.g == 1.0f){
                     s32 i = 1;
                 }
-                draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
+                //draw_rect_slow(render_buffer, command->header.position, command->dimension, command->header.color);
                 draw_rect_fast(render_buffer, command->header.position, command->dimension, command->header.color);
                 at = (u8*)commands->base + command->header.arena_used;
             } break;
@@ -501,14 +501,14 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     pm = (PermanentMemory*)memory->permanent_base;
     tm = (TransientMemory*)memory->transient_base;
 
-    v4 RED =     {1.0f, 0.0f, 0.0f,  0.7f};
-    v4 GREEN =   {0.0f, 1.0f, 0.0f,  0.7f};
+    v4 RED =     {1.0f, 0.0f, 0.0f,  1.0f};
+    v4 GREEN =   {0.0f, 1.0f, 0.0f,  1.0f};
     v4 BLUE =    {0.0f, 0.0f, 1.0f,  0.5f};
     v4 MAGENTA = {1.0f, 0.0f, 1.0f,  0.1f};
-    v4 TEAL =    {0.0f, 1.0f, 1.0f,  0.1f};
-    v4 PINK =    {0.92f, 0.62f, 0.96f, 0.5f};
-    v4 YELLOW =  {0.9f, 0.9f, 0.0f,  0.5f};
-    v4 ORANGE =  {1.0f, 0.5f, 0.15f,  0.5f};
+    v4 TEAL =    {0.0f, 1.0f, 1.0f,  1.0f};
+    v4 PINK =    {0.92f, 0.62f, 0.96f, 1.0f};
+    v4 YELLOW =  {0.9f, 0.9f, 0.0f,  1.0f};
+    v4 ORANGE =  {1.0f, 0.5f, 0.15f,  1.0f};
     v4 DGRAY =   {0.5f, 0.5f, 0.5f,  0.5f};
     v4 LGRAY =   {0.8f, 0.8f, 0.8f,  0.7f};
     v4 WHITE =   {1.0f, 1.0f, 1.0f,  1.0f};
@@ -1222,6 +1222,15 @@ static void update_game(Memory* memory, RenderBuffer* render_buffer, Controller*
     //BEGIN_CYCLE_COUNTER(draw);
     //BEGIN_TICK_COUNTER(draw);
     draw_commands(render_buffer, tm->render_commands_arena);
+    draw_rect_fast(render_buffer, (v2){300.0f, 0.0f}, (v2s32){15, 2}, RED);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 100), 000.0f}, (v2s32){100, 100}, RED);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 101), 100.0f}, (v2s32){100, 100}, GREEN);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 102), 200.0f}, (v2s32){100, 100}, YELLOW);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 103), 300.0f}, (v2s32){100, 100}, TEAL);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 104), 400.0f}, (v2s32){100, 100}, PINK);
+    draw_rect_fast(render_buffer, (v2){(f32)(render_buffer->width - 2), 500.0f}, (v2s32){8, 8}, ORANGE);
+    // color from srgb to linear srgb, then math, then linear srgb to srgb
+    // 
     //END_TICK_COUNTER(draw);
     //END_CYCLE_COUNTER(draw);
     pm->frame_index++;

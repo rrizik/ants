@@ -314,17 +314,17 @@ push_bitmap(Arena *arena, v2 position, Bitmap image){
 }
 
 static void
-draw_pixel(RenderBuffer *buffer, v2 position, v4 color){
+draw_pixel(RenderBuffer *render_buffer, v2 position, v4 color){
     v2s32 pos = round_v2_v2s32(position);
 
-    if(pos.x >= 0 && pos.x < buffer->width && pos.y >= 0 && pos.y < buffer->height){
-        u8 *row = (u8 *)buffer->base +
-                   ((buffer->height - pos.y - 1) * buffer->stride) +
-                   (pos.x * buffer->bytes_per_pixel);
+    if(pos.x >= 0 && pos.x < render_buffer->width && pos.y >= 0 && pos.y < render_buffer->height){
+        u8 *row = (u8 *)render_buffer->base +
+                   ((render_buffer->height - pos.y - 1) * render_buffer->stride) +
+                   (pos.x * render_buffer->bytes_per_pixel);
         u32 *pixel = (u32 *)row;
 
         if(color.a == 1){
-            u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r*255.0f) << 16 | round_f32_s32(color.g*255.0f) << 8 | round_f32_s32(color.b*255.0f) << 0);
+            u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r * 255.0f) << 16 | round_f32_s32(color.g * 255.0f) << 8 | round_f32_s32(color.b * 255.0f) << 0);
             *pixel = new_color;
         }
         else if(color.a > 0){
@@ -348,7 +348,7 @@ draw_pixel(RenderBuffer *buffer, v2 position, v4 color){
 }
 
 static void
-draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
+draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
     v2 point1 = round_v2(position);
     v2 point2 = point1;
     v2 non_normalized_direction = vec2(position.x + direction.x, position.y + direction.y);
@@ -364,8 +364,8 @@ draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
     f32 error = distance_x + distance_y;
 
     for(;;){
-        draw_pixel(buffer, point1, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
-        if(point1.x < 0 || point1.x > buffer->width || point1.y < 0 || point1.y > buffer->height)break;
+        draw_pixel(render_buffer, point1, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
+        if(point1.x < 0 || point1.x > render_buffer->width || point1.y < 0 || point1.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
@@ -378,8 +378,8 @@ draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
         }
     }
     for(;;){
-        draw_pixel(buffer, point2, c);
-        if(point2.x < 0 || point2.x > buffer->width || point2.y < 0 || point2.y > buffer->height)break;
+        draw_pixel(render_buffer, point2, c);
+        if(point2.x < 0 || point2.x > render_buffer->width || point2.y < 0 || point2.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
@@ -394,7 +394,7 @@ draw_line(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
 }
 
 static void
-draw_ray(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
+draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
     position = round_v2(position);
     v2 non_normalized_direction = round_v2(vec2((direction.x * 100000), (direction.y * 100000)));
     v2 new_direction = vec2(position.x + non_normalized_direction.x, position.y + non_normalized_direction.y);
@@ -407,8 +407,8 @@ draw_ray(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
     f32 error = distance_x + distance_y;
 
     for(;;){
-        draw_pixel(buffer, position, c); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
-        if(position.x < 0 || position.x > buffer->width || position.y < 0 || position.y > buffer->height)break;
+        draw_pixel(render_buffer, position, c); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
+        if(position.x < 0 || position.x > render_buffer->width || position.y < 0 || position.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
@@ -423,7 +423,7 @@ draw_ray(RenderBuffer *buffer, v2 position, v2 direction, v4 c){
 }
 
 static void
-draw_segment(RenderBuffer *buffer, v2 p0, v2 p1, v4 c){
+draw_segment(RenderBuffer *render_buffer, v2 p0, v2 p1, v4 c){
     p0 = round_v2(p0);
     p1 = round_v2(p1);
 
@@ -436,7 +436,7 @@ draw_segment(RenderBuffer *buffer, v2 p0, v2 p1, v4 c){
 
     for(;;){
         if(p0.x == p1.x && p0.y == p1.y) break;
-        draw_pixel(buffer, p0, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
+        draw_pixel(render_buffer, p0, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
@@ -451,7 +451,7 @@ draw_segment(RenderBuffer *buffer, v2 p0, v2 p1, v4 c){
 }
 
 static void
-draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
+draw_flattop_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
     f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
@@ -466,13 +466,13 @@ draw_flattop_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
         s32 start_x = (s32)ceil(x0 - 0.5f);
         s32 end_x = (s32)ceil(x1 - 0.5f);
         for(s32 x=start_x; x < end_x; ++x){
-            draw_pixel(buffer, (v2){(f32)x, (f32)y}, c);
+            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, c);
         }
     }
 }
 
 static void
-draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
+draw_flatbottom_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c){
     f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
     f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
 
@@ -487,13 +487,13 @@ draw_flatbottom_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c){
         s32 start_x = (s32)ceil(x0 - 0.5f);
         s32 end_x = (s32)ceil(x1 - 0.5f);
         for(s32 x=start_x; x < end_x; ++x){
-            draw_pixel(buffer, (v2){(f32)x, (f32)y}, c);
+            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, c);
         }
     }
 }
 
 static void
-draw_triangle_outlined(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_outlined, bool fill){
+draw_triangle_outlined(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_outlined, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -501,27 +501,27 @@ draw_triangle_outlined(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_out
     if(fill){
         if(p0.y == p1.y){
             if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(buffer, p0, p1, p2, c);
+            draw_flattop_triangle(render_buffer, p0, p1, p2, c);
         }
         else if(p1.y == p2.y){
             if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p2, c);
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
             v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
+            draw_flattop_triangle(render_buffer, p1, p3, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p3, c);
         }
     }
-    draw_segment(buffer, p0, p1, c_outlined);
-    draw_segment(buffer, p1, p2, c_outlined);
-    draw_segment(buffer, p2, p0, c_outlined);
+    draw_segment(render_buffer, p0, p1, c_outlined);
+    draw_segment(render_buffer, p1, p2, c_outlined);
+    draw_segment(render_buffer, p2, p0, c_outlined);
 }
 
 static void
-draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
+draw_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -529,38 +529,38 @@ draw_triangle(RenderBuffer *buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
     if(fill){
         if(p0.y == p1.y){
             if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(buffer, p0, p1, p2, c);
+            draw_flattop_triangle(render_buffer, p0, p1, p2, c);
         }
         else if(p1.y == p2.y){
             if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(buffer, p0, p1, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p2, c);
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
             v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(buffer, p0, p1, p3, c);
+            draw_flattop_triangle(render_buffer, p1, p3, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p3, c);
         }
     }
     else{
-        draw_segment(buffer, p0, p1, c);
-        draw_segment(buffer, p1, p2, c);
-        draw_segment(buffer, p2, p0, c);
+        draw_segment(render_buffer, p0, p1, c);
+        draw_segment(render_buffer, p1, p2, c);
+        draw_segment(render_buffer, p2, p0, c);
     }
 }
 
 static void
-clear(RenderBuffer *buffer, v4 c){
-    for(s32 i=0; i < (buffer->width * buffer->height); ++i){
-        u32 *pixel = (u32 *)((u8 *)(buffer->base) + (i * buffer->bytes_per_pixel));
+clear(RenderBuffer *render_buffer, v4 c){
+    for(s32 i=0; i < (render_buffer->width * render_buffer->height); ++i){
+        u32 *pixel = (u32 *)((u8 *)(render_buffer->base) + (i * render_buffer->bytes_per_pixel));
         u32 new_color = (round_f32_s32(c.a * 255.0f) << 24 | round_f32_s32(c.r*255.0f) << 16 | round_f32_s32(c.g*255.0f) << 8 | round_f32_s32(c.b*255.0f) << 0);
         *pixel = new_color;
     }
 }
 
 static void
-draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region){
+draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip_region){
     //v4 cr = {100, 300, 200, 200};
     Rect cr = rect((v2){100, 300}, (v2s32){200, 200});
     if(clip_region == vec4(0,0,0,0)){
@@ -569,7 +569,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
             for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
                 v4 color = u32_to_rgba(*image.pixels++);
-                draw_pixel(buffer, (v2){x, y}, color);
+                draw_pixel(render_buffer, (v2){x, y}, color);
             }
         }
     }
@@ -607,7 +607,7 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
                 u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
                 u32 *c = (u32 *)byte;
                 v4 color = u32_to_rgba(*c);
-                draw_pixel(buffer, (v2){(f32)x, (f32)y}, color);
+                draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, color);
                 ix++;
             }
             iy++;
@@ -616,12 +616,12 @@ draw_bitmap_clip(RenderBuffer *buffer, v2 position, Bitmap image, v4 clip_region
 }
 
 static void 
-draw_bitmap(RenderBuffer *buffer, v2 position, Bitmap image){
-    draw_bitmap_clip(buffer, position, image, vec4(0,0,0,0));
+draw_bitmap(RenderBuffer *render_buffer, v2 position, Bitmap image){
+    draw_bitmap_clip(render_buffer, position, image, vec4(0,0,0,0));
 }
 
 static void
-draw_rect_slow(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
+draw_rect_slow(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 c){
     v2 p0 = {position.x, position.y};
     v2 p1 = {position.x + dimension.w, position.y};
     v2 p2 = {position.x, position.y + dimension.h};
@@ -630,13 +630,13 @@ draw_rect_slow(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
     BEGIN_CYCLE_COUNTER(draw_rect_slow)
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
-            draw_pixel(buffer, (v2){x, y}, c);
+            draw_pixel(render_buffer, (v2){x, y}, c);
         }
     }
     END_CYCLE_COUNTER(draw_rect_slow)
 }
 
-static void draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 color){
+static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 color){
     // round position
     v2s32 bottom_left = round_v2_v2s32(position);
 
@@ -646,15 +646,14 @@ static void draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v
     s32 min_y = bottom_left.y;
     s32 max_y = bottom_left.y + dimension.h;
 
-    // clamp min/max of rect to buffer
+    // clamp min/max of rect to render_buffer
     if(min_x < 0) { min_x = 0; }
     if(min_y < 0) { min_y = 0; }
-    if(max_x > buffer->width - 4) { max_x = buffer->width - 4; }
-    if(max_y > buffer->height - 4) { max_y = buffer->height - 4; }
+    if(max_x > render_buffer->width) { max_x = render_buffer->width; }
+    if(max_y > render_buffer->height) { max_y = render_buffer->height; }
 
     // helper 4x variables
-    __m128 max_x_4x = _mm_set_ps1(max_x);
-    __m128 max_y_4x = _mm_set_ps1(max_y);
+    __m128i max_x_4x = _mm_set1_epi32(max_x);
     __m128 color_255_4x = _mm_set_ps1(255.0f);
     __m128 color_one_4x = _mm_set_ps1(1.0f);
     __m128 color_zero_4x = _mm_set_ps1(0.0f);
@@ -666,55 +665,55 @@ static void draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v
     __m128 color_g_4x = _mm_set_ps1(color.g);
     __m128 color_b_4x = _mm_set_ps1(color.b);
 
+    // pre multiply alphas for current
+    __m128 current_a_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
+    __m128 scaled_color_r_4x = _mm_mul_ps(color_r_4x, color_255_4x);
+    __m128 scaled_color_g_4x = _mm_mul_ps(color_g_4x, color_255_4x);
+    __m128 scaled_color_b_4x = _mm_mul_ps(color_b_4x, color_255_4x);
+
+    // pre multiply alphas for input color
+    __m128 new_color_r_4x = (color_a_4x * scaled_color_r_4x);
+    __m128 new_color_g_4x = (color_a_4x * scaled_color_g_4x);
+    __m128 new_color_b_4x = (color_a_4x * scaled_color_b_4x);
+
+    // compute mask and increment
+    s32 width = max_x - min_x;
+    s32 remainder = width % 4;
+    s32 increment = remainder ? remainder : 4;
+    __m128i mask = _mm_setr_epi32(-(increment > 0), -(increment > 1), -(increment > 2), -(increment > 3));
+    __m128i ones_mask = _mm_cmpeq_epi32(mask, mask);
+
     // get row based of clamped min_x/min_y
-    u8 *row = (u8 *)buffer->base + 
-              ((buffer->height - 1 - min_y) * buffer->stride) + 
-              (min_x * buffer->bytes_per_pixel);
+    u8 *row = (u8 *)render_buffer->base + 
+              ((render_buffer->height - 1 - min_y) * render_buffer->stride) + 
+              (min_x * render_buffer->bytes_per_pixel);
 
     // iterate over clamped min_x/min_y
     BEGIN_CYCLE_COUNTER(draw_rect_fast)
     for(s32 y=min_y; y < max_y; ++y){
-        u32 *pixel = (u32 *)row;
-        // set next 4 x/y
-        __m128 next_four_x = _mm_setr_ps((min_x - 4), (min_x - 3), (min_x - 2), (min_x - 1));
-        __m128 next_four_y = _mm_set_ps1(y);
+        u32* pixel = (u32*)row;
 
-        // check if y's are less than max_y
-        __m128 y_less_than_max_4x = _mm_cmplt_ps(next_four_y, max_y_4x);
-        for(s32 x=min_x; x < max_x; x+=4){
-            // get next 4 x's
-            next_four_x = _mm_add_ps(next_four_x, _mm_set_ps1(4));
-            // check if x's are less than max_x
-            __m128 x_less_than_max_4x = _mm_cmplt_ps(next_four_x, max_x_4x);
-            // get mask from & and cast to int
-            __m128 f32_mask = _mm_and_ps(x_less_than_max_4x, y_less_than_max_4x);
-            __m128i write_mask = _mm_castps_si128(f32_mask);
+        for(s32 x=min_x; x < max_x; ){
+            if(x > render_buffer->width - 4){
+                row = (u8 *)render_buffer->base + 
+                      ((render_buffer->height - 1 - min_y) * render_buffer->stride) + 
+                      ((render_buffer->width - 4) * render_buffer->bytes_per_pixel);
+                pixel = (u32*)row;
+                mask = ~mask;
+            }
 
-            // get 4 wide 32bit pixels in argb-argb-argb-argb format
             __m128i loaded_pixel_4x = _mm_loadu_si128((__m128i*)pixel);
 
-            // load aaaa-aaaa-aaaa-aaaa rrrr-rrrr-rrrr-rrrr gggg bbbb from loaded_pixel_4x
-            __m128 loaded_a_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 24), mask_FF));
+            // from argb-argb-argb-argb
+            // to aaaa-rrrr-gggg-bbbb
             __m128 loaded_r_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 16), mask_FF));
             __m128 loaded_g_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 8),  mask_FF));
             __m128 loaded_b_4x = _mm_cvtepi32_ps(_mm_and_si128(loaded_pixel_4x, mask_FF));
 
             // linear blend between loaded color and input color
-            __m128 loaded_r_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-            __m128 loaded_g_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-            __m128 loaded_b_percent_4x = _mm_sub_ps(color_one_4x, color_a_4x);
-
-            __m128 new_loaded_r_4x = _mm_mul_ps(loaded_r_percent_4x, loaded_r_4x);
-            __m128 new_loaded_g_4x = _mm_mul_ps(loaded_g_percent_4x, loaded_g_4x);
-            __m128 new_loaded_b_4x = _mm_mul_ps(loaded_b_percent_4x, loaded_b_4x);
-
-            __m128 scaled_color_r_4x = _mm_mul_ps(color_r_4x, color_255_4x);
-            __m128 scaled_color_g_4x = _mm_mul_ps(color_g_4x, color_255_4x);
-            __m128 scaled_color_b_4x = _mm_mul_ps(color_b_4x, color_255_4x);
-
-            __m128 new_color_r_4x = (color_a_4x * scaled_color_r_4x);
-            __m128 new_color_g_4x = (color_a_4x * scaled_color_g_4x);
-            __m128 new_color_b_4x = (color_a_4x * scaled_color_b_4x);
+            __m128 new_loaded_r_4x = _mm_mul_ps(current_a_percent_4x, loaded_r_4x);
+            __m128 new_loaded_g_4x = _mm_mul_ps(current_a_percent_4x, loaded_g_4x);
+            __m128 new_loaded_b_4x = _mm_mul_ps(current_a_percent_4x, loaded_b_4x);
 
             __m128 new_r_4x = _mm_add_ps(new_loaded_r_4x, new_color_r_4x);
             __m128 new_g_4x = _mm_add_ps(new_loaded_g_4x, new_color_g_4x);
@@ -739,32 +738,37 @@ static void draw_rect_fast(RenderBuffer *buffer, v2 position, v2s32 dimension, v
                                       _mm_or_si128(shifted_int_g_4x, 
                                                    shifted_int_b_4x)));
 
-            __m128i output_masked = _mm_or_si128(_mm_and_si128(write_mask, output_pixel_4x),
-                                              _mm_andnot_si128(write_mask, loaded_pixel_4x));
+            __m128i output_masked = _mm_and_si128(mask, output_pixel_4x);
+                           
             _mm_storeu_si128((__m128i * )pixel, output_masked);
 
-            pixel += 4;
+            pixel += increment;
+            x+=increment;
+            increment = 4;
+            mask = ones_mask;
         }
-        row -= buffer->stride;
+        increment = remainder ? remainder : 4;
+        mask = _mm_setr_epi32(-(increment > 0), -(increment > 1), -(increment > 2), -(increment > 3));
+        row -= render_buffer->stride;
     }
     END_CYCLE_COUNTER(draw_rect_fast)
 }
 
 static void
-draw_box(RenderBuffer *buffer, v2 position, v2s32 dimension, v4 c){
+draw_box(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 c){
     v2 p0 = {position.x, position.y};
     v2 p1 = {position.x + dimension.w, position.y};
     v2 p2 = {position.x + dimension.w, position.y + dimension.h};
     v2 p3 = {position.x, position.y + dimension.h};
 
-    draw_segment(buffer, p0, p1, c);
-    draw_segment(buffer, p1, p2, c);
-    draw_segment(buffer, p2, p3, c);
-    draw_segment(buffer, p3, p0, c);
+    draw_segment(render_buffer, p0, p1, c);
+    draw_segment(render_buffer, p1, p2, c);
+    draw_segment(render_buffer, p2, p3, c);
+    draw_segment(render_buffer, p3, p0, c);
 }
 
 static void
-draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill){
+draw_quad(RenderBuffer *render_buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill){
     v2 p0 = p0_;
     v2 p1 = p1_;
     v2 p2 = p2_;
@@ -791,40 +795,40 @@ draw_quad(RenderBuffer *buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill)
     if(p3.y < p0.y){ swap_v2(&p3, &p0); }
     if(p3.y < p1.y){ swap_v2(&p3, &p1); }
 
-    draw_triangle(buffer, p0, p1, p2, c, fill);
-    draw_triangle(buffer, p0, p2, p3, c, fill);
+    draw_triangle(render_buffer, p0, p1, p2, c, fill);
+    draw_triangle(render_buffer, p0, p2, p3, c, fill);
 }
 
 static void
-draw_polygon(RenderBuffer *buffer, v2 *points, u32 count, v4 c){
+draw_polygon(RenderBuffer *render_buffer, v2 *points, u32 count, v4 c){
     v2 first = *points++;
     v2 prev = first;
     for(u32 i=1; i<count; ++i){
-        draw_segment(buffer, prev, *points, c);
+        draw_segment(render_buffer, prev, *points, c);
         prev = *points++;
     }
-    draw_segment(buffer, first, prev, c);
+    draw_segment(render_buffer, first, prev, c);
 }
 
 static void
-draw_circle(RenderBuffer *buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
+draw_circle(RenderBuffer *render_buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
     f32 x = -r;
     f32 y = 0;
     f32 err = 2-2*r;
     do {
-        draw_pixel(buffer, (v2){(xm - x), (ym + y)}, c);
-        draw_pixel(buffer, (v2){(xm - y), (ym - x)}, c);
-        draw_pixel(buffer, (v2){(xm + x), (ym - y)}, c);
-        draw_pixel(buffer, (v2){(xm + y), (ym + x)}, c);
+        draw_pixel(render_buffer, (v2){(xm - x), (ym + y)}, c);
+        draw_pixel(render_buffer, (v2){(xm - y), (ym - x)}, c);
+        draw_pixel(render_buffer, (v2){(xm + x), (ym - y)}, c);
+        draw_pixel(render_buffer, (v2){(xm + y), (ym + x)}, c);
         r = err;
         if (r <= y){
             if(fill){
                 if(ym + y == ym - y){
-                    draw_segment(buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
                 }
                 else{
-                    draw_segment(buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
-                    draw_segment(buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), c);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), c);
                 }
             }
             y++;

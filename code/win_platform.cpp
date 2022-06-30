@@ -347,7 +347,6 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
         HWND window = CreateWindowW(window_class.lpszClassName, L"Title", WS_OVERLAPPEDWINDOW|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
         if(window){
-            // 30 50
             if(SetWindowPos(window, HWND_TOP, 10, 10, render_buffer.width + 30, render_buffer.height + 50, SWP_SHOWWINDOW)){
                 global_running = true;
 
