@@ -17,8 +17,8 @@ IMPORTANT
 NOTE
 */
 
-#include "base_include.h"
-#include "win32_base_include.h"
+#include "base_inc.h"
+#include "win32_base_inc.h"
 
 #if DEBUG
 
@@ -59,16 +59,16 @@ static void handle_debug_counters_(){
             counter->hit_count = 0;
         }
     }
-    print("Debug Tick Counters:\n");
-    print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
-    for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
-        DebugTickCounter *counter = tick_counters + counter_index;
-        if(counter->hit_count){
-            print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
-            counter->tick_count = 0;
-            counter->hit_count = 0;
-        }
-    }
+    //print("Debug Tick Counters:\n");
+    //print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
+    //for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
+    //    DebugTickCounter *counter = tick_counters + counter_index;
+    //    if(counter->hit_count){
+    //        print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
+    //        counter->tick_count = 0;
+    //        counter->hit_count = 0;
+    //    }
+    //}
 }
 
 #else
@@ -81,13 +81,13 @@ static void handle_debug_counters_(){
 #define handle_debug_counters()
 #endif
 
-typedef i64 GetTicks(void);
-typedef f64 GetSecondsElapsed(i64 start, i64 end);
-typedef f64 GetMsElapsed(i64 start, i64 end);
+typedef s64 GetTicks(void);
+typedef f64 GetSecondsElapsed(s64 start, s64 end);
+typedef f64 GetMsElapsed(s64 start, s64 end);
 
 typedef struct Clock{
     f32 dt;
-    i64 frequency;
+    s64 frequency;
     GetTicks* get_ticks;
     GetSecondsElapsed* get_seconds_elapsed;
     GetMsElapsed* get_ms_elapsed;
@@ -117,10 +117,10 @@ typedef struct RenderBuffer{
     void* base;
     size_t size;
 
-    i32 width;
-    i32 height;
-    i32 bytes_per_pixel;
-    i32 stride;
+    s32 width;
+    s32 height;
+    s32 bytes_per_pixel;
+    s32 stride;
 
     BITMAPINFO bitmap_info;
 } RenderBuffer;
@@ -145,19 +145,19 @@ global Memory memory;
 global Clock clock;
 
 
-static i64 get_ticks(){
+static s64 get_ticks(){
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
     return(result.QuadPart);
 }
 
-static f64 get_seconds_elapsed(i64 start, i64 end){
+static f64 get_seconds_elapsed(s64 start, s64 end){
     f64 result;
     result = ((f64)(end - start) / ((f64)clock.frequency));
     return(result);
 }
 
-static f64 get_ms_elapsed(i64 start, i64 end){
+static f64 get_ms_elapsed(s64 start, s64 end){
     f64 result;
     result = (1000 * ((f64)(end - start) / ((f64)clock.frequency)));
     return(result);
@@ -185,7 +185,7 @@ init_memory(Memory* memory){
 }
 
 static void
-init_render_buffer(RenderBuffer* render_buffer, i32 width, i32 height){
+init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
     render_buffer->width = width;
     render_buffer->height = height;
 
@@ -196,7 +196,7 @@ init_render_buffer(RenderBuffer* render_buffer, i32 width, i32 height){
     render_buffer->bitmap_info.bmiHeader.biBitCount = 32;
     render_buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-    i32 bytes_per_pixel = 4;
+    s32 bytes_per_pixel = 4;
     render_buffer->bytes_per_pixel = bytes_per_pixel;
     render_buffer->stride = width * bytes_per_pixel;
     render_buffer->size = width * height * bytes_per_pixel;
@@ -207,8 +207,8 @@ static void
 update_window(HWND window, RenderBuffer render_buffer){
     HDC device_context = GetDC(window);
 
-    i32 x_offset = 10;
-    i32 y_offset = 10;
+    s32 x_offset = 10;
+    s32 y_offset = 10;
 
     PatBlt(device_context, 0, 0, render_buffer.width + x_offset, y_offset, WHITENESS);
     PatBlt(device_context, 0, 0, x_offset, render_buffer.height + y_offset, WHITENESS);
@@ -226,7 +226,6 @@ update_window(HWND window, RenderBuffer render_buffer){
     }
 }
 
-#include "game.h"
 
 LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, LPARAM l_param){
     LRESULT result = 0;
@@ -245,8 +244,8 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
         } break;
         case WM_MOUSEMOVE: {
             //QUESTION: ask about this being 8bytes but behaving like 4bytes
-            controller.mouse_pos.x = (i32)(l_param & 0xFFFF);
-            controller.mouse_pos.y = render_buffer.height - (i32)(l_param >> 16);
+            controller.mouse_pos.x = (s32)(l_param & 0xFFFF);
+            controller.mouse_pos.y = render_buffer.height - (s32)(l_param >> 16);
         } break;
             // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizer
         case WM_LBUTTONUP:{
@@ -332,7 +331,148 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
     return(result);
 }
 
-i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 window_type){
+struct WorkQueue;
+#define work_queue_callback(name) void name(WorkQueue* queue, void* data)
+typedef work_queue_callback(WorkQueueCallback);
+
+typedef void AddWorkEntry(WorkQueue* queue, WorkQueueCallback* callback, void* data);
+typedef void CompleteAllWork(WorkQueue* queue);
+
+typedef struct WorkQueueEntry{
+    void* data;
+    WorkQueueCallback* callback;
+} WorkQueueEntry;
+
+typedef struct WorkQueue{
+    volatile u32 work_count;
+    volatile u32 work_done;
+    volatile u32 write_location;
+    volatile u32 read_location;
+
+    HANDLE semaphore_handle;
+    WorkQueueEntry entries[256];
+} WorkQueue;
+
+typedef struct ThreadContext{
+    WorkQueue* queue;
+    u32 thread_count;
+    AddWorkEntry* add_work_entry;
+    CompleteAllWork* complete_all_work;
+} ThreadContext;
+global ThreadContext thread_context;
+
+#include <intrin.h>
+static void
+add_work_entry(WorkQueue* queue, WorkQueueCallback* callback, void* data){
+    u32 next_write_location = (queue->write_location + 1) % ArrayCount(queue->entries);
+    Assert(next_write_location != queue->read_location);
+
+    WorkQueueEntry* entry = queue->entries + queue->write_location;
+    entry->callback = callback;
+    entry->data = data;
+    ++queue->work_count;
+    _WriteBarrier(); // I dont think I need this since variables that are being modified are volatile.
+    //queue->write_location = (queue->write_location + 1) % ArrayCount(queue->entries);
+    //Assert(queue->write_location != queue->read_location);
+
+    queue->write_location = next_write_location;
+    ReleaseSemaphore(queue->semaphore_handle, 1, 0);
+}
+
+static bool
+do_next_work_entry(WorkQueue* queue){
+    bool sleep = false;
+
+    u32 current_read_location = queue->read_location;
+    u32 next_read_location = (current_read_location + 1) % ArrayCount(queue->entries);
+
+    if(current_read_location != queue->write_location){
+        u32 index = InterlockedCompareExchange((LONG volatile *)&queue->read_location, next_read_location, current_read_location);
+
+        if(index == current_read_location){
+            WorkQueueEntry entry = queue->entries[index];
+            entry.callback(queue, entry.data);
+            InterlockedIncrement((LONG volatile *)&queue->work_done);
+        }
+
+    }
+    else{
+        sleep = true;
+    }
+    return(sleep);
+}
+
+static void
+complete_all_work(WorkQueue* queue){
+    while(queue->work_done != queue->work_count){
+        do_next_work_entry(queue);
+    }
+
+    queue->work_done = 0;
+    queue->work_count = 0;
+
+}
+
+DWORD thread_proc(LPVOID param){
+    WorkQueue* queue = (WorkQueue*)param;
+    for(;;){
+        if(do_next_work_entry(queue)){
+            WaitForSingleObjectEx(queue->semaphore_handle, INFINITE, FALSE);
+        }
+    }
+    return(0);
+}
+
+static work_queue_callback(print_string){
+    char* string = (char*)data;
+    print("Thread %i: %s\n", GetCurrentThreadId(), string);
+}
+
+#include "game.h"
+
+s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
+
+    u32 thread_count = 0;
+    WorkQueue queue = {};
+    queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
+
+    thread_context.thread_count = thread_count;
+    thread_context.add_work_entry = add_work_entry;
+    thread_context.complete_all_work = complete_all_work;
+    thread_context.queue = &queue;
+
+
+    for(u32 i=0; i<thread_count; ++i){
+        DWORD thread_id;
+        HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
+        CloseHandle(thread_handle);
+    }
+
+    //add_work_entry(&queue, print_string, (void*)"job A0");
+    //add_work_entry(&queue, print_string, (void*)"job A1");
+    //add_work_entry(&queue, print_string, (void*)"job A2");
+    //add_work_entry(&queue, print_string, (void*)"job A3");
+    //add_work_entry(&queue, print_string, (void*)"job A4");
+    //add_work_entry(&queue, print_string, (void*)"job A5");
+    //add_work_entry(&queue, print_string, (void*)"job A6");
+    //add_work_entry(&queue, print_string, (void*)"job A7");
+    //add_work_entry(&queue, print_string, (void*)"job A8");
+    //add_work_entry(&queue, print_string, (void*)"job A9");
+
+    //add_work_entry(&queue, print_string, (void*)"job B0");
+    //add_work_entry(&queue, print_string, (void*)"job B1");
+    //add_work_entry(&queue, print_string, (void*)"job B2");
+    //add_work_entry(&queue, print_string, (void*)"job B3");
+    //add_work_entry(&queue, print_string, (void*)"job B4");
+    //add_work_entry(&queue, print_string, (void*)"job B5");
+    //add_work_entry(&queue, print_string, (void*)"job B6");
+    //add_work_entry(&queue, print_string, (void*)"job B7");
+    //add_work_entry(&queue, print_string, (void*)"job B8");
+    //add_work_entry(&queue, print_string, (void*)"job B9");
+
+    // QUESTION: Is this necessary? can you not send the job through thread_proc on the main thread as well?
+    //complete_all_work(&queue);
+
     WNDCLASSW window_class = {0};
     window_class.style = CS_HREDRAW|CS_VREDRAW;
     window_class.lpfnWndProc = win_message_handler_callback;
@@ -371,12 +511,13 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     //update_game(&memory, &render_buffer, &controller, &clock, &sound, &threads);
                     //BEGIN_CYCLE_COUNTER(update);
                     //BEGIN_TICK_COUNTER_L(update);
-                    update_game(&memory, &render_buffer, &controller, &clock);
+                    //update_game(&memory, &render_buffer, &controller, &clock);
+                    update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                     //END_CYCLE_COUNTER(update);
                     //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
-                    handle_debug_counters();
+                    //handle_debug_counters();
 
                     update_window(window, render_buffer);
                     controller.up.pressed = false;

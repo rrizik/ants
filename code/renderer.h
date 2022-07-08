@@ -676,10 +676,12 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
     __m128 new_color_g_4x = (color_a_4x * scaled_color_g_4x);
     __m128 new_color_b_4x = (color_a_4x * scaled_color_b_4x);
 
-    // compute mask and increment
+    // compute initial increment
     s32 width = max_x - min_x;
     s32 remainder = width % 4;
     s32 increment = remainder ? remainder : 4;
+    
+    // compute mask
     __m128i mask = _mm_setr_epi32(-(increment > 0), -(increment > 1), -(increment > 2), -(increment > 3));
     __m128i ones_mask = _mm_cmpeq_epi32(mask, mask);
 
@@ -694,6 +696,7 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
         u32* pixel = (u32*)row;
 
         for(s32 x=min_x; x < max_x; ){
+            // if x in dead zone, load last 4 pixels and set mask appropriately
             if(x > render_buffer->width - 4){
                 row = (u8 *)render_buffer->base + 
                       ((render_buffer->height - 1 - min_y) * render_buffer->stride) + 
@@ -704,8 +707,8 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
 
             __m128i loaded_pixel_4x = _mm_loadu_si128((__m128i*)pixel);
 
-            // from argb-argb-argb-argb
-            // to aaaa-rrrr-gggg-bbbb
+            // from: argb-argb-argb-argb
+            // to:   aaaa-rrrr-gggg-bbbb
             __m128 loaded_r_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 16), mask_FF));
             __m128 loaded_g_4x = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(loaded_pixel_4x, 8),  mask_FF));
             __m128 loaded_b_4x = _mm_cvtepi32_ps(_mm_and_si128(loaded_pixel_4x, mask_FF));

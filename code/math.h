@@ -69,7 +69,7 @@ swap_v2(v2 *a, v2 *b){
 // INCOMPLETE: LOOK AT SIZE_T VS INT DIFFERENCES
 static void
 scale_pts(v2 *p, size_t count, f32 s){
-    for(i32 i=0; i < (int)count; ++i){
+    for(s32 i=0; i < (int)count; ++i){
         *p = (*p * s);
         p++;
     }
