@@ -41,8 +41,8 @@ typedef struct DebugTickCounter{
 #define BEGIN_TICK_COUNTER(ID) u64 StartTickCounter_##ID = clock->get_ticks()
 #define BEGIN_TICK_COUNTER_L(ID) u64 StartTickCounter_##ID = clock.get_ticks()
 #define END_CYCLE_COUNTER(ID) cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++cycle_counters[DebugCycleCounter_##ID].hit_count; cycle_counters[DebugCycleCounter_##ID].name = #ID;
-#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_seconds_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
-#define END_TICK_COUNTER_L(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock.get_seconds_elapsed(StartTickCounter_##ID, clock.get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_ms_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER_L(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock.get_ms_elapsed(StartTickCounter_##ID, clock.get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
 
 DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 DebugTickCounter tick_counters[DebugTickCounter_count];
@@ -59,16 +59,16 @@ static void handle_debug_counters_(){
             counter->hit_count = 0;
         }
     }
-    //print("Debug Tick Counters:\n");
-    //print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
-    //for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
-    //    DebugTickCounter *counter = tick_counters + counter_index;
-    //    if(counter->hit_count){
-    //        print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
-    //        counter->tick_count = 0;
-    //        counter->hit_count = 0;
-    //    }
-    //}
+    print("Debug Tick Counters:\n");
+    print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
+    for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
+        DebugTickCounter *counter = tick_counters + counter_index;
+        if(counter->hit_count){
+            print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
+            counter->tick_count = 0;
+            counter->hit_count = 0;
+        }
+    }
 }
 
 #else
@@ -86,7 +86,7 @@ typedef f64 GetSecondsElapsed(s64 start, s64 end);
 typedef f64 GetMsElapsed(s64 start, s64 end);
 
 typedef struct Clock{
-    f32 dt;
+    f64 dt;
     s64 frequency;
     GetTicks* get_ticks;
     GetSecondsElapsed* get_seconds_elapsed;
@@ -432,21 +432,20 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
-    u32 thread_count = 0;
-    WorkQueue queue = {};
-    queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
+    //u32 thread_count = 0;
+    //WorkQueue queue = {};
+    //queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
 
-    thread_context.thread_count = thread_count;
-    thread_context.add_work_entry = add_work_entry;
-    thread_context.complete_all_work = complete_all_work;
-    thread_context.queue = &queue;
+    //thread_context.queue = &queue;
+    //thread_context.thread_count = thread_count;
+    //thread_context.add_work_entry = add_work_entry;
+    //thread_context.complete_all_work = complete_all_work;
 
-
-    for(u32 i=0; i<thread_count; ++i){
-        DWORD thread_id;
-        HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
-        CloseHandle(thread_handle);
-    }
+    //for(u32 i=0; i<thread_count; ++i){
+    //    DWORD thread_id;
+    //    HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
+    //    CloseHandle(thread_handle);
+    //}
 
     //add_work_entry(&queue, print_string, (void*)"job A0");
     //add_work_entry(&queue, print_string, (void*)"job A1");
@@ -490,11 +489,31 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
             if(SetWindowPos(window, HWND_TOP, 10, 10, render_buffer.width + 30, render_buffer.height + 50, SWP_SHOWWINDOW)){
                 global_running = true;
 
+                f64 MSPF = 0;
+                f64 FPS = 0;
+                s64 start = clock.get_ticks();
+                u64 frames = 0;
+
 				u64 prev_cycles = __rdtsc();
-                f32 prev_ticks = clock.get_ticks();
+                s64 prev_ticks = clock.get_ticks();
+
                 while(global_running){
+                    s64 now_ticks = clock.get_ticks();
+                    MSPF = 1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
+                    clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
+					prev_ticks = now_ticks;
+
+                    frames++;
+                    f64 time_elapsed = clock.get_seconds_elapsed(start, clock.get_ticks());
+                    if(time_elapsed > 1){
+                        FPS = (frames / time_elapsed);
+                        start = clock.get_ticks();
+                        frames = 0;
+                    }
+                    print("FPS: %f - MS: %f\n", FPS, MSPF);
 					u64 now_cycles = __rdtsc();
-                    f32 now_ticks = clock.get_ticks();
+					prev_cycles = now_cycles;
+
 #if DEBUG
 					DebugCycleCounter frame_cycles = {(now_cycles - prev_cycles), 1, "frame"};
                     DebugTickCounter frame_ticks = {clock.get_seconds_elapsed(prev_cycles, now_cycles), 1, "frame"};
@@ -517,7 +536,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
-                    //handle_debug_counters();
+                    handle_debug_counters();
 
                     update_window(window, render_buffer);
                     controller.up.pressed = false;
@@ -532,8 +551,6 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     controller.m2.pressed = false;
                     controller.m3.pressed = false;
 
-					prev_cycles = now_cycles;
-					prev_ticks = now_ticks;
                 }
             }
             else{
