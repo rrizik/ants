@@ -528,7 +528,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 #if DEBUG
                     clock.dt = 1.0/60.0;
 #else
-                    clock.dt = 1.0/244.0;
+                    clock.dt = 1.0/60.0;
                     //clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
 #endif
                     //f64 frame_time = clock.get_seconds_elapsed(prev_ticks, now_ticks);

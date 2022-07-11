@@ -130,18 +130,18 @@ typedef struct PermanentMemory{
     s32 cell_width_r;
     s32 cell_height_r;
 
-    Entity* ants_list[1680];
+    Entity* ants_list[960];
 
     DLL food_cells     [16][16];
     DLL pher_food_cells[16][16];
     DLL pher_home_cells[16][16];
 
-    u32 free_entities[210000];
+    u32 free_entities[110000];
     u32 free_entities_at;
 
-    u32 generation[210000];
+    u32 generation[110000];
 
-    Entity entities[210000];
+    Entity entities[110000];
     u32 entities_count;
 
     Entity* colony;
@@ -1171,7 +1171,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     //print("pher_food_count: %i\n", pher_food_count);
     //print("pher_home_count: %i\n", pher_home_count);
     //print("free_entity_at:  %i\n", pm->free_entities_at);
-    //print("free_entity_at + 1:  %i\n", pm->free_entities[pm->free_entities_at + 1]);
+    print("free_entity_at:  %i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
 
 
     BEGIN_CYCLE_COUNTER(degrade_pher);
@@ -1725,3 +1725,10 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     END_TICK_COUNTER(draw);
     END_CYCLE_COUNTER(draw);
 }
+// cpu - Ryzen 9 3900x - supports 24 threads
+//
+// 1 thread (including main thread)
+// entities_count:  69157 - FPS: 45.194130 - MSPF: 21.856900 - update: 16.643000 - draw: 1.847200
+//
+// 24 threads (including main thread)
+// entities_count:  53300 - FPS: 58.803766 - MSPF: 17.087800 - update: 10.505500 - draw: 2.110100
