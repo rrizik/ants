@@ -136,6 +136,7 @@ typedef enum RenderCommandType{
 typedef struct CommandHeader{
     RenderCommandType type;
     v2 position;
+    v2 size;
     v4 color;
     v4 clip_region;
     bool fill;
@@ -202,10 +203,12 @@ typedef struct BitmapCommand{
 } BitmapCommand;
 
 static void
-push_clear_color(Arena *arena, v4 color){
+push_clear_color(Arena *arena, v2 position, v2 size, v4 color){
     ClearColorCommand* command = push_struct(arena, ClearColorCommand);
     command->header.type = RenderCommand_ClearColor,
     command->header.color = color;
+    command->header.position = position;
+    command->header.size = size;
     command->header.arena_used = arena->used;
 }
 
@@ -551,7 +554,8 @@ draw_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill)
 }
 
 static void
-clear(RenderBuffer *render_buffer, v4 c){
+clear(RenderBuffer *render_buffer, v2 position, v2 size, v4 c){
+    //(u8*)render_buffer->buffer + (render_buffer->height + position.y * render_buffer->height
     for(s32 i=0; i < (render_buffer->width * render_buffer->height); ++i){
         u32 *pixel = (u32 *)((u8 *)(render_buffer->base) + (i * render_buffer->bytes_per_pixel));
         u32 new_color = (round_f32_s32(c.a * 255.0f) << 24 | round_f32_s32(c.r*255.0f) << 16 | round_f32_s32(c.g*255.0f) << 8 | round_f32_s32(c.b*255.0f) << 0);

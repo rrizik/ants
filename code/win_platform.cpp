@@ -20,6 +20,7 @@ NOTE
 #include "base_inc.h"
 #include "win32_base_inc.h"
 
+#define THREADED 1
 #if DEBUG
 
 enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_degrade_pher, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
@@ -123,6 +124,9 @@ typedef struct RenderBuffer{
     s32 stride;
 
     BITMAPINFO bitmap_info;
+
+    Arena* render_command_arena;
+    Arena* render_command_arenas[5][5];
 } RenderBuffer;
 
 typedef struct Memory{
@@ -171,7 +175,6 @@ init_clock(Clock* clock){
     clock->get_ticks = get_ticks;
     clock->get_seconds_elapsed = get_seconds_elapsed;
     clock->get_ms_elapsed = get_ms_elapsed;
-    clock->dt = 1.0/60.0;
 }
 
 static void
@@ -201,6 +204,13 @@ init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
     render_buffer->stride = width * bytes_per_pixel;
     render_buffer->size = width * height * bytes_per_pixel;
     render_buffer->base = os_virtual_alloc(render_buffer->size);
+
+    render_buffer->render_command_arena = allocate_arena(MB(16));
+    for(u32 y=0; y < 5; ++y){
+        for(u32 x=0; x < 5; ++x){
+            render_buffer->render_command_arenas[y][x] = allocate_arena(MB(16));
+        }
+    }
 }
 
 static void
@@ -432,20 +442,24 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
-    //u32 thread_count = 0;
-    //WorkQueue queue = {};
-    //queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
+#if THREADED
+    u32 thread_count = 23;
+#else
+    u32 thread_count = 0;
+#endif
+    WorkQueue queue = {};
+    queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
 
-    //thread_context.queue = &queue;
-    //thread_context.thread_count = thread_count;
-    //thread_context.add_work_entry = add_work_entry;
-    //thread_context.complete_all_work = complete_all_work;
+    thread_context.queue = &queue;
+    thread_context.thread_count = thread_count;
+    thread_context.add_work_entry = add_work_entry;
+    thread_context.complete_all_work = complete_all_work;
 
-    //for(u32 i=0; i<thread_count; ++i){
-    //    DWORD thread_id;
-    //    HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
-    //    CloseHandle(thread_handle);
-    //}
+    for(u32 i=0; i<thread_count; ++i){
+        DWORD thread_id;
+        HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
+        CloseHandle(thread_handle);
+    }
 
     //add_work_entry(&queue, print_string, (void*)"job A0");
     //add_work_entry(&queue, print_string, (void*)"job A1");
@@ -489,54 +503,76 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
             if(SetWindowPos(window, HWND_TOP, 10, 10, render_buffer.width + 30, render_buffer.height + 50, SWP_SHOWWINDOW)){
                 global_running = true;
 
-                f64 MSPF = 0;
                 f64 FPS = 0;
-                s64 start = clock.get_ticks();
-                u64 frames = 0;
+                f64 MSPF = 0;
+                u64 frame_count = 0;
 
-				u64 prev_cycles = __rdtsc();
                 s64 prev_ticks = clock.get_ticks();
+                s64 frame_time = clock.get_ticks();
+				u64 prev_cycles = __rdtsc();
+
+                //f64 dt =  0.05;
+                //f64 accumulator = 0.0;
 
                 while(global_running){
-                    s64 now_ticks = clock.get_ticks();
-                    MSPF = 1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
-                    clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
-					prev_ticks = now_ticks;
-
-                    frames++;
-                    f64 time_elapsed = clock.get_seconds_elapsed(start, clock.get_ticks());
-                    if(time_elapsed > 1){
-                        FPS = (frames / time_elapsed);
-                        start = clock.get_ticks();
-                        frames = 0;
-                    }
-                    print("FPS: %f - MS: %f\n", FPS, MSPF);
-					u64 now_cycles = __rdtsc();
-					prev_cycles = now_cycles;
-
-#if DEBUG
-					DebugCycleCounter frame_cycles = {(now_cycles - prev_cycles), 1, "frame"};
-                    DebugTickCounter frame_ticks = {clock.get_seconds_elapsed(prev_cycles, now_cycles), 1, "frame"};
-                    cycle_counters[DebugCycleCounter_frame] = frame_cycles;
-                    tick_counters[DebugTickCounter_frame] = frame_ticks;
-#endif
-
                     MSG message;
                     while(PeekMessageW(&message, window, 0, 0, PM_REMOVE)){
                         TranslateMessage(&message);
                         DispatchMessage(&message);
                     }
+					u64 now_cycles = __rdtsc();
+					prev_cycles = now_cycles;
 
-                    //update_game(&memory, &render_buffer, &controller, &clock, &sound, &threads);
-                    //BEGIN_CYCLE_COUNTER(update);
-                    //BEGIN_TICK_COUNTER_L(update);
-                    //update_game(&memory, &render_buffer, &controller, &clock);
+                    s64 now_ticks = clock.get_ticks();
+                    MSPF = 1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
+#if DEBUG
+                    clock.dt = 1.0/60.0;
+#else
+                    clock.dt = 1.0/244.0;
+                    //clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
+#endif
+                    //f64 frame_time = clock.get_seconds_elapsed(prev_ticks, now_ticks);
+					prev_ticks = now_ticks;
+
+                    //accumulator += frame_time;
+                    //f64 t1;
+                    //f64 t3_start = clock.get_ticks();
+                    //while(accumulator >= dt){
+                    //    clock.dt = dt;
+                    //    s64 t1_start = get_ticks();
+                    //    update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
+                    //    t1 = clock.get_ms_elapsed(t1_start, clock.get_ticks());
+                    //    accumulator -= dt;
+                    //}
+                    //f64 t3 = clock.get_ms_elapsed(t3_start, clock.get_ticks());
+
+                    frame_count++;
+                    f64 time_elapsed = clock.get_seconds_elapsed(frame_time, clock.get_ticks());
+                    if(time_elapsed > 1){
+                        FPS = (frame_count / time_elapsed);
+                        frame_time = clock.get_ticks();
+                        frame_count = 0;
+                    }
+
+                    s64 start_update = clock.get_ticks();
                     update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
+                    f64 update_time = clock.get_ms_elapsed(start_update, clock.get_ticks());
+                    s64 start_draw = get_ticks();
+                    for(u32 y=0; y < 5; ++y){
+                        for(u32 x=0; x < 5; ++x){
+                            draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
+                        }
+                    }
+                    //draw_commands(&render_buffer, render_buffer.render_command_arena);
+                    f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
+                    print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, draw_time);
+                    //print("FPS: %f - MSPF: %f\n", FPS, MSPF);
+
                     //END_CYCLE_COUNTER(update);
                     //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
-                    handle_debug_counters();
+                    //handle_debug_counters();
 
                     update_window(window, render_buffer);
                     controller.up.pressed = false;
