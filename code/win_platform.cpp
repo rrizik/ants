@@ -20,6 +20,7 @@ NOTE
 #include "base_inc.h"
 #include "win32_base_inc.h"
 
+global f64 highest_draw_count;
 #define THREADED 1
 #if DEBUG
 
@@ -126,7 +127,8 @@ typedef struct RenderBuffer{
     BITMAPINFO bitmap_info;
 
     Arena* render_command_arena;
-    Arena* render_command_arenas[5][5];
+    //Arena* render_command_arenas[5][5];
+    Arena* render_command_arenas[24];
 } RenderBuffer;
 
 typedef struct Memory{
@@ -206,10 +208,8 @@ init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
     render_buffer->base = os_virtual_alloc(render_buffer->size);
 
     render_buffer->render_command_arena = allocate_arena(MB(16));
-    for(u32 y=0; y < 5; ++y){
-        for(u32 x=0; x < 5; ++x){
-            render_buffer->render_command_arenas[y][x] = allocate_arena(MB(16));
-        }
+    for(u32 i=0; i < 24; ++i){
+        render_buffer->render_command_arenas[i] = allocate_arena(MB(16));
     }
 }
 
@@ -442,11 +442,8 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
-#if THREADED
-    u32 thread_count = 23;
-#else
     u32 thread_count = 0;
-#endif
+
     WorkQueue queue = {};
     queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
 
@@ -526,9 +523,9 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     s64 now_ticks = clock.get_ticks();
                     MSPF = 1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
 #if DEBUG
-                    clock.dt = 1.0/60.0;
+                    clock.dt = 1.0/500.0;
 #else
-                    clock.dt = 1.0/60.0;
+                    clock.dt = 1.0/244.0;
                     //clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
 #endif
                     //f64 frame_time = clock.get_seconds_elapsed(prev_ticks, now_ticks);
@@ -558,21 +555,26 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                     f64 update_time = clock.get_ms_elapsed(start_update, clock.get_ticks());
                     s64 start_draw = get_ticks();
-                    for(u32 y=0; y < 5; ++y){
-                        for(u32 x=0; x < 5; ++x){
-                            draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
-                        }
-                    }
+                    //for(u32 y=0; y < 5; ++y){
+                    //    for(u32 x=0; x < 5; ++x){
+                    //        draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
+                    //    }
+                    //}
                     //draw_commands(&render_buffer, render_buffer.render_command_arena);
                     f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
-                    print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, draw_time);
-                    //print("FPS: %f - MSPF: %f\n", FPS, MSPF);
+                    //print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, highest_draw_count);
+
+            //print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
+                    DebugTickCounter draw = tick_counters[DebugTickCounter_draw];
+                    if(draw.tick_count > highest_draw_count){
+                        highest_draw_count = draw.tick_count;
+                    }
 
                     //END_CYCLE_COUNTER(update);
                     //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
-                    //handle_debug_counters();
+                    handle_debug_counters();
 
                     update_window(window, render_buffer);
                     controller.up.pressed = false;

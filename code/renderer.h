@@ -695,7 +695,7 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
               (min_x * render_buffer->bytes_per_pixel);
 
     // iterate over clamped min_x/min_y
-    BEGIN_CYCLE_COUNTER(draw_rect_fast)
+    //BEGIN_CYCLE_COUNTER(draw_rect_fast)
     for(s32 y=min_y; y < max_y; ++y){
         u32* pixel = (u32*)row;
 
@@ -758,7 +758,7 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
         mask = _mm_setr_epi32(-(increment > 0), -(increment > 1), -(increment > 2), -(increment > 3));
         row -= render_buffer->stride;
     }
-    END_CYCLE_COUNTER(draw_rect_fast)
+    //END_CYCLE_COUNTER(draw_rect_fast)
 }
 
 static void
