@@ -43,24 +43,24 @@ typedef struct DebugTickCounter{
 #define BEGIN_TICK_COUNTER(ID) u64 StartTickCounter_##ID = clock->get_ticks()
 #define BEGIN_TICK_COUNTER_L(ID) u64 StartTickCounter_##ID = clock.get_ticks()
 #define END_CYCLE_COUNTER(ID) cycle_counters[DebugCycleCounter_##ID].cycle_count += __rdtsc() - StartCycleCounter_##ID; ++cycle_counters[DebugCycleCounter_##ID].hit_count; cycle_counters[DebugCycleCounter_##ID].name = #ID;
-#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_ms_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
-#define END_TICK_COUNTER_L(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock.get_ms_elapsed(StartTickCounter_##ID, clock.get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock->get_seconds_elapsed(StartTickCounter_##ID, clock->get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
+#define END_TICK_COUNTER_L(ID) tick_counters[DebugTickCounter_##ID].tick_count += clock.get_seconds_elapsed(StartTickCounter_##ID, clock.get_ticks()); ++tick_counters[DebugTickCounter_##ID].hit_count; tick_counters[DebugTickCounter_##ID].name = #ID;
 
 DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 DebugTickCounter tick_counters[DebugTickCounter_count];
 
 #define handle_debug_counters() handle_debug_counters_()
 static void handle_debug_counters_(){
-    //print("Debug Cycle Counters:\n");
-    //print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
-    //for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
-    //    DebugCycleCounter *counter = cycle_counters + counter_index;
-    //    if(counter->hit_count){
-    //        print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
-    //        counter->cycle_count = 0;
-    //        counter->hit_count = 0;
-    //    }
-    //}
+    print("Debug Cycle Counters:\n");
+    print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
+    for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
+        DebugCycleCounter *counter = cycle_counters + counter_index;
+        if(counter->hit_count){
+            print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
+            counter->cycle_count = 0;
+            counter->hit_count = 0;
+        }
+    }
     print("Debug Tick Counters:\n");
     print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
     for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
