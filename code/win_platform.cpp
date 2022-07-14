@@ -25,7 +25,7 @@ global f64 highest_draw_count;
 #if DEBUG
 
 enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_degrade_pher, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
-enum{ DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_degrade_pher, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
+enum{ DebugTickCounter_DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_degrade_pher, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
 
 typedef struct DebugCycleCounter{
     u64 cycle_count;
@@ -51,16 +51,16 @@ DebugTickCounter tick_counters[DebugTickCounter_count];
 
 #define handle_debug_counters() handle_debug_counters_()
 static void handle_debug_counters_(){
-    print("Debug Cycle Counters:\n");
-    print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
-    for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
-        DebugCycleCounter *counter = cycle_counters + counter_index;
-        if(counter->hit_count){
-            print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
-            counter->cycle_count = 0;
-            counter->hit_count = 0;
-        }
-    }
+    //print("Debug Cycle Counters:\n");
+    //print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
+    //for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
+    //    DebugCycleCounter *counter = cycle_counters + counter_index;
+    //    if(counter->hit_count){
+    //        print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
+    //        counter->cycle_count = 0;
+    //        counter->hit_count = 0;
+    //    }
+    //}
     print("Debug Tick Counters:\n");
     print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
     for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
@@ -71,6 +71,7 @@ static void handle_debug_counters_(){
             counter->hit_count = 0;
         }
     }
+    //print("\n");
 }
 
 #else
@@ -88,6 +89,7 @@ typedef f64 GetSecondsElapsed(s64 start, s64 end);
 typedef f64 GetMsElapsed(s64 start, s64 end);
 
 typedef struct Clock{
+    f64 time_dt;
     f64 dt;
     s64 frequency;
     GetTicks* get_ticks;
@@ -209,7 +211,7 @@ init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
 
     render_buffer->render_command_arena = allocate_arena(MB(16));
     for(u32 i=0; i < 24; ++i){
-        render_buffer->render_command_arenas[i] = allocate_arena(MB(16));
+        render_buffer->render_command_arenas[i] = os_allocate_arena(MB(16));
     }
 }
 
@@ -345,9 +347,6 @@ struct WorkQueue;
 #define work_queue_callback(name) void name(WorkQueue* queue, void* data)
 typedef work_queue_callback(WorkQueueCallback);
 
-typedef void AddWorkEntry(WorkQueue* queue, WorkQueueCallback* callback, void* data);
-typedef void CompleteAllWork(WorkQueue* queue);
-
 typedef struct WorkQueueEntry{
     void* data;
     WorkQueueCallback* callback;
@@ -363,6 +362,8 @@ typedef struct WorkQueue{
     WorkQueueEntry entries[256];
 } WorkQueue;
 
+typedef void AddWorkEntry(WorkQueue* queue, WorkQueueCallback* callback, void* data);
+typedef void CompleteAllWork(WorkQueue* queue);
 typedef struct ThreadContext{
     WorkQueue* queue;
     u32 thread_count;
@@ -404,7 +405,6 @@ do_next_work_entry(WorkQueue* queue){
             entry.callback(queue, entry.data);
             InterlockedIncrement((LONG volatile *)&queue->work_done);
         }
-
     }
     else{
         sleep = true;
@@ -420,7 +420,6 @@ complete_all_work(WorkQueue* queue){
 
     queue->work_done = 0;
     queue->work_count = 0;
-
 }
 
 DWORD thread_proc(LPVOID param){
@@ -442,6 +441,11 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
+    // 1 thread - 
+    //  ticks: ~(2.8 - 3.4)ms - hits: 1 - ticks/hit: ~(2.8 - 3.4)ms
+    //
+    // 24 thread - 
+    //  ticks: ~(5.5 - 6.5)ms - hits: 24 - ticks/hit: ~(0.22 - 0.27)ms
     u32 thread_count = 0;
 
     WorkQueue queue = {};
@@ -521,13 +525,13 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 					prev_cycles = now_cycles;
 
                     s64 now_ticks = clock.get_ticks();
-                    MSPF = 1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
+                    MSPF = 1000/1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
 #if DEBUG
                     clock.dt = 1.0/500.0;
 #else
                     clock.dt = 1.0/244.0;
-                    //clock.dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
 #endif
+                    clock.time_dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
                     //f64 frame_time = clock.get_seconds_elapsed(prev_ticks, now_ticks);
 					prev_ticks = now_ticks;
 
@@ -563,12 +567,9 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     //draw_commands(&render_buffer, render_buffer.render_command_arena);
                     f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
                     //print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, highest_draw_count);
+                    print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.time_dt);
 
-            //print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
-                    DebugTickCounter draw = tick_counters[DebugTickCounter_draw];
-                    if(draw.tick_count > highest_draw_count){
-                        highest_draw_count = draw.tick_count;
-                    }
+                    //print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
 
                     //END_CYCLE_COUNTER(update);
                     //END_TICK_COUNTER_L(update);
