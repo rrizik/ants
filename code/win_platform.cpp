@@ -129,8 +129,8 @@ typedef struct RenderBuffer{
     BITMAPINFO bitmap_info;
 
     Arena* render_command_arena;
-    //Arena* render_command_arenas[5][5];
-    Arena* render_command_arenas[24];
+    //Arena* render_command_arenas[24];
+    HDC device_context;
 } RenderBuffer;
 
 typedef struct Memory{
@@ -210,24 +210,22 @@ init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
     render_buffer->base = os_virtual_alloc(render_buffer->size);
 
     render_buffer->render_command_arena = allocate_arena(MB(16));
-    for(u32 i=0; i < 24; ++i){
-        render_buffer->render_command_arenas[i] = os_allocate_arena(MB(16));
-    }
+    //for(u32 i=0; i < 24; ++i){
+    //    render_buffer->render_command_arenas[i] = os_allocate_arena(MB(16));
+    //}
 }
 
 static void
 update_window(HWND window, RenderBuffer render_buffer){
-    HDC device_context = GetDC(window);
-
     s32 x_offset = 10;
     s32 y_offset = 10;
 
-    PatBlt(device_context, 0, 0, render_buffer.width + x_offset, y_offset, WHITENESS);
-    PatBlt(device_context, 0, 0, x_offset, render_buffer.height + y_offset, WHITENESS);
-    PatBlt(device_context, render_buffer.width + x_offset, 0, render_buffer.width + x_offset, render_buffer.height + y_offset, WHITENESS);
-    PatBlt(device_context, 0, render_buffer.height + y_offset, render_buffer.width + x_offset, render_buffer.height + y_offset, WHITENESS);
+    PatBlt(render_buffer.device_context, 0, 0, render_buffer.width + x_offset, y_offset, WHITENESS);
+    PatBlt(render_buffer.device_context, 0, 0, x_offset, render_buffer.height + y_offset, WHITENESS);
+    PatBlt(render_buffer.device_context, render_buffer.width + x_offset, 0, render_buffer.width + x_offset, render_buffer.height + y_offset, WHITENESS);
+    PatBlt(render_buffer.device_context, 0, render_buffer.height + y_offset, render_buffer.width + x_offset, render_buffer.height + y_offset, WHITENESS);
 
-    if(StretchDIBits(device_context,
+    if(StretchDIBits(render_buffer.device_context,
                      x_offset, y_offset, render_buffer.width, render_buffer.height,
                      0, 0, render_buffer.width, render_buffer.height,
                      render_buffer.base, &render_buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY))
@@ -337,7 +335,7 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
             }
         } break;
         default:{
-            result = DefWindowProc(window, message, w_param, l_param);
+            result = DefWindowProcW(window, message, w_param, l_param);
         } break;
     }
     return(result);
@@ -508,11 +506,13 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                 f64 MSPF = 0;
                 u64 frame_count = 0;
 
-                clock.dt =  0.01;
+                //clock.dt =  0.01;
+                clock.dt =  1.0/60.0;
                 f64 accumulator = 0.0;
                 s64 start_ticks = clock.get_ticks();
                 f64 second_marker = clock.get_ticks();
 
+                render_buffer.device_context = GetDC(window);
                 while(global_running){
                     MSG message;
                     while(PeekMessageW(&message, window, 0, 0, PM_REMOVE)){
@@ -527,7 +527,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 
                     accumulator += frame_time;
                     while(accumulator >= clock.dt){
-                    //    update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
+                        update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                         accumulator -= clock.dt;
                     }
 
@@ -549,7 +549,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     //        draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
                     //    }
                     //}
-                    //draw_commands(&render_buffer, render_buffer.render_command_arena);
+                    draw_commands(&render_buffer, render_buffer.render_command_arena);
                     //f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
                     //print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, highest_draw_count);
 
@@ -561,20 +561,21 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     // NOTE: Debug
                     //handle_debug_counters();
 
-                    //update_window(window, render_buffer);
-                    //controller.up.pressed = false;
-                    //controller.down.pressed = false;
-                    //controller.left.pressed = false;
-                    //controller.right.pressed = false;
-                    //controller.one.pressed = false;
-                    //controller.two.pressed = false;
-                    //controller.three.pressed = false;
-                    //controller.four.pressed = false;
-                    //controller.m1.pressed = false;
-                    //controller.m2.pressed = false;
-                    //controller.m3.pressed = false;
+                    update_window(window, render_buffer);
+                    controller.up.pressed = false;
+                    controller.down.pressed = false;
+                    controller.left.pressed = false;
+                    controller.right.pressed = false;
+                    controller.one.pressed = false;
+                    controller.two.pressed = false;
+                    controller.three.pressed = false;
+                    controller.four.pressed = false;
+                    controller.m1.pressed = false;
+                    controller.m2.pressed = false;
+                    controller.m3.pressed = false;
 
                 }
+                ReleaseDC(window, render_buffer.device_context);
             }
             else{
                 print("SetWindowPos failed\n");

@@ -51,13 +51,13 @@ load_bitmap(Arena *arena, String8 dir, String8 file_name){
     return(result);
 }
 
-static v4
+static RGBA
 u32_to_rgba(u32 value){
 	f32 alpha = ((f32)((value >> 24) & 0xFF) / 255.0f);
 	f32 red =   ((f32)((value >> 16) & 0xFF) / 255.0f);
 	f32 green = ((f32)((value >> 8) & 0xFF) / 255.0f);
 	f32 blue =  ((f32)((value >> 0) & 0xFF) / 255.0f);
-    v4 result = {red, green, blue, alpha};
+    RGBA result = {red, green, blue, alpha};
     return result;
 }
 
@@ -137,7 +137,7 @@ typedef struct CommandHeader{
     RenderCommandType type;
     v2 position;
     v2 size;
-    v4 color;
+    RGBA color;
     v4 clip_region;
     bool fill;
     size_t arena_used;
@@ -203,7 +203,7 @@ typedef struct BitmapCommand{
 } BitmapCommand;
 
 static void
-push_clear_color(Arena *arena, v2 position, v2 size, v4 color){
+push_clear_color(Arena *arena, v2 position, v2 size, RGBA color){
     ClearColorCommand* command = push_struct(arena, ClearColorCommand);
     command->header.type = RenderCommand_ClearColor,
     command->header.color = color;
@@ -213,7 +213,7 @@ push_clear_color(Arena *arena, v2 position, v2 size, v4 color){
 }
 
 static void
-push_pixel(Arena *arena, v2 position, v4 color){
+push_pixel(Arena *arena, v2 position, RGBA color){
     PixelCommand* command = push_struct(arena, PixelCommand);
     command->header.type = RenderCommand_Pixel;
     command->header.arena_used = arena->used;
@@ -222,7 +222,7 @@ push_pixel(Arena *arena, v2 position, v4 color){
 }
 
 static void
-push_segment(Arena *arena, v2 p0, v2 p1, v4 color){
+push_segment(Arena *arena, v2 p0, v2 p1, RGBA color){
     SegmentCommand* command = push_struct(arena, SegmentCommand);
     command->header.type = RenderCommand_Segment;
     command->header.arena_used = arena->used;
@@ -232,7 +232,7 @@ push_segment(Arena *arena, v2 p0, v2 p1, v4 color){
 }
 
 static void
-push_ray(Arena *arena, v2 position, v2 direction, v4 color){
+push_ray(Arena *arena, v2 position, v2 direction, RGBA color){
     RayCommand* command = push_struct(arena, RayCommand);
     command->header.type = RenderCommand_Ray;
     command->header.arena_used = arena->used;
@@ -242,7 +242,7 @@ push_ray(Arena *arena, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_line(Arena *arena, v2 position, v2 direction, v4 color){
+push_line(Arena *arena, v2 position, v2 direction, RGBA color){
     LineCommand* command = push_struct(arena, LineCommand);
     command->header.type = RenderCommand_Line;
     command->header.arena_used = arena->used;
@@ -252,7 +252,7 @@ push_line(Arena *arena, v2 position, v2 direction, v4 color){
 }
 
 static void
-push_rect(Arena *arena, v2 position, v2s32 dimension, v4 color){
+push_rect(Arena *arena, v2 position, v2s32 dimension, RGBA color){
     RectCommand* command = push_struct(arena, RectCommand);
     command->header.type = RenderCommand_Rect;
     command->header.arena_used = arena->used;
@@ -262,7 +262,7 @@ push_rect(Arena *arena, v2 position, v2s32 dimension, v4 color){
 }
 
 static void
-push_box(Arena *arena, v2 position, v2s32 dimension, v4 color){
+push_box(Arena *arena, v2 position, v2s32 dimension, RGBA color){
     BoxCommand* command = push_struct(arena, BoxCommand);
     command->header.type = RenderCommand_Box;
     command->header.arena_used = arena->used;
@@ -272,7 +272,7 @@ push_box(Arena *arena, v2 position, v2s32 dimension, v4 color){
 }
 
 static void
-push_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
+push_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, RGBA color, bool fill){
     QuadCommand* command = push_struct(arena, QuadCommand);
     command->header.type = RenderCommand_Quad;
     command->header.arena_used = arena->used;
@@ -285,7 +285,7 @@ push_quad(Arena *arena, v2 p0, v2 p1, v2 p2, v2 p3, v4 color, bool fill){
 }
 
 static void
-push_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
+push_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, RGBA color, bool fill){
     TriangleCommand* command = push_struct(arena, TriangleCommand);
     command->header.type = RenderCommand_Triangle;
     command->header.arena_used = arena->used;
@@ -297,7 +297,7 @@ push_triangle(Arena *arena, v2 p0, v2 p1, v2 p2, v4 color, bool fill){
 }
 
 static void
-push_circle(Arena *arena, v2 pos, u8 rad, v4 color, bool fill){
+push_circle(Arena *arena, v2 pos, u8 rad, RGBA color, bool fill){
     CircleCommand* command = push_struct(arena, CircleCommand);
     command->header.type = RenderCommand_Circle;
     command->header.arena_used = arena->used;
@@ -317,7 +317,7 @@ push_bitmap(Arena *arena, v2 position, Bitmap image){
 }
 
 static void
-draw_pixel(RenderBuffer *render_buffer, v2 position, v4 color){
+draw_pixel(RenderBuffer *render_buffer, v2 position, RGBA color){
     v2s32 pos = round_v2_v2s32(position);
 
     if(pos.x >= 0 && pos.x < render_buffer->width && pos.y >= 0 && pos.y < render_buffer->height){
@@ -351,7 +351,7 @@ draw_pixel(RenderBuffer *render_buffer, v2 position, v4 color){
 }
 
 static void
-draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
+draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, RGBA color){
     v2 point1 = round_v2(position);
     v2 point2 = point1;
     v2 non_normalized_direction = vec2(position.x + direction.x, position.y + direction.y);
@@ -367,7 +367,7 @@ draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
     f32 error = distance_x + distance_y;
 
     for(;;){
-        draw_pixel(render_buffer, point1, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
+        draw_pixel(render_buffer, point1, color); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
         if(point1.x < 0 || point1.x > render_buffer->width || point1.y < 0 || point1.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
@@ -381,7 +381,7 @@ draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
         }
     }
     for(;;){
-        draw_pixel(render_buffer, point2, c);
+        draw_pixel(render_buffer, point2, color);
         if(point2.x < 0 || point2.x > render_buffer->width || point2.y < 0 || point2.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
@@ -397,7 +397,7 @@ draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
 }
 
 static void
-draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
+draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, RGBA color){
     position = round_v2(position);
     v2 non_normalized_direction = round_v2(vec2((direction.x * 100000), (direction.y * 100000)));
     v2 new_direction = vec2(position.x + non_normalized_direction.x, position.y + non_normalized_direction.y);
@@ -410,7 +410,7 @@ draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
     f32 error = distance_x + distance_y;
 
     for(;;){
-        draw_pixel(render_buffer, position, c); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
+        draw_pixel(render_buffer, position, color); // NOTE: before break, so you can draw a single position draw_segment (a pixel)
         if(position.x < 0 || position.x > render_buffer->width || position.y < 0 || position.y > render_buffer->height)break;
 
         f32 error2 = 2 * error;
@@ -426,7 +426,7 @@ draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, v4 c){
 }
 
 static void
-draw_segment(RenderBuffer *render_buffer, v2 p0, v2 p1, v4 c){
+draw_segment(RenderBuffer *render_buffer, v2 p0, v2 p1, RGBA color){
     p0 = round_v2(p0);
     p1 = round_v2(p1);
 
@@ -439,7 +439,7 @@ draw_segment(RenderBuffer *render_buffer, v2 p0, v2 p1, v4 c){
 
     for(;;){
         if(p0.x == p1.x && p0.y == p1.y) break;
-        draw_pixel(render_buffer, p0, c); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
+        draw_pixel(render_buffer, p0, color); // NOTE: before break, so you can draw a single point draw_segment (a pixel)
 
         f32 error2 = 2 * error;
         if (error2 >= distance_y){
@@ -454,7 +454,7 @@ draw_segment(RenderBuffer *render_buffer, v2 p0, v2 p1, v4 c){
 }
 
 static void
-draw_flattop_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c){
+draw_flattop_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, RGBA color){
     f32 left_slope = (p0.x - p2.x) / (p0.y - p2.y);
     f32 right_slope = (p1.x - p2.x) / (p1.y - p2.y);
 
@@ -469,13 +469,13 @@ draw_flattop_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c){
         s32 start_x = (s32)ceil(x0 - 0.5f);
         s32 end_x = (s32)ceil(x1 - 0.5f);
         for(s32 x=start_x; x < end_x; ++x){
-            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, c);
+            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, color);
         }
     }
 }
 
 static void
-draw_flatbottom_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c){
+draw_flatbottom_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, RGBA color){
     f32 left_slope = (p1.x - p0.x) / (p1.y - p0.y);
     f32 right_slope = (p2.x - p0.x) / (p2.y - p0.y);
 
@@ -490,13 +490,13 @@ draw_flatbottom_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c)
         s32 start_x = (s32)ceil(x0 - 0.5f);
         s32 end_x = (s32)ceil(x1 - 0.5f);
         for(s32 x=start_x; x < end_x; ++x){
-            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, c);
+            draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, color);
         }
     }
 }
 
 static void
-draw_triangle_outlined(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, v4 c_outlined, bool fill){
+draw_triangle_outlined(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, RGBA color, RGBA c_outlined, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -504,18 +504,18 @@ draw_triangle_outlined(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, v
     if(fill){
         if(p0.y == p1.y){
             if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(render_buffer, p0, p1, p2, c);
+            draw_flattop_triangle(render_buffer, p0, p1, p2, color);
         }
         else if(p1.y == p2.y){
             if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(render_buffer, p0, p1, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p2, color);
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
             v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(render_buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(render_buffer, p0, p1, p3, c);
+            draw_flattop_triangle(render_buffer, p1, p3, p2, color);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p3, color);
         }
     }
     draw_segment(render_buffer, p0, p1, c_outlined);
@@ -524,7 +524,7 @@ draw_triangle_outlined(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, v
 }
 
 static void
-draw_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill){
+draw_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, RGBA color, bool fill){
     if(p0.y < p1.y){ swap_v2(&p0, &p1); }
     if(p0.y < p2.y){ swap_v2(&p0, &p2); }
     if(p1.y < p2.y){ swap_v2(&p1, &p2); }
@@ -532,33 +532,33 @@ draw_triangle(RenderBuffer *render_buffer, v2 p0, v2 p1, v2 p2, v4 c, bool fill)
     if(fill){
         if(p0.y == p1.y){
             if(p0.x > p1.x){ swap_v2(&p0, &p1); }
-            draw_flattop_triangle(render_buffer, p0, p1, p2, c);
+            draw_flattop_triangle(render_buffer, p0, p1, p2, color);
         }
         else if(p1.y == p2.y){
             if(p1.x > p2.x){ swap_v2(&p1, &p2); }
-            draw_flatbottom_triangle(render_buffer, p0, p1, p2, c);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p2, color);
         }
         else{
             f32 x = p0.x + ((p1.y - p0.y) / (p2.y - p0.y)) * (p2.x - p0.x);
             v2 p3 = {x, p1.y};
             if(p1.x > p3.x){ swap_v2(&p1, &p3); }
-            draw_flattop_triangle(render_buffer, p1, p3, p2, c);
-            draw_flatbottom_triangle(render_buffer, p0, p1, p3, c);
+            draw_flattop_triangle(render_buffer, p1, p3, p2, color);
+            draw_flatbottom_triangle(render_buffer, p0, p1, p3, color);
         }
     }
     else{
-        draw_segment(render_buffer, p0, p1, c);
-        draw_segment(render_buffer, p1, p2, c);
-        draw_segment(render_buffer, p2, p0, c);
+        draw_segment(render_buffer, p0, p1, color);
+        draw_segment(render_buffer, p1, p2, color);
+        draw_segment(render_buffer, p2, p0, color);
     }
 }
 
 static void
-clear(RenderBuffer *render_buffer, v2 position, v2 size, v4 c){
+clear(RenderBuffer *render_buffer, v2 position, v2 size, RGBA color){
     //(u8*)render_buffer->buffer + (render_buffer->height + position.y * render_buffer->height
     for(s32 i=0; i < (render_buffer->width * render_buffer->height); ++i){
         u32 *pixel = (u32 *)((u8 *)(render_buffer->base) + (i * render_buffer->bytes_per_pixel));
-        u32 new_color = (round_f32_s32(c.a * 255.0f) << 24 | round_f32_s32(c.r*255.0f) << 16 | round_f32_s32(c.g*255.0f) << 8 | round_f32_s32(c.b*255.0f) << 0);
+        u32 new_color = (round_f32_s32(color.a * 255.0f) << 24 | round_f32_s32(color.r*255.0f) << 16 | round_f32_s32(color.g*255.0f) << 8 | round_f32_s32(color.b*255.0f) << 0);
         *pixel = new_color;
     }
 }
@@ -572,7 +572,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
         f32 rounded_y = round_f32(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
             for(f32 x=rounded_x; x < rounded_x + image.width; ++x){
-                v4 color = u32_to_rgba(*image.pixels++);
+                RGBA color = u32_to_rgba(*image.pixels++);
                 draw_pixel(render_buffer, (v2){x, y}, color);
             }
         }
@@ -610,7 +610,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
             for(u32 x = rounded_x; x < rounded_x + result.dim.w; ++x){
                 u8 *byte = (u8 *)image.pixels + ((y_shift + iy) * image.width * 4) + ((x_shift + ix) * 4);
                 u32 *c = (u32 *)byte;
-                v4 color = u32_to_rgba(*c);
+                RGBA color = u32_to_rgba(*c);
                 draw_pixel(render_buffer, (v2){(f32)x, (f32)y}, color);
                 ix++;
             }
@@ -625,7 +625,7 @@ draw_bitmap(RenderBuffer *render_buffer, v2 position, Bitmap image){
 }
 
 static void
-draw_rect_slow(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 c){
+draw_rect_slow(RenderBuffer *render_buffer, v2 position, v2s32 dimension, RGBA color){
     v2 p0 = {position.x, position.y};
     v2 p1 = {position.x + dimension.w, position.y};
     v2 p2 = {position.x, position.y + dimension.h};
@@ -634,13 +634,13 @@ draw_rect_slow(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 c){
     BEGIN_CYCLE_COUNTER(draw_rect_slow)
     for(f32 y=p0.y; y <= p2.y; ++y){
         for(f32 x=p0.x; x <= p1.x; ++x){
-            draw_pixel(render_buffer, (v2){x, y}, c);
+            draw_pixel(render_buffer, (v2){x, y}, color);
         }
     }
     END_CYCLE_COUNTER(draw_rect_slow)
 }
 
-static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 color){
+static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimension, RGBA color){
     // round position
     v2s32 bottom_left = round_v2_v2s32(position);
 
@@ -762,20 +762,20 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
 }
 
 static void
-draw_box(RenderBuffer *render_buffer, v2 position, v2s32 dimension, v4 c){
+draw_box(RenderBuffer *render_buffer, v2 position, v2s32 dimension, RGBA color){
     v2 p0 = {position.x, position.y};
     v2 p1 = {position.x + dimension.w, position.y};
     v2 p2 = {position.x + dimension.w, position.y + dimension.h};
     v2 p3 = {position.x, position.y + dimension.h};
 
-    draw_segment(render_buffer, p0, p1, c);
-    draw_segment(render_buffer, p1, p2, c);
-    draw_segment(render_buffer, p2, p3, c);
-    draw_segment(render_buffer, p3, p0, c);
+    draw_segment(render_buffer, p0, p1, color);
+    draw_segment(render_buffer, p1, p2, color);
+    draw_segment(render_buffer, p2, p3, color);
+    draw_segment(render_buffer, p3, p0, color);
 }
 
 static void
-draw_quad(RenderBuffer *render_buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, bool fill){
+draw_quad(RenderBuffer *render_buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, RGBA color, bool fill){
     v2 p0 = p0_;
     v2 p1 = p1_;
     v2 p2 = p2_;
@@ -802,40 +802,40 @@ draw_quad(RenderBuffer *render_buffer, v2 p0_, v2 p1_, v2 p2_, v2 p3_, v4 c, boo
     if(p3.y < p0.y){ swap_v2(&p3, &p0); }
     if(p3.y < p1.y){ swap_v2(&p3, &p1); }
 
-    draw_triangle(render_buffer, p0, p1, p2, c, fill);
-    draw_triangle(render_buffer, p0, p2, p3, c, fill);
+    draw_triangle(render_buffer, p0, p1, p2, color, fill);
+    draw_triangle(render_buffer, p0, p2, p3, color, fill);
 }
 
 static void
-draw_polygon(RenderBuffer *render_buffer, v2 *points, u32 count, v4 c){
+draw_polygon(RenderBuffer *render_buffer, v2 *points, u32 count, RGBA color){
     v2 first = *points++;
     v2 prev = first;
     for(u32 i=1; i<count; ++i){
-        draw_segment(render_buffer, prev, *points, c);
+        draw_segment(render_buffer, prev, *points, color);
         prev = *points++;
     }
-    draw_segment(render_buffer, first, prev, c);
+    draw_segment(render_buffer, first, prev, color);
 }
 
 static void
-draw_circle(RenderBuffer *render_buffer, f32 xm, f32 ym, f32 r, v4 c, bool fill) {
+draw_circle(RenderBuffer *render_buffer, f32 xm, f32 ym, f32 r, RGBA color, bool fill) {
     f32 x = -r;
     f32 y = 0;
     f32 err = 2-2*r;
     do {
-        draw_pixel(render_buffer, (v2){(xm - x), (ym + y)}, c);
-        draw_pixel(render_buffer, (v2){(xm - y), (ym - x)}, c);
-        draw_pixel(render_buffer, (v2){(xm + x), (ym - y)}, c);
-        draw_pixel(render_buffer, (v2){(xm + y), (ym + x)}, c);
+        draw_pixel(render_buffer, (v2){(xm - x), (ym + y)}, color);
+        draw_pixel(render_buffer, (v2){(xm - y), (ym - x)}, color);
+        draw_pixel(render_buffer, (v2){(xm + x), (ym - y)}, color);
+        draw_pixel(render_buffer, (v2){(xm + y), (ym + x)}, color);
         r = err;
         if (r <= y){
             if(fill){
                 if(ym + y == ym - y){
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), color);
                 }
                 else{
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), c);
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), c);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), color);
+                    draw_segment(render_buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), color);
                 }
             }
             y++;
