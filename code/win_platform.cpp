@@ -446,21 +446,21 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
     //
     // 24 thread - 
     //  ticks: ~(5.5 - 6.5)ms - hits: 24 - ticks/hit: ~(0.22 - 0.27)ms
-    u32 thread_count = 0;
+    //u32 thread_count = 0;
 
-    WorkQueue queue = {};
-    queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
+    //WorkQueue queue = {};
+    //queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
 
-    thread_context.queue = &queue;
-    thread_context.thread_count = thread_count;
-    thread_context.add_work_entry = add_work_entry;
-    thread_context.complete_all_work = complete_all_work;
+    //thread_context.queue = &queue;
+    //thread_context.thread_count = thread_count;
+    //thread_context.add_work_entry = add_work_entry;
+    //thread_context.complete_all_work = complete_all_work;
 
-    for(u32 i=0; i<thread_count; ++i){
-        DWORD thread_id;
-        HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
-        CloseHandle(thread_handle);
-    }
+    //for(u32 i=0; i<thread_count; ++i){
+    //    DWORD thread_id;
+    //    HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
+    //    CloseHandle(thread_handle);
+    //}
 
     //add_work_entry(&queue, print_string, (void*)"job A0");
     //add_work_entry(&queue, print_string, (void*)"job A1");
@@ -508,12 +508,10 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                 f64 MSPF = 0;
                 u64 frame_count = 0;
 
-                s64 prev_ticks = clock.get_ticks();
-                s64 frame_time = clock.get_ticks();
-				u64 prev_cycles = __rdtsc();
-
-                //f64 dt =  0.05;
-                //f64 accumulator = 0.0;
+                clock.dt =  0.01;
+                f64 accumulator = 0.0;
+                s64 start_ticks = clock.get_ticks();
+                f64 second_marker = clock.get_ticks();
 
                 while(global_running){
                     MSG message;
@@ -521,53 +519,39 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                         TranslateMessage(&message);
                         DispatchMessage(&message);
                     }
-					u64 now_cycles = __rdtsc();
-					prev_cycles = now_cycles;
 
-                    s64 now_ticks = clock.get_ticks();
-                    MSPF = 1000/1000/((f64)clock.frequency / (f64)(now_ticks - prev_ticks));
-#if DEBUG
-                    clock.dt = 1.0/500.0;
-#else
-                    clock.dt = 1.0/244.0;
-#endif
-                    clock.time_dt = clock.get_seconds_elapsed(prev_ticks, now_ticks);
-                    //f64 frame_time = clock.get_seconds_elapsed(prev_ticks, now_ticks);
-					prev_ticks = now_ticks;
+                    s64 end_ticks = clock.get_ticks();
+                    f64 frame_time = clock.get_seconds_elapsed(start_ticks, end_ticks);
+                    MSPF = 1000/1000/((f64)clock.frequency / (f64)(end_ticks - start_ticks));
+					start_ticks = end_ticks;
 
-                    //accumulator += frame_time;
-                    //f64 t1;
-                    //f64 t3_start = clock.get_ticks();
-                    //while(accumulator >= dt){
-                    //    clock.dt = dt;
-                    //    s64 t1_start = get_ticks();
+                    accumulator += frame_time;
+                    while(accumulator >= clock.dt){
                     //    update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
-                    //    t1 = clock.get_ms_elapsed(t1_start, clock.get_ticks());
-                    //    accumulator -= dt;
-                    //}
-                    //f64 t3 = clock.get_ms_elapsed(t3_start, clock.get_ticks());
-
-                    frame_count++;
-                    f64 time_elapsed = clock.get_seconds_elapsed(frame_time, clock.get_ticks());
-                    if(time_elapsed > 1){
-                        FPS = (frame_count / time_elapsed);
-                        frame_time = clock.get_ticks();
-                        frame_count = 0;
+                        accumulator -= clock.dt;
                     }
 
-                    s64 start_update = clock.get_ticks();
-                    update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
-                    f64 update_time = clock.get_ms_elapsed(start_update, clock.get_ticks());
-                    s64 start_draw = get_ticks();
+                    frame_count++;
+                    f64 time_elapsed = clock.get_seconds_elapsed(second_marker, clock.get_ticks());
+                    if(time_elapsed > 1){
+                        FPS = (frame_count / time_elapsed);
+                        second_marker = clock.get_ticks();
+                        frame_count = 0;
+                    }
+                    print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
+
+                    //s64 start_update = clock.get_ticks();
+                    //update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
+                    //f64 update_time = clock.get_ms_elapsed(start_update, clock.get_ticks());
+                    //s64 start_draw = get_ticks();
                     //for(u32 y=0; y < 5; ++y){
                     //    for(u32 x=0; x < 5; ++x){
                     //        draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
                     //    }
                     //}
                     //draw_commands(&render_buffer, render_buffer.render_command_arena);
-                    f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
+                    //f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
                     //print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, highest_draw_count);
-                    print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.time_dt);
 
                     //print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
 
@@ -575,20 +559,20 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     //END_TICK_COUNTER_L(update);
 
                     // NOTE: Debug
-                    handle_debug_counters();
+                    //handle_debug_counters();
 
-                    update_window(window, render_buffer);
-                    controller.up.pressed = false;
-                    controller.down.pressed = false;
-                    controller.left.pressed = false;
-                    controller.right.pressed = false;
-                    controller.one.pressed = false;
-                    controller.two.pressed = false;
-                    controller.three.pressed = false;
-                    controller.four.pressed = false;
-                    controller.m1.pressed = false;
-                    controller.m2.pressed = false;
-                    controller.m3.pressed = false;
+                    //update_window(window, render_buffer);
+                    //controller.up.pressed = false;
+                    //controller.down.pressed = false;
+                    //controller.left.pressed = false;
+                    //controller.right.pressed = false;
+                    //controller.one.pressed = false;
+                    //controller.two.pressed = false;
+                    //controller.three.pressed = false;
+                    //controller.four.pressed = false;
+                    //controller.m1.pressed = false;
+                    //controller.m2.pressed = false;
+                    //controller.m3.pressed = false;
 
                 }
             }
