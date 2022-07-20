@@ -24,8 +24,8 @@ global f64 highest_draw_count;
 #define THREADED 1
 #if DEBUG
 
-enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_degrade_pher, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
-enum{ DebugTickCounter_DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_degrade_pher, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
+enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
+enum{ DebugTickCounter_DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
 
 typedef struct DebugCycleCounter{
     u64 cycle_count;
@@ -529,6 +529,18 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     while(accumulator >= clock.dt){
                         update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                         accumulator -= clock.dt;
+                        //TODO: put in a function
+                        controller.up.pressed = false;
+                        controller.down.pressed = false;
+                        controller.left.pressed = false;
+                        controller.right.pressed = false;
+                        controller.one.pressed = false;
+                        controller.two.pressed = false;
+                        controller.three.pressed = false;
+                        controller.four.pressed = false;
+                        controller.m1.pressed = false;
+                        controller.m2.pressed = false;
+                        controller.m3.pressed = false;
                     }
 
                     frame_count++;
@@ -540,39 +552,15 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     }
                     print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
 
-                    //s64 start_update = clock.get_ticks();
-                    //update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
-                    //f64 update_time = clock.get_ms_elapsed(start_update, clock.get_ticks());
-                    //s64 start_draw = get_ticks();
-                    //for(u32 y=0; y < 5; ++y){
-                    //    for(u32 x=0; x < 5; ++x){
-                    //        draw_commands(&render_buffer, render_buffer.render_command_arenas[y][x]);
-                    //    }
-                    //}
                     draw_commands(&render_buffer, render_buffer.render_command_arena);
-                    //f64 draw_time = clock.get_ms_elapsed(start_draw, clock.get_ticks());
-                    //print("FPS: %f - MSPF: %f - update: %f - draw: %f\n", FPS, MSPF, update_time, highest_draw_count);
 
-                    //print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
-
-                    //END_CYCLE_COUNTER(update);
-                    //END_TICK_COUNTER_L(update);
-
-                    // NOTE: Debug
                     //handle_debug_counters();
 
                     update_window(window, render_buffer);
-                    controller.up.pressed = false;
-                    controller.down.pressed = false;
-                    controller.left.pressed = false;
-                    controller.right.pressed = false;
-                    controller.one.pressed = false;
-                    controller.two.pressed = false;
-                    controller.three.pressed = false;
-                    controller.four.pressed = false;
-                    controller.m1.pressed = false;
-                    controller.m2.pressed = false;
-                    controller.m3.pressed = false;
+                    //print("up: %i - down: %i - left: %i - right: %i\n", controller.up.pressed, controller.down.pressed, controller.left.pressed, controller.right.pressed);
+                    //print("up: %i - down: %i - left: %i - right: %i\n", controller.up.held, controller.down.held, controller.left.held, controller.right.held);
+                    //print("one: %i - two: %i - three: %i - four: %i\n", controller.one.pressed, controller.two.pressed, controller.three.pressed, controller.four.pressed);
+                    //print("one: %i - two: %i - three: %i - four: %i\n", controller.one.held, controller.two.held, controller.three.held, controller.four.held);
 
                 }
                 ReleaseDC(window, render_buffer.device_context);

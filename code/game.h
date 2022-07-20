@@ -1043,7 +1043,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 		pm->draw_wondering_ants = true;
         memory->initialized = true;
     }
-    print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
 
     BEGIN_CYCLE_COUNTER(reset_sentinels);
     BEGIN_TICK_COUNTER(reset_sentinels);
@@ -1077,26 +1076,44 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 }
             }break;
             case EntityType_ToHomePheromone:{
-                v2 cell_coord = vec2(floor(e->position.x / pm->cell_width), floor(e->position.y / pm->cell_height));
-                cell_coord.x = clamp_f32(0, cell_coord.x, pm->cell_row_count - 1);
-                cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
+                e->pher_decay -= clock->dt;
+                if(e->pher_decay < 0){
+                    e->pher_decay = e->pher_decay_max;
+                    remove_entity(pm, e);
+                }
+                else{
+                    f64 t = e->pher_decay / e->pher_decay_max;
+                    e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
 
-                DLL* cell = &pm->pher_home_cells[(s32)cell_coord.y][(s32)cell_coord.x];
-                Node* node = push_node(tm->LL_arena);
-                node->data = e;
-                dll_push_front(cell, node);
+                    v2 cell_coord = vec2(floor(e->position.x / pm->cell_width), floor(e->position.y / pm->cell_height));
+                    cell_coord.x = clamp_f32(0, cell_coord.x, pm->cell_row_count - 1);
+                    cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
 
+                    DLL* cell = &pm->pher_home_cells[(s32)cell_coord.y][(s32)cell_coord.x];
+                    Node* node = push_node(tm->LL_arena);
+                    node->data = e;
+                    dll_push_front(cell, node);
+                }
             }break;
             case EntityType_ToFoodPheromone:{
-                v2 cell_coord = vec2(floor(e->position.x / pm->cell_width), floor(e->position.y / pm->cell_height));
-                cell_coord.x = clamp_f32(0, cell_coord.x, pm->cell_row_count - 1);
-                cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
+                e->pher_decay -= clock->dt;
+                if(e->pher_decay < 0){
+                    e->pher_decay = e->pher_decay_max;
+                    remove_entity(pm, e);
+                }
+                else{
+                    f64 t = e->pher_decay / e->pher_decay_max;
+                    e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
+                    
+                    v2 cell_coord = vec2(floor(e->position.x / pm->cell_width), floor(e->position.y / pm->cell_height));
+                    cell_coord.x = clamp_f32(0, cell_coord.x, pm->cell_row_count - 1);
+                    cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
 
-                DLL* cell = &pm->pher_food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
-                Node* node = push_node(tm->LL_arena);
-                node->data = e;
-                dll_push_front(cell, node);
-
+                    DLL* cell = &pm->pher_food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
+                    Node* node = push_node(tm->LL_arena);
+                    node->data = e;
+                    dll_push_front(cell, node);
+                }
             }break;
             case EntityType_Box:{
                 remove_entity(pm, e);
@@ -1108,6 +1125,8 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
     BEGIN_CYCLE_COUNTER(controller);
     BEGIN_TICK_COUNTER(controller);
+    //print("home: %i - food: %i - dep: %i - wond: %i\n", pm->draw_home_phers, pm->draw_food_phers, pm->draw_depositing_ants, pm->draw_wondering_ants);
+    //print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
     if(controller->one.pressed){
         pm->draw_home_phers = !pm->draw_home_phers;
     }
@@ -1148,44 +1167,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     }
     END_TICK_COUNTER(controller);
     END_CYCLE_COUNTER(controller);
-
-    BEGIN_CYCLE_COUNTER(degrade_pher);
-    BEGIN_TICK_COUNTER(degrade_pher);
-    // pheromone degradation
-    for(s32 y=0; y<pm->cell_row_count; ++y){
-        for(s32 x=0; x<pm->cell_row_count; ++x){
-            DLL *pher_home_cell = &pm->pher_home_cells[y][x];
-            for(Node* node=pher_home_cell->next; node != pher_home_cell; node=node->next){
-                Entity *e = (Entity*)node->data;
-                e->pher_decay -= clock->dt;
-
-                if(e->pher_decay < 0){
-                    e->pher_decay = e->pher_decay_max;
-                    remove_entity(pm, e);
-                }
-                else{
-                    f64 t = e->pher_decay / e->pher_decay_max;
-                    e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
-                }
-            }
-            DLL *pher_food_cell = &pm->pher_food_cells[y][x];
-            for(Node* node=pher_food_cell->next; node != pher_food_cell; node=node->next){
-                Entity *e = (Entity*)node->data;
-                e->pher_decay -= clock->dt;
-
-                if(e->pher_decay < 0){
-                    e->pher_decay = e->pher_decay_max;
-                    remove_entity(pm, e);
-                }
-                else{
-                    f64 t = e->pher_decay / e->pher_decay_max;
-                    e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
-                }
-            }
-        }
-    }
-    END_TICK_COUNTER(degrade_pher);
-    END_CYCLE_COUNTER(degrade_pher);
 
 #if 0
     u32 length = ArrayCount(pm->ants_list) / (thread_context->thread_count + 1);
@@ -1627,19 +1608,18 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 }
             }break;
             case EntityType_Ant:{
-				if(pm->draw_wondering_ants && (e->color == LGRAY)){
-					push_rect(render_command_arena, e->position, (v2s32){8, 8}, e->color);
-					push_rect(render_buffer->render_command_arena, e->position, (v2s32){8, 8}, e->color);
-				}
-                if(pm->draw_depositing_ants && (e->color == RED)){
-					push_rect(render_command_arena, e->position, (v2s32){8, 8}, e->color);
-					push_rect(render_buffer->render_command_arena, e->position, (v2s32){8, 8}, e->color);
-				}
-                if((e->color == ORANGE)){
-					push_rect(render_command_arena, e->position, (v2s32){8, 8}, e->color);
-					push_rect(render_buffer->render_command_arena, e->position, (v2s32){8, 8}, e->color);
+                if(e->ant_state == AntState_Wondering || e->ant_state == AntState_Collecting){
+                    if(pm->draw_wondering_ants){
+                        push_rect(render_command_arena, e->position, (v2s32){8, 8}, e->color);
+                        push_rect(render_buffer->render_command_arena, e->position, (v2s32){8, 8}, e->color);
+                    }
                 }
-
+                if(e->ant_state == AntState_Depositing){
+                    if(pm->draw_depositing_ants){
+                        push_rect(render_command_arena, e->position, (v2s32){8, 8}, e->color);
+                        push_rect(render_buffer->render_command_arena, e->position, (v2s32){8, 8}, e->color);
+                    }
+                }
 #if 0
                 f32 forward_rad = dir_to_rad(e->direction);
                 f32 right_rad = forward_rad + (RAD * e->sensor_angle);
