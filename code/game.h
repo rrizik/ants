@@ -2,6 +2,7 @@
 #include "math.h"
 #include "renderer.h"
 
+
 typedef enum {EntityFlag_Movable} EntityFlags;
 typedef enum {EntityType_None, EntityType_Player, EntityType_Object, EntityType_Pixel, EntityType_Line, EntityType_Ray, EntityType_Segment, EntityType_Triangle, EntityType_Rect, EntityType_Quad, EntityType_Box, EntityType_Circle, EntityType_Bitmap, EntityType_Food, EntityType_Ant, EntityType_Colony, EntityType_ToHomePheromone, EntityType_ToFoodPheromone} EntityType;
 typedef enum {AntState_Wondering, AntState_Collecting, AntState_Depositing} AntState;
@@ -101,6 +102,7 @@ clear_flags(Entity *e, u32 flags){
 }
 
 typedef struct PermanentMemory{
+    size_t size;
     Arena arena;
     Arena *assets_arena;
     String8 cwd; // CONSIDER: this might be something we want to be set on the platform side
@@ -128,7 +130,9 @@ typedef struct PermanentMemory{
     s32 cell_width_r;
     s32 cell_height_r;
 
-    Entity* ants_list[500];
+    Entity* ants_list[1000];
+    Entity* food_list[2000];
+    u32 food_count;
 
     DLL food_cells     [16][16];
     DLL pher_food_cells[16][16];
@@ -977,6 +981,8 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
     if(!memory->initialized){
 
+        Entity a = {0};
+        pm->size = sizeof(&a);
         init_arena(&pm->arena, (u8*)memory->permanent_base + sizeof(PermanentMemory), memory->permanent_size - sizeof(PermanentMemory));
         init_arena(&tm->arena, (u8*)memory->transient_base + sizeof(TransientMemory), memory->transient_size - sizeof(TransientMemory));
         pm->cwd = os_get_cwd(&pm->arena);
@@ -1126,7 +1132,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     BEGIN_CYCLE_COUNTER(controller);
     BEGIN_TICK_COUNTER(controller);
     //print("home: %i - food: %i - dep: %i - wond: %i\n", pm->draw_home_phers, pm->draw_food_phers, pm->draw_depositing_ants, pm->draw_wondering_ants);
-    //print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
+    print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
     if(controller->one.pressed){
         pm->draw_home_phers = !pm->draw_home_phers;
     }
@@ -1158,6 +1164,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             for(s32 x = x_start; x < (s32)(x_start + pm->cell_width); x+=4){
                 for(s32 y = y_start; y < (s32)(y_start + pm->cell_height); y+=4){
                     add_food(pm, vec2(x, y), 1, GREEN, true);
+                    pm->food_count++;
                 }
             }
         }
@@ -1165,6 +1172,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     else{
         pm->food_added = false;
     }
+    print("%i - \n", pm->food_count);
     END_TICK_COUNTER(controller);
     END_CYCLE_COUNTER(controller);
 

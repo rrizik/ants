@@ -51,16 +51,16 @@ DebugTickCounter tick_counters[DebugTickCounter_count];
 
 #define handle_debug_counters() handle_debug_counters_()
 static void handle_debug_counters_(){
-    print("Debug Cycle Counters:\n");
-    print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
-    for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
-        DebugCycleCounter *counter = cycle_counters + counter_index;
-        if(counter->hit_count){
-            print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
-            counter->cycle_count = 0;
-            counter->hit_count = 0;
-        }
-    }
+    //print("Debug Cycle Counters:\n");
+    //print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
+    //for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
+    //    DebugCycleCounter *counter = cycle_counters + counter_index;
+    //    if(counter->hit_count){
+    //        print("    %-23s %-10u %-8u %u\n", counter->name, counter->cycle_count, counter->hit_count, (counter->cycle_count / counter->hit_count));
+    //        counter->cycle_count = 0;
+    //        counter->hit_count = 0;
+    //    }
+    //}
     print("Debug Tick Counters:\n");
     print("    Name:%-18s Ticks:%-4s Hits:%-3s T/H:%s\n", "", "", "", "");
     for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
@@ -550,9 +550,11 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                         second_marker = clock.get_ticks();
                         frame_count = 0;
                     }
-                    print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
+                    //print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
 
+                    BEGIN_TICK_COUNTER_L(draw);
                     draw_commands(&render_buffer, render_buffer.render_command_arena);
+                    END_TICK_COUNTER_L(draw);
 
                     //handle_debug_counters();
 
