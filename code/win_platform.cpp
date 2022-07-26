@@ -25,7 +25,7 @@ global f64 highest_draw_count;
 #if DEBUG
 
 enum{ DebugCycleCounter_update, DebugCycleCounter_draw_rect_fast, DebugCycleCounter_draw_rect_slow, DebugCycleCounter_frame, DebugCycleCounter_init, DebugCycleCounter_reset_sentinels, DebugCycleCounter_LL_setup, DebugCycleCounter_events, DebugCycleCounter_controller, DebugCycleCounter_behavior, DebugCycleCounter_state_none, DebugCycleCounter_state_wondering, DebugCycleCounter_wondering, DebugCycleCounter_wondering_search, DebugCycleCounter_wondering_search_food, DebugCycleCounter_wondering_search_pher, DebugCycleCounter_state_collecting, DebugCycleCounter_state_depositing, DebugCycleCounter_depositing_search, DebugCycleCounter_allocate_commands, DebugCycleCounter_draw, DebugCycleCounter_count, };
-enum{ DebugTickCounter_DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
+enum{ DebugTickCounter_array, DebugTickCounter_DebugTickCounter_update, DebugTickCounter_draw_rect, DebugTickCounter_frame, DebugTickCounter_init, DebugTickCounter_reset_sentinels, DebugTickCounter_LL_setup, DebugTickCounter_events, DebugTickCounter_controller, DebugTickCounter_behavior, DebugTickCounter_state_none, DebugTickCounter_state_wondering, DebugTickCounter_wondering, DebugTickCounter_wondering_search, DebugTickCounter_wondering_search_food, DebugTickCounter_wondering_search_pher, DebugTickCounter_state_collecting, DebugTickCounter_state_depositing, DebugTickCounter_depositing_search, DebugTickCounter_allocate_commands, DebugTickCounter_draw, DebugTickCounter_count, };
 
 typedef struct DebugCycleCounter{
     u64 cycle_count;
@@ -556,7 +556,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     draw_commands(&render_buffer, render_buffer.render_command_arena);
                     END_TICK_COUNTER_L(draw);
 
-                    //handle_debug_counters();
+                    handle_debug_counters();
 
                     update_window(window, render_buffer);
                     //print("up: %i - down: %i - left: %i - right: %i\n", controller.up.pressed, controller.down.pressed, controller.left.pressed, controller.right.pressed);

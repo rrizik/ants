@@ -101,6 +101,12 @@ clear_flags(Entity *e, u32 flags){
     e->flags &= ~flags;
 }
 
+typedef struct Array{
+    Entity* element[40000];
+    u32 count = 40000;
+    u32 at = 0;
+} Array;
+
 typedef struct PermanentMemory{
     size_t size;
     Arena arena;
@@ -134,6 +140,7 @@ typedef struct PermanentMemory{
     Entity* food_list[2000];
     u32 food_count;
 
+    Array food_cells2  [16][16];
     DLL food_cells     [16][16];
     DLL pher_food_cells[16][16];
     DLL pher_home_cells[16][16];
@@ -956,6 +963,15 @@ static work_queue_callback(do_ant_behavior){
 
     
 
+static void
+fill_cell_with_food(u32 x_start, u32 y_start){
+    for(u32 x = x_start; x < (u32)(x_start + pm->cell_width); x+=4){
+        for(u32 y = y_start; y < (u32)(y_start + pm->cell_height); y+=4){
+            add_food(pm, vec2(x, y), 1, (RGBA){0.0f, 1.0f, 0.0f,  1.0f}, true);
+            pm->food_count++;
+        }
+    }
+}
 
 
 static void 
@@ -1034,6 +1050,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             // horizonal
             //add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
         }
+        fill_cell_with_food(10*pm->cell_width, 10*pm->cell_height);
 
         pm->border_size = 10;
         add_segment(pm, vec2(pm->border_size, pm->border_size), vec2(render_buffer->width - pm->border_size, pm->border_size), RED);
@@ -1055,6 +1072,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     // reset LL
     for(s32 y=0; y < pm->cell_row_count; ++y){
         for(s32 x=0; x < pm->cell_row_count; ++x){
+            pm->food_cells2[y][x].at = 0;
             reset_sentinel(&pm->food_cells[y][x]);
             reset_sentinel(&pm->pher_food_cells[y][x]);
             reset_sentinel(&pm->pher_home_cells[y][x]);
@@ -1079,6 +1097,10 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                     Node* node = push_node(tm->LL_arena);
                     node->data = e;
                     dll_push_front(cell, node);
+                    
+                    u32 at = pm->food_cells2[(s32)cell_coord.y][(s32)cell_coord.x].at;
+                    pm->food_cells2[(s32)cell_coord.y][(s32)cell_coord.x].element[at] = e;
+                    pm->food_cells2[(s32)cell_coord.y][(s32)cell_coord.x].at++;
                 }
             }break;
             case EntityType_ToHomePheromone:{
@@ -1132,7 +1154,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     BEGIN_CYCLE_COUNTER(controller);
     BEGIN_TICK_COUNTER(controller);
     //print("home: %i - food: %i - dep: %i - wond: %i\n", pm->draw_home_phers, pm->draw_food_phers, pm->draw_depositing_ants, pm->draw_wondering_ants);
-    print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
+    //print("%i - ", (ArrayCount(pm->free_entities) - pm->free_entities_at));
     if(controller->one.pressed){
         pm->draw_home_phers = !pm->draw_home_phers;
     }
@@ -1153,26 +1175,28 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         print("add food pher\n");
         Entity* pher = add_to_food_pheromone(pm, controller->mouse_pos, TEAL);
     }
+
     if(controller->m1.pressed){
         if(!pm->food_added){
             pm->food_added = true;
             v2 cell_coord = vec2(floor(controller->mouse_pos.x / pm->cell_width), floor(controller->mouse_pos.y / pm->cell_height));
             cell_coord.x = clamp_f32(0, cell_coord.x, pm->cell_row_count - 1);
             cell_coord.y = clamp_f32(0, cell_coord.y, pm->cell_row_count - 1);
-            s32 x_start = cell_coord.x * pm->cell_width;
-            s32 y_start = cell_coord.y * pm->cell_height;
-            for(s32 x = x_start; x < (s32)(x_start + pm->cell_width); x+=4){
-                for(s32 y = y_start; y < (s32)(y_start + pm->cell_height); y+=4){
-                    add_food(pm, vec2(x, y), 1, GREEN, true);
-                    pm->food_count++;
-                }
-            }
+            u32 x_start = cell_coord.x * pm->cell_width;
+            u32 y_start = cell_coord.y * pm->cell_height;
+            fill_cell_with_food(x_start, y_start);
+            //for(u32 x = x_start; x < (u32)(x_start + pm->cell_width); x+=4){
+            //    for(u32 y = y_start; y < (u32)(y_start + pm->cell_height); y+=4){
+            //        add_food(pm, vec2(x, y), 1, GREEN, true);
+            //        pm->food_count++;
+            //    }
+            //}
         }
     }
     else{
         pm->food_added = false;
     }
-    print("%i - \n", pm->food_count);
+    //print("%i - \n", pm->food_count);
     END_TICK_COUNTER(controller);
     END_CYCLE_COUNTER(controller);
 
@@ -1316,6 +1340,25 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                         BEGIN_TICK_COUNTER(wondering_search_food);
                         //add_box(pm, vec2(pm->cell_width * x, pm->cell_height * y), vec2(pm->cell_width, pm->cell_height), ORANGE);
                         DLL* food_cell = &pm->food_cells[y][x];
+                        Array* food_cell2 = &pm->food_cells2[y][x];
+#if 1
+                        for(u32 i=0; i < food_cell2->at; ++i){
+                            food = food_cell2->element[i];
+                            if(!food->food_targeted){
+                                f32 distance = distance2(ant->position, food->position);
+                                if(distance < 20){
+                                    ant->ant_state = AntState_Collecting;
+                                    food->food_targeted = true;
+                                    ant->ant_food = handle_from_entity(pm, food);
+                                    food->food_ant = handle_from_entity(pm, ant);
+
+                                    ant->target_direction = direction2(ant->position, food->position);
+                                    ant->rot_percent = 0.0f;
+                                    goto end_of_behavior;
+                                }
+                            }
+                        }
+#else
                         for(Node* node=food_cell->next; node != food_cell; node=node->next){
                             food = (Entity*)node->data;
                             if(!food->food_targeted){
@@ -1333,6 +1376,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                                 }
                             }
                         }
+#endif
                         END_TICK_COUNTER(wondering_search_food);
                         END_CYCLE_COUNTER(wondering_search_food);
 
