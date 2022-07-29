@@ -49,8 +49,8 @@ typedef struct DebugTickCounter{
 DebugCycleCounter cycle_counters[DebugCycleCounter_count];
 DebugTickCounter tick_counters[DebugTickCounter_count];
 
-#define handle_debug_counters() handle_debug_counters_()
-static void handle_debug_counters_(){
+#define handle_debug_counters(sim) handle_debug_counters_(sim)
+static void handle_debug_counters_(u32 simulations){
     //print("Debug Cycle Counters:\n");
     //print("    Name:%-18s Cycles:%-3s Hits:%-3s C/H:%s\n", "", "", "", "");
     //for(u32 counter_index=0; counter_index < (u32)ArrayCount(cycle_counters); ++counter_index){
@@ -66,7 +66,7 @@ static void handle_debug_counters_(){
     for(u32 counter_index=0; counter_index < (u32)ArrayCount(tick_counters); ++counter_index){
         DebugTickCounter *counter = tick_counters + counter_index;
         if(counter->hit_count){
-            print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count, (counter->tick_count / counter->hit_count));
+            print("    %-23s %-10f %-8u %f\n", counter->name, counter->tick_count, counter->hit_count/simulations, (counter->tick_count / counter->hit_count));
             counter->tick_count = 0;
             counter->hit_count = 0;
         }
@@ -111,9 +111,9 @@ typedef struct Controller{
     Button two;
     Button three;
     Button four;
-    Button m1;
-    Button m2;
-    Button m3;
+    Button m_left;
+    Button m_right;
+    Button m_middle;
     v2 mouse_pos;
 } Controller;
 
@@ -259,29 +259,30 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
         } break;
             // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizer
         case WM_LBUTTONUP:{
-            controller.m1.held = false;
-        } break;
-        case WM_MBUTTONUP:{
-            controller.m2.held = false;
+            controller.m_left.held = false;
         } break;
         case WM_RBUTTONUP:{
-            controller.m3.held = false;
+            controller.m_right.held = false;
+        } break;
+        case WM_MBUTTONUP:{
+            controller.m_middle.held = false;
         } break;
         case WM_LBUTTONDOWN:
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:{
+            //print("w_param: %i - right: %i - middle: %i\n", w_param, MK_RBUTTON, MK_MBUTTON);
             switch(w_param){
                 case MK_LBUTTON:{
-                    controller.m1.held = true;
-                    controller.m1.pressed = true;
+                    controller.m_left.held = true;
+                    controller.m_left.pressed = true;
                 } break;
                 case MK_RBUTTON:{
-                    controller.m2.held = true;
-                    controller.m2.pressed = true;
+                    controller.m_right.held = true;
+                    controller.m_right.pressed = true;
                 } break;
                 case MK_MBUTTON:{
-                    controller.m3.held = true;
-                    controller.m3.pressed = true;
+                    controller.m_middle.held = true;
+                    controller.m_middle.pressed = true;
                 } break;
             }
             bool was_down = ((l_param & (1 << 30)) != 0);
@@ -526,6 +527,8 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 					start_ticks = end_ticks;
 
                     accumulator += frame_time;
+                    u32 simulations = 0;
+                    //print("left: %i - middle: %i - right: %i\n", controller.m_left.held, controller.m_middle.held, controller.m_right.held);
                     while(accumulator >= clock.dt){
                         update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                         accumulator -= clock.dt;
@@ -538,9 +541,10 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                         controller.two.pressed = false;
                         controller.three.pressed = false;
                         controller.four.pressed = false;
-                        controller.m1.pressed = false;
-                        controller.m2.pressed = false;
-                        controller.m3.pressed = false;
+                        controller.m_right.pressed = false;
+                        controller.m_left.pressed = false;
+                        controller.m_middle.pressed = false;
+                        simulations++;
                     }
 
                     frame_count++;
@@ -555,15 +559,11 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     BEGIN_TICK_COUNTER_L(draw);
                     draw_commands(&render_buffer, render_buffer.render_command_arena);
                     END_TICK_COUNTER_L(draw);
-
-                    handle_debug_counters();
-
                     update_window(window, render_buffer);
-                    //print("up: %i - down: %i - left: %i - right: %i\n", controller.up.pressed, controller.down.pressed, controller.left.pressed, controller.right.pressed);
-                    //print("up: %i - down: %i - left: %i - right: %i\n", controller.up.held, controller.down.held, controller.left.held, controller.right.held);
-                    //print("one: %i - two: %i - three: %i - four: %i\n", controller.one.pressed, controller.two.pressed, controller.three.pressed, controller.four.pressed);
-                    //print("one: %i - two: %i - three: %i - four: %i\n", controller.one.held, controller.two.held, controller.three.held, controller.four.held);
 
+                    if(simulations){
+                        handle_debug_counters(simulations);
+                    }
                 }
                 ReleaseDC(window, render_buffer.device_context);
             }

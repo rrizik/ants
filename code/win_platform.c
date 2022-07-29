@@ -363,7 +363,6 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     update_game(&memory, &render_buffer, &controller, &clock);
                     // NOTE: defined to nothing if not DEBUG, maybe put a #if DEBUG here but then it looks messy but now im
                     // forced to jump here in execution to do nothing. idk
-                    handle_debug_counters();
                     update_window(window, render_buffer);
                     controller.up.pressed = false;
                     controller.down.pressed = false;
@@ -376,7 +375,8 @@ i32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, i32 win
                     controller.m1.pressed = false;
                     controller.m2.pressed = false;
                     controller.m3.pressed = false;
-                    
+
+                    handle_debug_counters();
                 }
             }
             else{
