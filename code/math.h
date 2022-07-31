@@ -106,7 +106,7 @@ direction2(v2 a, v2 b){
     v2 result = {0};
     result.x = b.x - a.x;
     result.y = b.y - a.y;
-    normalize2(result);
+    result = normalize2(result);
     return(result);
 }
 

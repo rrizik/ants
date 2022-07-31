@@ -253,41 +253,17 @@ LRESULT win_message_handler_callback(HWND window, UINT message, WPARAM w_param, 
             global_running = false;
         } break;
         case WM_MOUSEMOVE: {
-            //QUESTION: ask about this being 8bytes but behaving like 4bytes
             controller.mouse_pos.x = (s32)(l_param & 0xFFFF);
             controller.mouse_pos.y = render_buffer.height - (s32)(l_param >> 16);
         } break;
             // CONSIDER TODO: maybe get rid of held, and just do what you did with m3 in the old rasterizer
-        case WM_LBUTTONUP:{
-            controller.m_left.held = false;
-        } break;
-        case WM_RBUTTONUP:{
-            controller.m_right.held = false;
-        } break;
-        case WM_MBUTTONUP:{
-            controller.m_middle.held = false;
-        } break;
-        case WM_LBUTTONDOWN:
-        case WM_MBUTTONDOWN:
-        case WM_RBUTTONDOWN:{
-            //print("w_param: %i - right: %i - middle: %i\n", w_param, MK_RBUTTON, MK_MBUTTON);
-            switch(w_param){
-                case MK_LBUTTON:{
-                    controller.m_left.held = true;
-                    controller.m_left.pressed = true;
-                } break;
-                case MK_RBUTTON:{
-                    controller.m_right.held = true;
-                    controller.m_right.pressed = true;
-                } break;
-                case MK_MBUTTON:{
-                    controller.m_middle.held = true;
-                    controller.m_middle.pressed = true;
-                } break;
-            }
-            bool was_down = ((l_param & (1 << 30)) != 0);
-            bool is_down = ((l_param & (1 << 31)) == 0);
-		} break;
+        case WM_LBUTTONUP:{ controller.m_left.held = false; } break;
+        case WM_RBUTTONUP:{ controller.m_right.held = false; } break;
+        case WM_MBUTTONUP:{ controller.m_middle.held = false; } break;
+        case WM_LBUTTONDOWN:{ controller.m_left = {true, true}; } break;
+        case WM_RBUTTONDOWN:{ controller.m_right = {true, true}; } break;
+        case WM_MBUTTONDOWN:{ controller.m_middle = {true, true}; } break;
+
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -440,26 +416,22 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
-    // 1 thread - 
-    //  ticks: ~(2.8 - 3.4)ms - hits: 1 - ticks/hit: ~(2.8 - 3.4)ms
-    //
-    // 24 thread - 
-    //  ticks: ~(5.5 - 6.5)ms - hits: 24 - ticks/hit: ~(0.22 - 0.27)ms
-    //u32 thread_count = 0;
+#if 0
+    u32 thread_count = 0;
 
-    //WorkQueue queue = {};
-    //queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
+    WorkQueue queue = {};
+    queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
 
-    //thread_context.queue = &queue;
-    //thread_context.thread_count = thread_count;
-    //thread_context.add_work_entry = add_work_entry;
-    //thread_context.complete_all_work = complete_all_work;
+    thread_context.queue = &queue;
+    thread_context.thread_count = thread_count;
+    thread_context.add_work_entry = add_work_entry;
+    thread_context.complete_all_work = complete_all_work;
 
-    //for(u32 i=0; i<thread_count; ++i){
-    //    DWORD thread_id;
-    //    HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
-    //    CloseHandle(thread_handle);
-    //}
+    for(u32 i=0; i<thread_count; ++i){
+        DWORD thread_id;
+        HANDLE thread_handle = CreateThread(0, 0, thread_proc, thread_context.queue, 0, &thread_id);
+        CloseHandle(thread_handle);
+    }
 
     //add_work_entry(&queue, print_string, (void*)"job A0");
     //add_work_entry(&queue, print_string, (void*)"job A1");
@@ -485,6 +457,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 
     // QUESTION: Is this necessary? can you not send the job through thread_proc on the main thread as well?
     //complete_all_work(&queue);
+#endif
 
     WNDCLASSW window_class = {0};
     window_class.style = CS_HREDRAW|CS_VREDRAW;
@@ -507,7 +480,6 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                 f64 MSPF = 0;
                 u64 frame_count = 0;
 
-                //clock.dt =  0.01;
                 clock.dt =  1.0/60.0;
                 f64 accumulator = 0.0;
                 s64 start_ticks = clock.get_ticks();
@@ -528,7 +500,6 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 
                     accumulator += frame_time;
                     u32 simulations = 0;
-                    //print("left: %i - middle: %i - right: %i\n", controller.m_left.held, controller.m_middle.held, controller.m_right.held);
                     while(accumulator >= clock.dt){
                         update_game(&memory, &render_buffer, &controller, &clock, &thread_context);
                         accumulator -= clock.dt;
@@ -554,7 +525,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                         second_marker = clock.get_ticks();
                         frame_count = 0;
                     }
-                    //print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
+                    print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
 
                     BEGIN_TICK_COUNTER_L(draw);
                     draw_commands(&render_buffer, render_buffer.render_command_arena);
@@ -562,7 +533,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     update_window(window, render_buffer);
 
                     if(simulations){
-                        handle_debug_counters(simulations);
+                        //handle_debug_counters(simulations);
                     }
                 }
                 ReleaseDC(window, render_buffer.device_context);
