@@ -354,7 +354,7 @@ static void
 draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, RGBA color){
     v2 point1 = round_v2(position);
     v2 point2 = point1;
-    v2 non_normalized_direction = vec2(position.x + direction.x, position.y + direction.y);
+    v2 non_normalized_direction = (v2){position.x + direction.x, position.y + direction.y};
     direction = round_v2(non_normalized_direction);
 
     f32 distance_x =  ABS(direction.x - point1.x);
@@ -399,8 +399,8 @@ draw_line(RenderBuffer *render_buffer, v2 position, v2 direction, RGBA color){
 static void
 draw_ray(RenderBuffer *render_buffer, v2 position, v2 direction, RGBA color){
     position = round_v2(position);
-    v2 non_normalized_direction = round_v2(vec2((direction.x * 100000), (direction.y * 100000)));
-    v2 new_direction = vec2(position.x + non_normalized_direction.x, position.y + non_normalized_direction.y);
+    v2 non_normalized_direction = round_v2((v2){(direction.x * 100000), (direction.y * 100000)});
+    v2 new_direction = (v2){position.x + non_normalized_direction.x, position.y + non_normalized_direction.y};
 
     f32 distance_x =  ABS(new_direction.x - position.x);
     f32 distance_y = -ABS(new_direction.y - position.y);
@@ -567,7 +567,7 @@ static void
 draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip_region){
     //v4 cr = {100, 300, 200, 200};
     Rect cr = rect((v2){100, 300}, (v2s32){200, 200});
-    if(clip_region == vec4(0,0,0,0)){
+    if(clip_region == (v4){0,0,0,0}){
         f32 rounded_x = round_f32(position.x);
         f32 rounded_y = round_f32(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
@@ -579,7 +579,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
     }
     else{
         //v4 result = {position.x, position.y, image.width, image.height};
-        Rect result = rect(position, vec2s32(image.width, image.height));
+        Rect result = rect(position, (v2s32){(s32)image.width, (s32)image.height});
 
         if(position.x < cr.pos.x){
             result.pos.x = cr.pos.x;
@@ -621,7 +621,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
 
 static void 
 draw_bitmap(RenderBuffer *render_buffer, v2 position, Bitmap image){
-    draw_bitmap_clip(render_buffer, position, image, vec4(0,0,0,0));
+    draw_bitmap_clip(render_buffer, position, image, (v4){0,0,0,0});
 }
 
 static void
@@ -831,11 +831,11 @@ draw_circle(RenderBuffer *render_buffer, f32 xm, f32 ym, f32 r, RGBA color, bool
         if (r <= y){
             if(fill){
                 if(ym + y == ym - y){
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), color);
+                    draw_segment(render_buffer, (v2){(xm - x - 1), (ym + y)}, (v2){(xm + x), (ym + y)}, color);
                 }
                 else{
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym + y)), vec2((xm + x), (ym + y)), color);
-                    draw_segment(render_buffer, vec2((xm - x - 1), (ym - y)), vec2((xm + x), (ym - y)), color);
+                    draw_segment(render_buffer, (v2){(xm - x - 1), (ym + y)}, (v2){(xm + x), (ym + y)}, color);
+                    draw_segment(render_buffer, (v2){(xm - x - 1), (ym - y)}, (v2){(xm + x), (ym - y)}, color);
                 }
             }
             y++;

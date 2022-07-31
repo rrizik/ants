@@ -616,7 +616,7 @@ static void
 fill_cell_with_food(u32 x_start, u32 y_start){
     for(u32 x = x_start; x < (u32)(x_start + pm->cell_width); x+=4){
         for(u32 y = y_start; y < (u32)(y_start + pm->cell_height); y+=4){
-            add_food(pm, vec2(x, y), 1, (RGBA){0.0f, 1.0f, 0.0f,  1.0f}, true);
+            add_food(pm, (v2){(f32)x, (f32)y}, 1, (RGBA){0.0f, 1.0f, 0.0f,  1.0f}, true);
         }
     }
 }
@@ -679,7 +679,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         }
         
         Entity *zero_entity = add_entity(pm, EntityType_None);
-        pm->colony = add_colony(pm, vec2(render_buffer->width/2, 100), 25, DGRAY, true);
+        pm->colony = add_colony(pm, (v2){(f32)render_buffer->width/2, 100}, 25, DGRAY, true);
 
         // add ants
         //pm->ants_count = 800;
@@ -700,10 +700,10 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         //fill_cell_with_food(10*pm->cell_width, 10*pm->cell_height);
 
         pm->border_size = 10;
-        add_segment(pm, vec2(pm->border_size, pm->border_size), vec2(render_buffer->width - pm->border_size, pm->border_size), RED);
-        add_segment(pm, vec2(pm->border_size, pm->border_size), vec2(pm->border_size, render_buffer->height - pm->border_size), RED);
-        add_segment(pm, vec2(render_buffer->width - pm->border_size, render_buffer->height - pm->border_size), vec2(pm->border_size, render_buffer->height - pm->border_size), RED);
-        add_segment(pm, vec2(render_buffer->width - pm->border_size, render_buffer->height - pm->border_size), vec2(render_buffer->width - pm->border_size, pm->border_size), RED);
+        add_segment(pm, (v2){(f32)pm->border_size, (f32)pm->border_size}, (v2){(f32)render_buffer->width - pm->border_size, (f32)pm->border_size}, RED);
+        add_segment(pm, (v2){(f32)pm->border_size, (f32)pm->border_size}, (v2){(f32)pm->border_size, (f32)render_buffer->height - pm->border_size}, RED);
+        add_segment(pm, (v2){(f32)render_buffer->width - pm->border_size, (f32)render_buffer->height - pm->border_size}, (v2){(f32)pm->border_size, (f32)render_buffer->height - pm->border_size}, RED);
+        add_segment(pm, (v2){(f32)render_buffer->width - pm->border_size, (f32)render_buffer->height - pm->border_size}, (v2){(f32)render_buffer->width - pm->border_size, (f32)pm->border_size}, RED);
 
 
         pm->food_added = false;
@@ -745,7 +745,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         switch(e->type){
             case EntityType_Food:{
                 if(!e->food_targeted && !e->food_collected){
-                    v2 cell_coord = vec2(floor(e->position.x / cell_width), floor(e->position.y / cell_height));
+                    v2 cell_coord = (v2){(f32)floor(e->position.x / cell_width), (f32)floor(e->position.y / cell_height)};
                     cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
                     
@@ -764,7 +764,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                     f64 t = e->pher_decay / e->pher_decay_max;
                     e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
 
-                    v2 cell_coord = vec2(floor(e->position.x / cell_width), floor(e->position.y / cell_height));
+                    v2 cell_coord = (v2){(f32)floor(e->position.x / cell_width), (f32)floor(e->position.y / cell_height)};
                     cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
 
@@ -783,7 +783,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                     f64 t = e->pher_decay / e->pher_decay_max;
                     e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
                     
-                    v2 cell_coord = vec2(floor(e->position.x / cell_width), floor(e->position.y / cell_height));
+                    v2 cell_coord = (v2){(f32)floor(e->position.x / cell_width), (f32)floor(e->position.y / cell_height)};
                     cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
 
@@ -866,7 +866,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     if(controller->m_left.pressed){
         if(!pm->food_added){
             pm->food_added = true;
-            v2 cell_coord = vec2(floor(controller->mouse_pos.x / cell_width), floor(controller->mouse_pos.y / cell_height));
+            v2 cell_coord = (v2){(f32)floor(controller->mouse_pos.x / cell_width), (f32)floor(controller->mouse_pos.y / cell_height)};
             cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
             cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
             u32 x_start = cell_coord.x * cell_width;
@@ -1337,7 +1337,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             }break;
             case EntityType_Segment:{
                 push_segment(render_command_arena, e->p0, e->p1, e->color);
-                push_segment(render_buffer->render_command_arena, e->p0, e->p1, e->color);
             }break;
             case EntityType_Line:{
                 push_line(render_command_arena, e->position, e->direction, e->color);
@@ -1360,7 +1359,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             case EntityType_Circle:{
                 push_circle(render_command_arena, e->position, e->rad, e->color, e->fill);
                 v2s32 dimension = {e->rad*2, e->rad*2};
-                v2 position = vec2(e->position.x - e->rad, e->position.y - e->rad);
+                v2 position = (v2){e->position.x - e->rad, e->position.y - e->rad};
                 if(e->draw_bounding_box){
                     push_box(render_command_arena, position, dimension, e->color);
                 }
