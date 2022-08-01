@@ -402,7 +402,7 @@ add_colony(PermanentMemory *pm, v2 pos, u8 rad, RGBA color, bool fill){
     return(e);
 }
 
-static Entity* 
+static Entity*
 add_to_home_pheromone(PermanentMemory *pm, v2 pos, RGBA color){
     Entity* e = add_entity(pm, EntityType_ToHomePheromone);
     e->position = pos;
@@ -610,7 +610,7 @@ static work_queue_callback(do_ant_behavior){
     }
 }
 #endif
-    
+
 
 static void
 fill_cell_with_food(u32 x_start, u32 y_start){
@@ -621,7 +621,7 @@ fill_cell_with_food(u32 x_start, u32 y_start){
     }
 }
 
-static void 
+static void
 update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller, Clock* clock, ThreadContext* thread_context){
     Assert(sizeof(PermanentMemory) < memory->permanent_size);
     Assert(sizeof(TransientMemory) < memory->transient_size);
@@ -677,7 +677,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         for(s32 i = ArrayCount(pm->free_entities) - 1; i >= 0; --i){
             pm->free_entities[i] = ArrayCount(pm->free_entities) - 1 - i;
         }
-        
+
         Entity *zero_entity = add_entity(pm, EntityType_None);
         pm->colony = add_colony(pm, (v2){(f32)render_buffer->width/2, 100}, 25, DGRAY, true);
 
@@ -697,7 +697,29 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             // horizonal
             add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
         }
-        //fill_cell_with_food(10*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+
+        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+
+        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+
+        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
 
         pm->border_size = 10;
         add_segment(pm, (v2){(f32)pm->border_size, (f32)pm->border_size}, (v2){(f32)render_buffer->width - pm->border_size, (f32)pm->border_size}, RED);
@@ -748,7 +770,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                     v2 cell_coord = (v2){(f32)floor(e->position.x / cell_width), (f32)floor(e->position.y / cell_height)};
                     cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
-                    
+
                     u32 at = pm->food_cells[(s32)cell_coord.y][(s32)cell_coord.x].at;
                     pm->food_cells[(s32)cell_coord.y][(s32)cell_coord.x].element[at] = e;
                     pm->food_cells[(s32)cell_coord.y][(s32)cell_coord.x].at++;
@@ -782,7 +804,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 else{
                     f64 t = e->pher_decay / e->pher_decay_max;
                     e->color.a = lerp(0.0f, t, e->pheromone_alpha_start);
-                    
+
                     v2 cell_coord = (v2){(f32)floor(e->position.x / cell_width), (f32)floor(e->position.y / cell_height)};
                     cell_coord.x = clamp_f32(0, cell_coord.x, cell_row_count - 1);
                     cell_coord.y = clamp_f32(0, cell_coord.y, cell_row_count - 1);
@@ -887,7 +909,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         behavior_work->render_buffer = render_buffer;
         behavior_work->start = length * i;
         behavior_work->end = (length * (i + 1));
-        
+
         thread_context->add_work_entry(thread_context->queue, do_ant_behavior, behavior_work);
     }
     thread_context->complete_all_work(thread_context->queue);
@@ -958,7 +980,8 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         v2 right_sensor = (v2){position.x + (ant->sensor_distance * right_direction.x), position.y + (ant->sensor_distance * right_direction.y)};
         v2 mid_sensor = (v2){position.x + (ant->sensor_distance * direction.x), position.y + (ant->sensor_distance * direction.y)};
         v2 left_sensor = (v2){position.x + (ant->sensor_distance * left_direction.x), position.y + (ant->sensor_distance * left_direction.y)};
-        s32 half_width = ant->sensor_radius; 
+        // QUESTION: Devon. Should static values, that are the same for every ant, be global variables? PermanentMemory?
+        s32 half_width = ant->sensor_radius;
 
         Rect right_rect = rect((v2){right_sensor.x - half_width, right_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
         Rect mid_rect = rect((v2){mid_sensor.x - half_width, mid_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
@@ -1034,10 +1057,10 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             ant->out_of_bounds_x = false;
             ant->out_of_bounds_y = false;
         }
-        
+
         v2 valid_cell_coords[9];
         u32 at = 0;
-        
+
         if(rect_collides_rect(right_rect, one_rect) || rect_collides_rect(mid_rect, one_rect) || rect_collides_rect(left_rect, one_rect)){
             valid_cell_coords[at++] = (v2){center_cell_coord.x - 1, center_cell_coord.y - 1};
             //push_rect(render_buffer->render_command_arena, one_rect.pos, one_rect.dim, BLUE);
@@ -1085,7 +1108,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 Array* food_cell = &pm->food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
                 Array* pher_food_cell = &pm->pher_food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
                 Array* pher_home_cell = &pm->pher_home_cells[(s32)cell_coord.y][(s32)cell_coord.x];
-                
+
                 if(state == AntState_Wondering){
                     BEGIN_CYCLE_COUNTER(wondering_search_food);
                     BEGIN_TICK_COUNTER(wondering_search_food);
@@ -1110,7 +1133,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
                     BEGIN_CYCLE_COUNTER(wondering_search_pher);
                     BEGIN_TICK_COUNTER(wondering_search_pher);
-                    // QUESTION: (Devon) is pher_food->position, a random jump in memory? 
+                    // QUESTION: (Devon) is pher_food->position, a random jump in memory?
                     // Maybe because, even though I allocate a linked list node from Arena, its not gauranteed that I allocate after previous node.
                     for(u32 i=0; i < pher_food_cell->at; ++i){
                         pher_food = pher_food_cell->element[i];
@@ -1415,7 +1438,7 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 push_segment(render_command_arena, e->position, right_sensor, YELLOW);
                 push_segment(render_command_arena, e->position, mid_sensor, GREEN);
                 push_segment(render_command_arena, e->position, left_sensor, ORANGE);
-                
+
                 push_ray(render_command_arena, e->position, e->direction, RED);
 #endif
             }break;
