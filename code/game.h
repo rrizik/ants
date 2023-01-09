@@ -103,72 +103,45 @@ clear_flags(Entity *e, u32 flags){
 
 typedef struct Array{
     Entity* element[40000];
-    u32 count = 40000;
     u32 at = 0;
 } Array;
 
 typedef struct PermanentMemory{
-    size_t size;
     Arena arena;
     Arena *assets_arena;
     String8 cwd; // CONSIDER: this might be something we want to be set on the platform side
     String8 dir_assets; // CONSIDER: this might be something we want to be set on the platform side
-    s64 frame_ticks_now;
-    s64 frame_ticks_prev;
-
-    f32 screen_width;
-    f32 screen_height;
-
-    u64 start;
-    bool added;
 
     bool draw_home_phers;
     bool draw_food_phers;
     bool draw_depositing_ants;
     bool draw_wondering_ants;
 
-    s32 border_size;
     s32 cell_row_count;
     s32 cell_width;
     s32 cell_height;
 
-    s32 cell_row_count_r;
-    s32 cell_width_r;
-    s32 cell_height_r;
+    Entity* ants_list[2500];
+    Array food_cells     [16][16];
+    Array pher_food_cells[16][16];
+    Array pher_home_cells[16][16];
 
-
-    Entity* ants_list[1000];
-    Array food_cells       [16][16];
-    Array pher_food_cells  [16][16];
-    Array pher_home_cells  [16][16];
-
-    u32 generation[110000];
-    u32 free_entities[110000];
+    u32 generation[210000];
+    u32 free_entities[210000];
     u32 free_entities_at;
 
-    Entity entities[110000];
+    Entity entities[210000];
     u32 entities_count;
 
     Entity* colony;
-    Entity* player;
-
-    u32 ants_count;
-    f32 ant_speed;
-
-    u32 clip_region_index;
-    Bitmap test;
-    Bitmap circle;
-    Bitmap image;
 
     bool food_added;
-    u64 frame_index;
 } PermanentMemory;
 
 typedef struct TransientMemory{
     Arena arena;
     Arena *frame_arena;
     Arena *render_command_arena;
-    Arena *LL_arena;
 } TransientMemory;
 
 static Entity*
@@ -180,12 +153,13 @@ entity_from_handle(PermanentMemory* pm, EntityHandle handle){
             result = e;
         }
     }
+    //assert(result != NULL);
     return(result);
 }
 
 static EntityHandle
 handle_from_entity(PermanentMemory* pm, Entity *e){
-    Assert(e != NULL);
+    assert(e != NULL);
     EntityHandle result = {0};
     if((e >= (pm->entities + 0)) && (e < (pm->entities + ArrayCount(pm->entities)))){
         result.index = e->index;
@@ -202,9 +176,7 @@ add_child(PermanentMemory *pm, u32 parent_index, u32 child_index){
     parent->first_child = child;
 }
 
-static void
-remove_entity(PermanentMemory* pm, Entity* e){
-    // TODO: make sure im not supposed to do [free_entities_at + 1]
+static void remove_entity(PermanentMemory* pm, Entity* e){
     e->type = EntityType_None;
     pm->free_entities_at++;
     pm->free_entities[pm->free_entities_at] = e->index;
@@ -212,8 +184,7 @@ remove_entity(PermanentMemory* pm, Entity* e){
     e->generation = 0;
 }
 
-static Entity*
-add_entity(PermanentMemory *pm, EntityType type){
+static Entity* add_entity(PermanentMemory *pm, EntityType type){
     if(pm->free_entities_at >= 0){
         s32 free_entity_index = pm->free_entities[pm->free_entities_at--];
         Entity *e = pm->entities + free_entity_index;
@@ -607,7 +578,409 @@ static work_queue_callback(do_ant_behavior){
         BEGIN_TICK_COUNTER_L(state_none);
 
         Entity *ant = pm->ants_list[i];
+
+        // local ant data
+        AntState state = ant->ant_state;
+        v2 position = ant->position;
+        v2 direction = ant->direction;
+        v2 target_direction = ant->target_direction;
+        f32 rotation_percent = ant->rot_percent;
+        f32 colony_distance = distance2(position, pm->colony->position);
+        v2 colony_direction = direction2(position, pm->colony->position);
+        bool out_of_bounds = ant->out_of_bounds;
+        f32 right_sensor_density = 0;
+        f32 forward_sensor_density = 0;
+        f32 left_sensor_density = 0;
+        //if(controller->m_middle.held){
+        //    target_direction = direction2(ant->position, (v2){controller->mouse_pos.x, controller->mouse_pos.y});
+        //}
+
+        // all three sensor rects
+        f32 forward_rad = dir_to_rad(direction);
+        f32 right_rad = forward_rad + (RAD * ant->sensor_angle);
+        f32 left_rad = forward_rad - (RAD * ant->sensor_angle);
+
+        v2 right_direction = rad_to_dir(right_rad);
+        v2 left_direction = rad_to_dir(left_rad);
+
+        v2 right_sensor = (v2){position.x + (ant->sensor_distance * right_direction.x), position.y + (ant->sensor_distance * right_direction.y)};
+        v2 mid_sensor = (v2){position.x + (ant->sensor_distance * direction.x), position.y + (ant->sensor_distance * direction.y)};
+        v2 left_sensor = (v2){position.x + (ant->sensor_distance * left_direction.x), position.y + (ant->sensor_distance * left_direction.y)};
+
+        s32 half_width = ant->sensor_radius;
+        Rect right_rect = rect((v2){right_sensor.x - half_width, right_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
+        Rect mid_rect = rect((v2){mid_sensor.x - half_width, mid_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
+        Rect left_rect = rect((v2){left_sensor.x - half_width, left_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
+
+        // calc rect for all 9 cells
+        v2 center_cell_coord = (v2){floor_f32(position.x / cell_width), floor_f32(position.y / cell_height)};
+        center_cell_coord.x = clamp_f32(0, center_cell_coord.x, cell_row_count - 1);
+        center_cell_coord.y = clamp_f32(0, center_cell_coord.y, cell_row_count - 1);
+
+        v2 one_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 two_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 three_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 four_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 five_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 six_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 seven_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
+        v2 eight_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y + 1) * cell_height};
+        v2 nine_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
+
+        v2s32 cell_dim = (v2s32){cell_width, cell_height};
+        Rect one_rect = rect(one_pos, cell_dim);
+        Rect two_rect = rect(two_pos, cell_dim);
+        Rect three_rect = rect(three_pos, cell_dim);
+        Rect four_rect = rect(four_pos, cell_dim);
+        Rect five_rect = rect(five_pos, cell_dim);
+        Rect six_rect = rect(six_pos, cell_dim);
+        Rect seven_rect = rect(seven_pos, cell_dim);
+        Rect eight_rect = rect(eight_pos, cell_dim);
+        Rect nine_rect = rect(nine_pos, cell_dim);
+
+        // to home/to food pheromones
+        ant->pheromone_spawn_timer -= dt;
+        if(ant->pheromone_spawn_timer <= 0){
+            if(state == AntState_Wondering || state == AntState_Collecting){
+                Entity* pher = add_to_home_pheromone(pm, position, MAGENTA);
+            }
+            if(state == AntState_Depositing){
+                Entity* pher = add_to_food_pheromone(pm, position, TEAL);
+            }
+            ant->pheromone_spawn_timer = ant->pheromone_spawn_timer_max;
+        }
+
+        // rotate towards target_direction
+        f32 ant_direction_radian = dir_to_rad(direction);
+        f32 target_direction_radian = dir_to_rad(target_direction);
+        v2 lerped_direction = rad_to_dir(slerp(ant_direction_radian, rotation_percent, target_direction_radian));
+        direction = lerped_direction;
+        rotation_percent += dt;
+        if(rotation_percent > 1.0f){
+            rotation_percent = 1.0f;
+        }
+
+        // move forward direction
+        position.x += (ant->speed * direction.x) * dt;
+        position.y += (ant->speed * direction.y) * dt;
+
+        // out of bounds check
+        if(position.x < border_size){
+            target_direction.x = 1;
+            if(!ant->out_of_bounds_x){
+                ant->direction_change_timer = ant->direction_change_timer_max;
+                rotation_percent = 0.0f;
+                ant->out_of_bounds_x = true;
+            }
+            goto end_of_behavior;
+        }
+        else if(position.x > work->render_buffer->width - border_size){
+            target_direction.x = -1;
+            if(!ant->out_of_bounds_x){
+                ant->direction_change_timer = ant->direction_change_timer_max;
+                rotation_percent = 0.0f;
+                ant->out_of_bounds_x = true;
+            }
+            goto end_of_behavior;
+        }
+        else if(position.y < border_size){
+            target_direction.y = 1;
+            if(!ant->out_of_bounds_y){
+                ant->direction_change_timer = ant->direction_change_timer_max;
+                rotation_percent = 0.0f;
+                ant->out_of_bounds_y = true;
+            }
+            goto end_of_behavior;
+        }
+        else if(position.y > work->render_buffer->height - border_size){
+            target_direction.y = -1;
+            if(!ant->out_of_bounds_y){
+                ant->direction_change_timer = ant->direction_change_timer_max;
+                rotation_percent = 0.0f;
+                ant->out_of_bounds_y = true;
+            }
+            goto end_of_behavior;
+        }
+        else{
+            ant->out_of_bounds_x = false;
+            ant->out_of_bounds_y = false;
+        }
+
+        v2 valid_cell_coords[9];
+        u32 at = 0;
+
+        if(rect_collides_rect(right_rect, one_rect) || rect_collides_rect(mid_rect, one_rect) || rect_collides_rect(left_rect, one_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x - 1, center_cell_coord.y - 1};
+            //push_rect(render_buffer->render_command_arena, one_rect.pos, one_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, two_rect) || rect_collides_rect(mid_rect, two_rect) || rect_collides_rect(left_rect, two_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x, center_cell_coord.y - 1};
+            //push_rect(render_buffer->render_command_arena, two_rect.pos, two_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, three_rect) || rect_collides_rect(mid_rect, three_rect) || rect_collides_rect(left_rect, three_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x + 1, center_cell_coord.y - 1};
+            //push_rect(render_buffer->render_command_arena, three_rect.pos, three_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, four_rect) || rect_collides_rect(mid_rect, four_rect) || rect_collides_rect(left_rect, four_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x - 1, center_cell_coord.y};
+            //push_rect(render_buffer->render_command_arena, four_rect.pos, four_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, five_rect) || rect_collides_rect(mid_rect, five_rect) || rect_collides_rect(left_rect, five_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x, center_cell_coord.y};
+            //push_rect(render_buffer->render_command_arena, five_rect.pos, five_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, six_rect) || rect_collides_rect(mid_rect, six_rect) || rect_collides_rect(left_rect, six_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x + 1, center_cell_coord.y};
+            //push_rect(render_buffer->render_command_arena, six_rect.pos, six_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, seven_rect) || rect_collides_rect(mid_rect, seven_rect) || rect_collides_rect(left_rect, seven_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x - 1, center_cell_coord.y + 1};
+            //push_rect(render_buffer->render_command_arena, seven_rect.pos, seven_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, eight_rect) || rect_collides_rect(mid_rect, eight_rect) || rect_collides_rect(left_rect, eight_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x, center_cell_coord.y + 1};
+            //push_rect(render_buffer->render_command_arena, eight_rect.pos, eight_rect.dim, BLUE);
+        }
+        if(rect_collides_rect(right_rect, nine_rect) || rect_collides_rect(mid_rect, nine_rect) || rect_collides_rect(left_rect, nine_rect)){
+            valid_cell_coords[at++] = (v2){center_cell_coord.x + 1, center_cell_coord.y + 1};
+            //push_rect(render_buffer->render_command_arena, nine_rect.pos, nine_rect.dim, BLUE);
+        }
+
+        Entity *food = 0;
+        Entity *pher_food = 0;
+        Entity *pher_home = 0;
+        for(s32 i=0; i <at; ++i){
+            v2 cell_coord = valid_cell_coords[i];
+
+            if(cell_coord.x >= 0 && cell_coord.x < cell_row_count && cell_coord.y >= 0 && cell_coord.y < cell_row_count){
+                Array* food_cell = &pm->food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
+                Array* pher_food_cell = &pm->pher_food_cells[(s32)cell_coord.y][(s32)cell_coord.x];
+                Array* pher_home_cell = &pm->pher_home_cells[(s32)cell_coord.y][(s32)cell_coord.x];
+
+                if(state == AntState_Wondering){
+                    BEGIN_CYCLE_COUNTER(wondering_search_food);
+                    BEGIN_TICK_COUNTER_L(wondering_search_food);
+                    for(u32 i=0; i < food_cell->at; ++i){
+                        food = food_cell->element[i];
+                        if(!food->food_targeted){
+                            f32 distance = distance2(position, food->position);
+                            if(distance < 40){
+                                state = AntState_Collecting;
+                                food->food_targeted = true;
+                                ant->ant_food = handle_from_entity(pm, food);
+                                food->food_ant = handle_from_entity(pm, ant);
+
+                                target_direction = direction2(position, food->position);
+                                rotation_percent = 0.0f;
+                                goto end_of_behavior;
+                            }
+                        }
+                    }
+                    END_TICK_COUNTER_L(wondering_search_food);
+                    END_CYCLE_COUNTER(wondering_search_food);
+
+                    BEGIN_CYCLE_COUNTER(wondering_search_pher);
+                    BEGIN_TICK_COUNTER_L(wondering_search_pher);
+                    for(u32 i=0; i < pher_food_cell->at; ++i){
+                        pher_food = pher_food_cell->element[i];
+                        if(rect_collides_point(right_rect, pher_food->position)){
+                            right_sensor_density += pher_food->color.a;
+                        }
+                        if(rect_collides_point(mid_rect, pher_food->position)){
+                            forward_sensor_density += pher_food->color.a;
+                        }
+                        if(rect_collides_point(left_rect, pher_food->position)){
+                            left_sensor_density += pher_food->color.a;
+                        }
+                    }
+                    END_TICK_COUNTER_L(wondering_search_pher);
+                    END_CYCLE_COUNTER(wondering_search_pher);
+                }
+                if(state == AntState_Depositing){
+                    Entity *pher_home = NULL;
+                    BEGIN_CYCLE_COUNTER(depositing_search);
+                    BEGIN_TICK_COUNTER_L(depositing_search);
+                    for(u32 i=0; i < pher_home_cell->at; ++i){
+                        pher_home = pher_home_cell->element[i];
+                        if(rect_collides_point(right_rect, pher_home->position)){
+                            right_sensor_density += pher_home->color.a;
+                        }
+                        if(rect_collides_point(mid_rect, pher_home->position)){
+                            forward_sensor_density += pher_home->color.a;
+                        }
+                        if(rect_collides_point(left_rect, pher_home->position)){
+                            left_sensor_density += pher_home->color.a;
+                        }
+                    }
+                    END_TICK_COUNTER_L(depositing_search);
+                    END_CYCLE_COUNTER(depositing_search);
+                }
+            }
+        }
+        END_TICK_COUNTER_L(state_none);
+        END_CYCLE_COUNTER(state_none);
+
+        if(state == AntState_Wondering){
+            BEGIN_CYCLE_COUNTER(state_wondering);
+            BEGIN_TICK_COUNTER_L(state_wondering);
+
+            if(right_sensor_density > 0 || forward_sensor_density > 0 || left_sensor_density > 0){
+                if(forward_sensor_density > MAX(right_sensor_density, left_sensor_density)){
+                    target_direction = direction;
+                    if(ant->forward == false){
+                        rotation_percent = 0.0f;
+                    }
+                    ant->right = false;
+                    ant->forward = true;
+                    ant->left = false;
+                }
+                else if(right_sensor_density > left_sensor_density){
+                    target_direction = right_direction;
+                    if(ant->right == false){
+                        rotation_percent = 0.0f;
+                    }
+                    ant->right = true;
+                    ant->forward = false;
+                    ant->left = false;
+                }
+                else if(left_sensor_density > right_sensor_density){
+                    target_direction = left_direction;
+                    if(ant->left == false){
+                        rotation_percent = 0.0f;
+                    }
+                    ant->right = false;
+                    ant->forward = false;
+                    ant->left = true;
+                }
+            }
+            else{
+                // random target_direction on timer
+                ant->direction_change_timer -= dt;
+                if(ant->direction_change_timer <= 0){;
+                    ant->random_vector.x = ((s32)(random_range(201)-100)/100.0f);
+                    ant->random_vector.y = ((s32)(random_range(201)-100)/100.0f);
+                    rotation_percent = 0.0f;
+                    ant->direction_change_timer_max = (random_range(3) + 1);
+                    ant->direction_change_timer = ant->direction_change_timer_max;
+                    target_direction = ant->random_vector;
+                }
+            }
+            END_TICK_COUNTER_L(state_wondering);
+            END_CYCLE_COUNTER(state_wondering);
+        }
+
+        else if(state == AntState_Collecting){
+            BEGIN_CYCLE_COUNTER(state_collecting);
+            BEGIN_TICK_COUNTER_L(state_collecting);
+
+            Entity* targeted_food = entity_from_handle(pm, ant->ant_food);
+            target_direction = direction2(position, targeted_food->position);
+            f32 distance = distance2(position, targeted_food->position);
+
+            // consume food once close enough
+            if(distance < 10){
+                state = AntState_Depositing;
+                targeted_food->food_collected = true;
+                target_direction.x = -direction.x;
+                target_direction.y = -direction.y;
+                rotation_percent = 0.0f;
+                ant->direction_change_timer_max = (random_range(3) + 1);
+                ant->direction_change_timer = ant->direction_change_timer_max;
+                //ant->color = (RGBA){1.0f, 0.0f, 0.0f,  1.0f};
+            }
+            END_TICK_COUNTER_L(state_collecting);
+            END_CYCLE_COUNTER(state_collecting);
+        }
+
+        else if(state == AntState_Depositing){
+            BEGIN_CYCLE_COUNTER(state_depositing);
+            BEGIN_TICK_COUNTER_L(state_depositing);
+
+            Entity* collected_food = entity_from_handle(pm, ant->ant_food);
+            collected_food->position.x = position.x + (5 * direction.x);
+            collected_food->position.y = position.y + (5 * direction.y);
+
+            // target colony when close enough
+            if(ant->colony_targeted){
+                target_direction = colony_direction;
+                if(colony_distance < 2){
+                    remove_entity(pm, collected_food);
+
+                    state = AntState_Wondering;
+                    target_direction.x = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                    target_direction.y = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                    ant->colony_targeted = false;
+                    rotation_percent = 0.0f;
+                    ant->direction_change_timer_max = (random_range(3) + 1);
+                    ant->direction_change_timer = ant->direction_change_timer_max;
+                    collected_food->food_targeted = false;
+                    collected_food->food_collected = false;
+                    collected_food->food_ant = zero_entity_handle();
+                    ant->ant_food = zero_entity_handle();
+                    ant->color = (RGBA){0.8f, 0.8f, 0.8f,  0.7f};
+                }
+            }
+            else{
+                if(colony_distance < 75){
+                    rotation_percent = 0;
+                    ant->colony_targeted = true;
+                }
+
+                if(right_sensor_density > 0 || forward_sensor_density > 0 || left_sensor_density > 0){
+                    if(forward_sensor_density > MAX(right_sensor_density, left_sensor_density)){
+                        target_direction = direction;
+                        if(ant->forward == false){
+                            rotation_percent = 0.0f;
+                        }
+                        ant->right = false;
+                        ant->forward = true;
+                        ant->left = false;
+                    }
+                    else if(right_sensor_density > left_sensor_density){
+                        target_direction = right_direction;
+                        if(ant->right == false){
+                            rotation_percent = 0.0f;
+                        }
+                        ant->right = true;
+                        ant->forward = false;
+                        ant->left = false;
+                    }
+                    else if(left_sensor_density > right_sensor_density){
+                        target_direction = left_direction;
+                        if(ant->left == false){
+                            rotation_percent = 0.0f;
+                        }
+                        ant->right = false;
+                        ant->forward = false;
+                        ant->left = true;
+                    }
+                }
+                else{
+                    // random target_direction on timer
+                    ant->direction_change_timer -= dt;
+                    if(ant->direction_change_timer <= 0){
+                        ant->random_vector.x = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                        ant->random_vector.y = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                        rotation_percent = 0.0f;
+                        ant->direction_change_timer_max = (random_range(3) + 1);
+                        ant->direction_change_timer = ant->direction_change_timer_max;
+                        target_direction = ant->random_vector;
+                    }
+                }
+            }
+            END_TICK_COUNTER_L(state_depositing);
+            END_CYCLE_COUNTER(state_depositing);
+        }
+        end_of_behavior:;
+        ant->ant_state = state;
+        ant->target_direction = target_direction;
+        ant->direction = direction;
+        ant->position = position;
+        ant->rot_percent = rotation_percent;
+        ant->out_of_bounds = out_of_bounds;
     }
+    END_TICK_COUNTER_L(behavior);
+    END_CYCLE_COUNTER(behavior);
 }
 #endif
 
@@ -623,8 +996,8 @@ fill_cell_with_food(u32 x_start, u32 y_start){
 
 static void
 update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller, Clock* clock, ThreadContext* thread_context){
-    Assert(sizeof(PermanentMemory) < memory->permanent_size);
-    Assert(sizeof(TransientMemory) < memory->transient_size);
+    assert(sizeof(PermanentMemory) < memory->permanent_size);
+    assert(sizeof(TransientMemory) < memory->transient_size);
     pm = (PermanentMemory*)memory->permanent_base;
     tm = (TransientMemory*)memory->transient_base;
 
@@ -642,11 +1015,8 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     RGBA BLACK =   {0.0f, 0.0f, 0.0f,  1.0f};
 
 
-
     if(!memory->initialized){
 
-        Entity a = {0};
-        pm->size = sizeof(&a);
         init_arena(&pm->arena, (u8*)memory->permanent_base + sizeof(PermanentMemory), memory->permanent_size - sizeof(PermanentMemory));
         init_arena(&tm->arena, (u8*)memory->transient_base + sizeof(TransientMemory), memory->transient_size - sizeof(TransientMemory));
         pm->cwd = os_get_cwd(&pm->arena);
@@ -655,21 +1025,13 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         pm->assets_arena = push_arena(&pm->arena, MB(1));
         tm->render_command_arena = push_arena(&tm->arena, MB(16));
 
-        tm->LL_arena = push_arena(&tm->arena, MB(800));
         tm->frame_arena = push_arena(&tm->arena, MB(100));
-
-        pm->screen_width = render_buffer->width;
-        pm->screen_height = render_buffer->height;
 
         seed_random(1, 0);
 
         pm->cell_row_count = 16;
         pm->cell_width = render_buffer->width / pm->cell_row_count;
         pm->cell_height = render_buffer->height / pm->cell_row_count;
-
-        pm->cell_row_count_r = 5;
-        pm->cell_width_r = render_buffer->width / pm->cell_row_count_r;
-        pm->cell_height_r = render_buffer->height / (thread_context->thread_count + 1);
 
         // setup free entities array
         pm->free_entities_at = ArrayCount(pm->free_entities) - 1;
@@ -682,51 +1044,63 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         pm->colony = add_colony(pm, (v2){(f32)render_buffer->width/2, 100}, 25, DGRAY, true);
 
         // add ants
-        //pm->ants_count = 800;
         for(u32 i=0; i < ArrayCount(pm->ants_list); ++i){
             //Entity* ant = add_ant(pm, pm->colony->position, 2, LGRAY, true);
             Entity* ant = add_ant(pm, (v2){(f32)(render_buffer->width/2) - 4, 100 - 4}, 2, LGRAY, true);
-            pm->player = ant;
             pm->ants_list[i] = ant;
         }
 
         // add grid
-        for(s32 i=1; i < pm->cell_row_count; ++i){
+        //for(s32 i=1; i < pm->cell_row_count; ++i){
             // vertical
-            add_segment(pm, {((f32)render_buffer->width - pm->cell_width * i), 0}, {((f32)render_buffer->width - pm->cell_width * i), (f32)render_buffer->height}, DGRAY);
+            //add_segment(pm, {((f32)render_buffer->width - pm->cell_width * i), 0}, {((f32)render_buffer->width - pm->cell_width * i), (f32)render_buffer->height}, DGRAY);
             // horizonal
-            add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
-        }
+            //add_segment(pm, {0, ((f32)render_buffer->height - pm->cell_height * i)}, {(f32)render_buffer->width, ((f32)render_buffer->height - pm->cell_height * i)}, DGRAY);
+        //}
+        //fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        //fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        //fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        //fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        //fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
+        fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
         fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
         fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
         fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
         fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
         fill_cell_with_food(13*pm->cell_width, 5*pm->cell_height);
 
-        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
-        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
-        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
-        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
-        fill_cell_with_food(11*pm->cell_width, 10*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
+        fill_cell_with_food(6*pm->cell_width, 11*pm->cell_height);
 
-        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
-        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
-        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
-        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
-        fill_cell_with_food(6*pm->cell_width, 8*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
+        fill_cell_with_food(1*pm->cell_width, 4*pm->cell_height);
 
-        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
-        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
-        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
-        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
-        fill_cell_with_food(3*pm->cell_width, 4*pm->cell_height);
-
-        pm->border_size = 10;
-        add_segment(pm, (v2){(f32)pm->border_size, (f32)pm->border_size}, (v2){(f32)render_buffer->width - pm->border_size, (f32)pm->border_size}, RED);
-        add_segment(pm, (v2){(f32)pm->border_size, (f32)pm->border_size}, (v2){(f32)pm->border_size, (f32)render_buffer->height - pm->border_size}, RED);
-        add_segment(pm, (v2){(f32)render_buffer->width - pm->border_size, (f32)render_buffer->height - pm->border_size}, (v2){(f32)pm->border_size, (f32)render_buffer->height - pm->border_size}, RED);
-        add_segment(pm, (v2){(f32)render_buffer->width - pm->border_size, (f32)render_buffer->height - pm->border_size}, (v2){(f32)render_buffer->width - pm->border_size, (f32)pm->border_size}, RED);
-
+        border_size = 10;
+        //add_segment(pm, (v2){(f32)border_size, (f32)border_size}, (v2){(f32)render_buffer->width - border_size, (f32)border_size}, RED);
+        //add_segment(pm, (v2){(f32)border_size, (f32)border_size}, (v2){(f32)border_size, (f32)render_buffer->height - border_size}, RED);
+        //add_segment(pm, (v2){(f32)render_buffer->width - border_size, (f32)render_buffer->height - border_size}, (v2){(f32)border_size, (f32)render_buffer->height - border_size}, RED);
+        //add_segment(pm, (v2){(f32)render_buffer->width - border_size, (f32)render_buffer->height - border_size}, (v2){(f32)render_buffer->width - border_size, (f32)border_size}, RED);
 
         pm->food_added = false;
 		pm->draw_home_phers = true;
@@ -738,14 +1112,13 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         cell_width = pm->cell_width;
         cell_height = pm->cell_height;
         cell_row_count = pm->cell_row_count;
-        border_size = pm->border_size;
 
         memory->initialized = true;
     }
 
     BEGIN_CYCLE_COUNTER(reset_sentinels);
     BEGIN_TICK_COUNTER(reset_sentinels);
-    // reset LL
+    // Array reset
     for(s32 y=0; y < cell_row_count; ++y){
         for(s32 x=0; x < cell_row_count; ++x){
             pm->food_cells[y][x].at = 0;
@@ -753,7 +1126,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             pm->pher_home_cells[y][x].at = 0;
         }
     }
-    tm->LL_arena->used = 0;
     END_TICK_COUNTER(reset_sentinels);
     END_CYCLE_COUNTER(reset_sentinels);
 
@@ -824,47 +1196,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
     BEGIN_CYCLE_COUNTER(controller);
     BEGIN_TICK_COUNTER(controller);
-    u32 speed = 200;
-    if(controller->up.held){
-        pm->player->position.y += speed * dt;
-    }
-    if(controller->down.held){
-        pm->player->position.y -= speed * dt;
-    }
-    if(controller->left.held){
-        pm->player->position.x -= speed * dt;
-    }
-    if(controller->right.held){
-        pm->player->position.x += speed * dt;
-    }
-    //pm->player->direction = direction2(pm->player->position, controller->mouse_pos);
-    //print("dx: %f - dy: %f\n", pm->player->direction.x, pm->player->direction.y);
-
-        // center cell and bottom left cell coords
-    v2 center_cell_coord = (v2){floor_f32(pm->player->position.x / cell_width), floor_f32(pm->player->position.y / cell_height)};
-    center_cell_coord.x = clamp_f32(0, center_cell_coord.x, cell_row_count - 1);
-    center_cell_coord.y = clamp_f32(0, center_cell_coord.y, cell_row_count - 1);
-
-    v2 nine_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
-    v2 eight_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y + 1) * cell_height};
-    v2 seven_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
-    v2 six_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y) * cell_height};
-    v2 five_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y) * cell_height};
-    v2 four_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y) * cell_height};
-    v2 three_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
-    v2 two_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y - 1) * cell_height};
-    v2 one_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
-
-    v2s32 cell_dim = (v2s32){cell_width, cell_height};
-    Rect nine_rect = rect(nine_pos, cell_dim);
-    Rect eight_rect = rect(eight_pos, cell_dim);
-    Rect seven_rect = rect(seven_pos, cell_dim);
-    Rect six_rect = rect(six_pos, cell_dim);
-    Rect five_rect = rect(five_pos, cell_dim);
-    Rect four_rect = rect(four_pos, cell_dim);
-    Rect three_rect = rect(three_pos, cell_dim);
-    Rect two_rect = rect(two_pos, cell_dim);
-    Rect one_rect = rect(one_pos, cell_dim);
 
     if(controller->one.pressed){
         pm->draw_home_phers = !pm->draw_home_phers;
@@ -902,7 +1233,12 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     END_TICK_COUNTER(controller);
     END_CYCLE_COUNTER(controller);
 
-#if 0
+    // TODO: put this back at the bottom with the rest of the render command stuff
+    //free_arena(render_buffer->render_command_arena);
+    //push_clear_color(render_buffer->render_command_arena, (v2){0, 0}, (v2){(f32)render_buffer->width, (f32)render_buffer->height}, BLACK);
+
+
+#if 1
     u32 length = ArrayCount(pm->ants_list) / (thread_context->thread_count + 1);
     for(u32 i=0; i < (thread_context->thread_count + 1); ++i){
         BehaviorWork* behavior_work = push_array(tm->frame_arena, BehaviorWork, 1);
@@ -914,10 +1250,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     }
     thread_context->complete_all_work(thread_context->queue);
 #else
-    // TODO: put this back at the bottom with the rest of the render command stuff
-    free_arena(render_buffer->render_command_arena);
-    push_clear_color(render_buffer->render_command_arena, (v2){0, 0}, (v2){(f32)render_buffer->width, (f32)render_buffer->height}, BLACK);
-
     BEGIN_CYCLE_COUNTER(behavior);
     BEGIN_TICK_COUNTER(behavior);
     // bbb
@@ -928,46 +1260,20 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         Entity *ant = pm->ants_list[i];
 
         // local ant data
-        f32 right_sensor_density = 0;
-        f32 forward_sensor_density = 0;
-        f32 left_sensor_density = 0;
         AntState state = ant->ant_state;
-        v2 target_direction = ant->target_direction;
-        v2 direction = ant->direction;
         v2 position = ant->position;
+        v2 direction = ant->direction;
+        v2 target_direction = ant->target_direction;
         f32 rotation_percent = ant->rot_percent;
         f32 colony_distance = distance2(position, pm->colony->position);
         v2 colony_direction = direction2(position, pm->colony->position);
         bool out_of_bounds = ant->out_of_bounds;
+        f32 right_sensor_density = 0;
+        f32 forward_sensor_density = 0;
+        f32 left_sensor_density = 0;
         //if(controller->m_middle.held){
         //    target_direction = direction2(ant->position, (v2){controller->mouse_pos.x, controller->mouse_pos.y});
         //}
-
-        // calc rect for all 9 cells
-        v2 center_cell_coord = (v2){floor_f32(position.x / cell_width), floor_f32(position.y / cell_height)};
-        center_cell_coord.x = clamp_f32(0, center_cell_coord.x, cell_row_count - 1);
-        center_cell_coord.y = clamp_f32(0, center_cell_coord.y, cell_row_count - 1);
-
-        v2 nine_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
-        v2 eight_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y + 1) * cell_height};
-        v2 seven_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
-        v2 six_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y) * cell_height};
-        v2 five_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y) * cell_height};
-        v2 four_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y) * cell_height};
-        v2 three_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
-        v2 two_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y - 1) * cell_height};
-        v2 one_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
-
-        v2s32 cell_dim = (v2s32){cell_width, cell_height};
-        Rect nine_rect = rect(nine_pos, cell_dim);
-        Rect eight_rect = rect(eight_pos, cell_dim);
-        Rect seven_rect = rect(seven_pos, cell_dim);
-        Rect six_rect = rect(six_pos, cell_dim);
-        Rect five_rect = rect(five_pos, cell_dim);
-        Rect four_rect = rect(four_pos, cell_dim);
-        Rect three_rect = rect(three_pos, cell_dim);
-        Rect two_rect = rect(two_pos, cell_dim);
-        Rect one_rect = rect(one_pos, cell_dim);
 
         // all three sensor rects
         f32 forward_rad = dir_to_rad(direction);
@@ -980,15 +1286,39 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         v2 right_sensor = (v2){position.x + (ant->sensor_distance * right_direction.x), position.y + (ant->sensor_distance * right_direction.y)};
         v2 mid_sensor = (v2){position.x + (ant->sensor_distance * direction.x), position.y + (ant->sensor_distance * direction.y)};
         v2 left_sensor = (v2){position.x + (ant->sensor_distance * left_direction.x), position.y + (ant->sensor_distance * left_direction.y)};
-        // QUESTION: Devon. Should static values, that are the same for every ant, be global variables? PermanentMemory?
-        s32 half_width = ant->sensor_radius;
 
+        s32 half_width = ant->sensor_radius;
         Rect right_rect = rect((v2){right_sensor.x - half_width, right_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
         Rect mid_rect = rect((v2){mid_sensor.x - half_width, mid_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
         Rect left_rect = rect((v2){left_sensor.x - half_width, left_sensor.y - half_width}, (v2s32){half_width * 2, half_width * 2});
 
+        // calc rect for all 9 cells
+        v2 center_cell_coord = (v2){floor_f32(position.x / cell_width), floor_f32(position.y / cell_height)};
+        center_cell_coord.x = clamp_f32(0, center_cell_coord.x, cell_row_count - 1);
+        center_cell_coord.y = clamp_f32(0, center_cell_coord.y, cell_row_count - 1);
+
+        v2 one_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 two_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 three_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y - 1) * cell_height};
+        v2 four_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 five_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 six_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y) * cell_height};
+        v2 seven_pos = (v2){(center_cell_coord.x - 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
+        v2 eight_pos = (v2){(center_cell_coord.x) * cell_width, (center_cell_coord.y + 1) * cell_height};
+        v2 nine_pos = (v2){(center_cell_coord.x + 1) * cell_width, (center_cell_coord.y + 1) * cell_height};
+
+        v2s32 cell_dim = (v2s32){cell_width, cell_height};
+        Rect one_rect = rect(one_pos, cell_dim);
+        Rect two_rect = rect(two_pos, cell_dim);
+        Rect three_rect = rect(three_pos, cell_dim);
+        Rect four_rect = rect(four_pos, cell_dim);
+        Rect five_rect = rect(five_pos, cell_dim);
+        Rect six_rect = rect(six_pos, cell_dim);
+        Rect seven_rect = rect(seven_pos, cell_dim);
+        Rect eight_rect = rect(eight_pos, cell_dim);
+        Rect nine_rect = rect(nine_pos, cell_dim);
+
         // to home/to food pheromones
-        // QUESTION: (Devon) phermone_spawn_timer is example of something not worth caching/localizing/initialize locally?
         ant->pheromone_spawn_timer -= dt;
         if(ant->pheromone_spawn_timer <= 0){
             if(state == AntState_Wondering || state == AntState_Collecting){
@@ -1010,12 +1340,10 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
             rotation_percent = 1.0f;
         }
 
-        // QUESTION: (Devon) speed has only 2 access, is it worth caching?
         // move forward direction
         position.x += (ant->speed * direction.x) * dt;
         position.y += (ant->speed * direction.y) * dt;
 
-        // QUESTION: (Devon) border_size, can anything be initialized locally?
         // out of bounds check
         if(position.x < border_size){
             target_direction.x = 1;
@@ -1133,8 +1461,6 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
                     BEGIN_CYCLE_COUNTER(wondering_search_pher);
                     BEGIN_TICK_COUNTER(wondering_search_pher);
-                    // QUESTION: (Devon) is pher_food->position, a random jump in memory?
-                    // Maybe because, even though I allocate a linked list node from Arena, its not gauranteed that I allocate after previous node.
                     for(u32 i=0; i < pher_food_cell->at; ++i){
                         pher_food = pher_food_cell->element[i];
                         if(rect_collides_point(right_rect, pher_food->position)){
@@ -1261,8 +1587,8 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                     remove_entity(pm, collected_food);
 
                     state = AntState_Wondering;
-                    target_direction.x = -direction.x;
-                    target_direction.y = -direction.y;
+                    target_direction.x = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
+                    target_direction.y = (((s32)(random_range((2 * 100) + 1)) - 100)/100.0f);
                     ant->colony_targeted = false;
                     rotation_percent = 0.0f;
                     ant->direction_change_timer_max = (random_range(3) + 1);
@@ -1339,20 +1665,21 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
 
     BEGIN_CYCLE_COUNTER(allocate_commands);
     BEGIN_TICK_COUNTER(allocate_commands);
-    //for(u32 i=0; i < (thread_context->thread_count + 1); ++i){
-    //    free_arena(render_buffer->render_command_arenas[i]);
-    //    //push_clear_color(render_buffer->render_command_arenas[y][x], (v2){0, 0}, (v2){(f32)cell_width_r, (f32)cell_height_r}, BLACK);
-    //}
-    //memset(render_buffer->base, 0, (render_buffer->width * render_buffer->height) * render_buffer->bytes_per_pixel);
+    for(u32 i=0; i < (thread_context->thread_count + 1); ++i){
+        free_arena(render_buffer->render_command_arenas[i]);
+        //push_clear_color(render_buffer->render_command_arenas[y][x], (v2){0, 0}, (v2){(f32)cell_width_r, (f32)cell_height_r}, BLACK);
+    }
+    memset(render_buffer->base, 0, (render_buffer->width * render_buffer->height) * render_buffer->bytes_per_pixel);
 
     for(u32 entity_index = pm->free_entities_at; entity_index < ArrayCount(pm->entities); ++entity_index){
         Entity *e = pm->entities + pm->free_entities[entity_index];
 
-        //f32 cell = (e->position.y / cell_height_r);
-        //f32 floor_cell = floor_f32(cell);
-        //s32 floor_index = clamp_f32_s32(0, floor_cell, thread_context->thread_count);
-        //Arena* render_command_arena = render_buffer->render_command_arenas[floor_index];
-        Arena* render_command_arena = render_buffer->render_command_arena;
+        u32 threaded_cell_height = render_buffer->height / (thread_context->thread_count + 1);
+        f32 cell = (e->position.y / threaded_cell_height);
+        f32 floor_cell = floor_f32(cell);
+        s32 floor_index = clamp_f32_s32(0, floor_cell, thread_context->thread_count);
+        Arena* render_command_arena = render_buffer->render_command_arenas[floor_index];
+        //Arena* render_command_arena = render_buffer->render_command_arena;
 
         switch(e->type){
             case EntityType_Pixel:{
@@ -1423,13 +1750,13 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
                 v2 right_direction = rad_to_dir(right_rad);
                 v2 left_direction = rad_to_dir(left_rad);
 
-                v2 right_sensor = vec2(e->position.x + (e->sensor_distance * right_direction.x), e->position.y + (e->sensor_distance * right_direction.y));
-                v2 mid_sensor = vec2(e->position.x + (e->sensor_distance * e->direction.x), e->position.y + (e->sensor_distance * e->direction.y));
-                v2 left_sensor = vec2(e->position.x + (e->sensor_distance * left_direction.x), e->position.y + (e->sensor_distance * left_direction.y));
+                v2 right_sensor = (v2){(f32)(e->position.x + (e->sensor_distance * right_direction.x)), (f32)(e->position.y + (e->sensor_distance * right_direction.y))};
+                v2 mid_sensor = (v2){(f32)(e->position.x + (e->sensor_distance * e->direction.x)), (f32)(e->position.y + (e->sensor_distance * e->direction.y))};
+                v2 left_sensor = (v2){(f32)(e->position.x + (e->sensor_distance * left_direction.x)), (f32)(e->position.y + (e->sensor_distance * left_direction.y))};
 
-                Rect right_rect = rect(vec2(right_sensor.x - e->sensor_radius, right_sensor.y - e->sensor_radius), vec2s32(e->sensor_radius * 2, e->sensor_radius * 2));
-                Rect mid_rect = rect(vec2(mid_sensor.x - e->sensor_radius, mid_sensor.y - e->sensor_radius), vec2s32(e->sensor_radius * 2, e->sensor_radius * 2));
-                Rect left_rect = rect(vec2(left_sensor.x - e->sensor_radius, left_sensor.y - e->sensor_radius), vec2s32(e->sensor_radius * 2, e->sensor_radius * 2));
+                Rect right_rect = rect((v2){right_sensor.x - e->sensor_radius, right_sensor.y - e->sensor_radius}, (v2s32){e->sensor_radius * 2, e->sensor_radius * 2});
+                Rect mid_rect = rect((v2){mid_sensor.x - e->sensor_radius, mid_sensor.y - e->sensor_radius}, (v2s32){e->sensor_radius * 2, e->sensor_radius * 2});
+                Rect left_rect = rect((v2){left_sensor.x - e->sensor_radius, left_sensor.y - e->sensor_radius}, (v2s32){e->sensor_radius * 2, e->sensor_radius * 2});
 
                 push_box(render_command_arena, right_rect.pos, right_rect.dim, YELLOW);
                 push_box(render_command_arena, mid_rect.pos, mid_rect.dim, GREEN);
@@ -1460,33 +1787,18 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
     END_TICK_COUNTER(allocate_commands);
     END_CYCLE_COUNTER(allocate_commands);
 
-#if 0
-    u32 highest_home_count = 0;
-    u32 highest_food_count = 0;
-    for(u32 y=0; y < 16; ++y){
-        for(u32 x=0; x < 16; ++x){
-            u32 current_home_count = pm->pher_home_cells[y][x].at;
-            u32 current_food_count = pm->pher_food_cells[y][x].at;
-            if(highest_home_count < current_home_count){
-                highest_home_count = current_home_count;
-            }
-            if(highest_food_count < current_food_count){
-                highest_food_count = current_food_count;
-            }
-        }
+    for(u32 i=0; i < (thread_context->thread_count + 1); ++i){
+        DrawWork* draw_work = push_array(tm->frame_arena, DrawWork, 1);
+        draw_work->render_buffer = render_buffer;
+        draw_work->arena = render_buffer->render_command_arenas[i];
+
+        thread_context->add_work_entry(thread_context->queue, do_draw_commands, draw_work);
     }
-    print("home_count: %i - food_count: %i\n", highest_home_count, highest_food_count);
-#endif
-    //for(u32 i=0; i < (thread_context->thread_count + 1); ++i){
-    //    DrawWork* draw_work = push_array(tm->frame_arena, DrawWork, 1);
-    //    draw_work->render_buffer = render_buffer;
-    //    draw_work->arena = render_buffer->render_command_arenas[i];
+    thread_context->complete_all_work(thread_context->queue);
 
-    //    thread_context->add_work_entry(thread_context->queue, do_draw_commands, draw_work);
-    //}
-    //thread_context->complete_all_work(thread_context->queue);
-
-    //free_arena(tm->frame_arena);
+    if(thread_context->queue->work_done == thread_context->queue->work_count || thread_context->queue->work_count == 0){
+        free_arena(tm->frame_arena);
+    }
 
     //BEGIN_CYCLE_COUNTER(draw);
     //BEGIN_TICK_COUNTER(draw);

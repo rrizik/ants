@@ -64,9 +64,9 @@ u32_to_rgba(u32 value){
 typedef struct Rect{
     v2 pos;
     v2s32 dim;
-    f32 x; 
+    f32 x;
     f32 y;
-    f32 w; 
+    f32 w;
     f32 h;
     f32 x1;
     f32 y1;
@@ -619,7 +619,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
     }
 }
 
-static void 
+static void
 draw_bitmap(RenderBuffer *render_buffer, v2 position, Bitmap image){
     draw_bitmap_clip(render_buffer, position, image, (v4){0,0,0,0});
 }
@@ -684,14 +684,14 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
     s32 width = max_x - min_x;
     s32 remainder = width % 4;
     s32 increment = remainder ? remainder : 4;
-    
+
     // compute mask
     __m128i mask = _mm_setr_epi32(-(increment > 0), -(increment > 1), -(increment > 2), -(increment > 3));
     __m128i ones_mask = _mm_cmpeq_epi32(mask, mask);
 
     // get row based of clamped min_x/min_y
-    u8 *row = (u8 *)render_buffer->base + 
-              ((render_buffer->height - 1 - min_y) * render_buffer->stride) + 
+    u8 *row = (u8 *)render_buffer->base +
+              ((render_buffer->height - 1 - min_y) * render_buffer->stride) +
               (min_x * render_buffer->bytes_per_pixel);
 
     // iterate over clamped min_x/min_y
@@ -702,8 +702,8 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
         for(s32 x=min_x; x < max_x; ){
             // if x in dead zone, load last 4 pixels and set mask appropriately
             if(x > render_buffer->width - 4){
-                row = (u8 *)render_buffer->base + 
-                      ((render_buffer->height - 1 - min_y) * render_buffer->stride) + 
+                row = (u8 *)render_buffer->base +
+                      ((render_buffer->height - 1 - min_y) * render_buffer->stride) +
                       ((render_buffer->width - 4) * render_buffer->bytes_per_pixel);
                 pixel = (u32*)row;
                 mask = ~mask;
@@ -742,11 +742,11 @@ static void draw_rect_fast(RenderBuffer *render_buffer, v2 position, v2s32 dimen
             // or everything together
             __m128i output_pixel_4x = _mm_or_si128(shifted_int_a_4x,
                                       _mm_or_si128(shifted_int_r_4x,
-                                      _mm_or_si128(shifted_int_g_4x, 
+                                      _mm_or_si128(shifted_int_g_4x,
                                                    shifted_int_b_4x)));
 
             __m128i output_masked = _mm_and_si128(mask, output_pixel_4x);
-                           
+
             _mm_storeu_si128((__m128i * )pixel, output_masked);
 
             pixel += increment;

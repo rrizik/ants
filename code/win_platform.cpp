@@ -128,8 +128,8 @@ typedef struct RenderBuffer{
 
     BITMAPINFO bitmap_info;
 
-    Arena* render_command_arena;
-    //Arena* render_command_arenas[24];
+    //Arena* render_command_arena;
+    Arena* render_command_arenas[24];
     HDC device_context;
 } RenderBuffer;
 
@@ -183,8 +183,8 @@ init_clock(Clock* clock){
 
 static void
 init_memory(Memory* memory){
-    memory->permanent_size = MB(500);
-    memory->transient_size = GB(1);
+    memory->permanent_size = GB(2);
+    memory->transient_size = GB(4);
     memory->size = memory->permanent_size + memory->transient_size;
     memory->base = os_virtual_alloc(memory->size);
     memory->permanent_base = memory->base;
@@ -209,10 +209,10 @@ init_render_buffer(RenderBuffer* render_buffer, s32 width, s32 height){
     render_buffer->size = width * height * bytes_per_pixel;
     render_buffer->base = os_virtual_alloc(render_buffer->size);
 
-    render_buffer->render_command_arena = allocate_arena(MB(16));
-    //for(u32 i=0; i < 24; ++i){
-    //    render_buffer->render_command_arenas[i] = os_allocate_arena(MB(16));
-    //}
+    //render_buffer->render_command_arena = allocate_arena(MB(16));
+    for(u32 i=0; i < 24; ++i){
+        render_buffer->render_command_arenas[i] = os_allocate_arena(MB(16));
+    }
 }
 
 static void
@@ -351,7 +351,7 @@ global ThreadContext thread_context;
 static void
 add_work_entry(WorkQueue* queue, WorkQueueCallback* callback, void* data){
     u32 next_write_location = (queue->write_location + 1) % ArrayCount(queue->entries);
-    Assert(next_write_location != queue->read_location);
+    assert(next_write_location != queue->read_location);
 
     WorkQueueEntry* entry = queue->entries + queue->write_location;
     entry->callback = callback;
@@ -416,8 +416,8 @@ static work_queue_callback(print_string){
 
 s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 window_type){
 
-#if 0
-    u32 thread_count = 0;
+#if 1
+    u32 thread_count = 23;
 
     WorkQueue queue = {};
     queue.semaphore_handle = CreateSemaphoreExW(0, 0, thread_count, 0, 0, SEMAPHORE_ALL_ACCESS);
@@ -463,6 +463,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
     window_class.style = CS_HREDRAW|CS_VREDRAW;
     window_class.lpfnWndProc = win_message_handler_callback;
     window_class.hInstance = instance;
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
     window_class.lpszClassName = L"window class";
 
     init_memory(&memory);
@@ -496,7 +497,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     s64 end_ticks = clock.get_ticks();
                     f64 frame_time = clock.get_seconds_elapsed(start_ticks, end_ticks);
                     MSPF = 1000/1000/((f64)clock.frequency / (f64)(end_ticks - start_ticks));
-					start_ticks = end_ticks;
+                    start_ticks = end_ticks;
 
                     accumulator += frame_time;
                     u32 simulations = 0;
@@ -528,7 +529,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                     print("FPS: %f - MSPF: %f - time_dt: %f\n", FPS, MSPF, clock.dt);
 
                     BEGIN_TICK_COUNTER_L(draw);
-                    draw_commands(&render_buffer, render_buffer.render_command_arena);
+                    //draw_commands(&render_buffer, render_buffer.render_command_arena);
                     END_TICK_COUNTER_L(draw);
                     update_window(window, render_buffer);
 

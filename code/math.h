@@ -157,7 +157,7 @@ reflection2(v2 vec, v2 normal){
     f32 d = dot2(vec, normal);
     result.x = vec.x - normal.x * (d * 2.0f);
     result.y = vec.y - normal.y * (d * 2.0f);
-    
+
     return(result);
 }
 
