@@ -89,7 +89,6 @@ typedef f64 GetSecondsElapsed(s64 start, s64 end);
 typedef f64 GetMsElapsed(s64 start, s64 end);
 
 typedef struct Clock{
-    f64 time_dt;
     f64 dt;
     s64 frequency;
     GetTicks* get_ticks;
@@ -483,7 +482,7 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
 
                 clock.dt =  1.0/60.0;
                 f64 accumulator = 0.0;
-                s64 start_ticks = clock.get_ticks();
+                s64 last_ticks = clock.get_ticks();
                 f64 second_marker = clock.get_ticks();
 
                 render_buffer.device_context = GetDC(window);
@@ -494,10 +493,10 @@ s32 WinMain(HINSTANCE instance, HINSTANCE pinstance, LPSTR command_line, s32 win
                         DispatchMessage(&message);
                     }
 
-                    s64 end_ticks = clock.get_ticks();
-                    f64 frame_time = clock.get_seconds_elapsed(start_ticks, end_ticks);
-                    MSPF = 1000/1000/((f64)clock.frequency / (f64)(end_ticks - start_ticks));
-                    start_ticks = end_ticks;
+                    s64 now_ticks = clock.get_ticks();
+                    f64 frame_time = clock.get_seconds_elapsed(last_ticks, now_ticks);
+                    MSPF = 1000/1000/((f64)clock.frequency / (f64)(now_ticks - last_ticks));
+                    last_ticks = now_ticks;
 
                     accumulator += frame_time;
                     u32 simulations = 0;

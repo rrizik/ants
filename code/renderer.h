@@ -568,6 +568,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
     //v4 cr = {100, 300, 200, 200};
     Rect cr = rect((v2){100, 300}, (v2s32){200, 200});
     if(clip_region == (v4){0,0,0,0}){
+        print("11111\n");
         f32 rounded_x = round_f32(position.x);
         f32 rounded_y = round_f32(position.y);
         for(f32 y=rounded_y; y < rounded_y + image.height; ++y){
@@ -578,6 +579,7 @@ draw_bitmap_clip(RenderBuffer *render_buffer, v2 position, Bitmap image, v4 clip
         }
     }
     else{
+        print("22222\n");
         //v4 result = {position.x, position.y, image.width, image.height};
         Rect result = rect(position, (v2s32){(s32)image.width, (s32)image.height});
 

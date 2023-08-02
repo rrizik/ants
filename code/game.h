@@ -134,6 +134,7 @@ typedef struct PermanentMemory{
     u32 entities_count;
 
     Entity* colony;
+    Entity* image;
 
     bool food_added;
 } PermanentMemory;
@@ -1112,6 +1113,13 @@ update_game(Memory* memory, RenderBuffer* render_buffer, Controller* controller,
         cell_width = pm->cell_width;
         cell_height = pm->cell_height;
         cell_row_count = pm->cell_row_count;
+
+
+        String8 cwd = os_get_cwd(&pm->arena);
+        String8 data_dir = str8_concatenate(&pm->arena, cwd, str8_literal("\\data\\"));
+        String8 file = str8_literal("circle.bmp");
+        Bitmap bmp_image = load_bitmap(&pm->arena, data_dir, file);
+        pm->image = add_bitmap(pm, (v2){100, 100}, bmp_image);
 
         memory->initialized = true;
     }
